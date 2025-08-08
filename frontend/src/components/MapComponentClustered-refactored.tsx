@@ -61,7 +61,7 @@ export default function MapComponentClustered() {
   // Use custom hooks for all functionality
   useDataLoader();
   useWebSocketHandler();
-  useMapInitialization();
+  useMapInitialization({ mapRef, mapInstanceRef });
   useMapClickHandler({ mapInstanceRef, mapRef });
   useDrawingMode({ mapInstanceRef, regionLayerRef });
   useRegionsRendering({ regionLayerRef });
@@ -175,13 +175,13 @@ export default function MapComponentClustered() {
       {/* Map Filters */}
       <div className="absolute top-4 right-4 z-[1000]">
         <MapFilters
-          showAircraft={filters.showAircraft}
-          showVessels={filters.showVessels}
-          searchQuery={filters.searchQuery}
+          filters={filters}
           onToggleAircraft={toggleAircraftVisibility}
           onToggleVessels={toggleVesselVisibility}
           onSearchChange={setSearchQuery}
           onResetFilters={resetFilters}
+          aircraftCount={filteredAircrafts.length}
+          vesselCount={filteredVessels.length}
         />
       </div>
 

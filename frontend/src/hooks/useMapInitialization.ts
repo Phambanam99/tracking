@@ -24,13 +24,19 @@ interface UseMapInitializationProps {
   regionLayerRef: React.RefObject<VectorLayer<VectorSource> | null>;
 }
 
-export function useMapInitialization({
-  mapRef,
-  mapInstanceRef,
-  aircraftLayerRef,
-  vesselLayerRef,
-  regionLayerRef,
-}: UseMapInitializationProps) {
+export function useMapInitialization(
+  props: Partial<UseMapInitializationProps> & {
+    mapRef: React.RefObject<HTMLDivElement | null>;
+    mapInstanceRef: React.RefObject<Map | null>;
+  },
+) {
+  const {
+    mapRef,
+    mapInstanceRef,
+    aircraftLayerRef,
+    vesselLayerRef,
+    regionLayerRef,
+  } = props;
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
@@ -196,9 +202,9 @@ export function useMapInitialization({
       map.render();
 
       mapInstanceRef.current = map;
-      aircraftLayerRef.current = aircraftLayer;
-      vesselLayerRef.current = vesselLayer;
-      regionLayerRef.current = regionLayer;
+      if (aircraftLayerRef) aircraftLayerRef.current = aircraftLayer;
+      if (vesselLayerRef) vesselLayerRef.current = vesselLayer;
+      if (regionLayerRef) regionLayerRef.current = regionLayer;
 
       console.log("Map initialized successfully:", map);
       console.log("Map target set to:", map.getTarget());
