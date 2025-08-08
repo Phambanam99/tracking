@@ -16,7 +16,9 @@ async function bootstrap() {
   );
 
   // Enable CORS using env var FRONTEND_ORIGIN (comma-separated allowed)
-  const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:4000')
+  const allowedOrigins = (
+    process.env.FRONTEND_ORIGIN || 'http://localhost:4000'
+  )
     .split(',')
     .map((s) => s.trim());
   app.enableCors({
@@ -27,6 +29,9 @@ async function bootstrap() {
 
   // Basic security headers
   app.use(helmet());
+
+  // Global API prefix and versioning
+  app.setGlobalPrefix('api');
 
   await app.listen(process.env.PORT ?? 3000);
 }
