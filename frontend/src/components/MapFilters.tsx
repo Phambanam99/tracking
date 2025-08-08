@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Plane, Ship, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Search,
+  Plane,
+  Ship,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 interface MapFiltersProps {
   filters: {
@@ -9,13 +16,6 @@ interface MapFiltersProps {
     showVessels: boolean;
     searchQuery: string;
   };
-  onToggleAircraft: () => void;
-  onToggleVessels: () => void;
-  onSearchChange: (query: string) => void;
-  onResetFilters: () => void;
-  aircraftCount: number;
-  vesselCount: number;
-}
   onToggleAircraft: () => void;
   onToggleVessels: () => void;
   onSearchChange: (query: string) => void;
@@ -76,7 +76,7 @@ export default function MapFilters({
           {/* Layer Controls */}
           <div className="space-y-3">
             <h3 className="font-medium text-gray-700 text-sm">Hiển thị lớp</h3>
-            
+
             {/* Aircraft Toggle */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">

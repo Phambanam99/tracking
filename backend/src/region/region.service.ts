@@ -1,21 +1,57 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { CreateRegionDto, UpdateRegionDto } from './dto/region.dto';
 import { RegionType, ObjectType, AlertType } from '@prisma/client';
 
 @Injectable()
 export class RegionService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redisService: RedisService,
+  ) {}
 
   async createRegion(userId: number, createRegionDto: CreateRegionDto) {
-    const region = await this.prisma.region.create({
-      data: {
-        ...createRegionDto,
-        userId,
-      },
-    });
+    console.log('🚀 RegionService.createRegion called');
+    console.log('📝 UserId:', userId);
+    console.log(
+      '📝 CreateRegionDto:',
+      JSON.stringify(createRegionDto, null, 2),
+    );
 
-    return region;
+    try {
+      // Prepare the data for creation
+      const regionData = { ...createRegionDto, userId };
+
+      // For circle regions, extract center coordinates and radius from boundary
+      if (createRegionDto.regionType === 'CIRCLE' && createRegionDto.boundary) {
+        const boundary = createRegionDto.boundary as {
+          type?: string;
+          center?: number[];
+          radius?: number;
+        };
+        if (boundary.type === 'Circle' && boundary.center && boundary.radius) {
+          regionData.centerLng = boundary.center[0]; // longitude
+          regionData.centerLat = boundary.center[1]; // latitude
+          regionData.radius = boundary.radius;
+          console.log('📍 Extracted circle data:', {
+            centerLng: regionData.centerLng,
+            centerLat: regionData.centerLat,
+            radius: regionData.radius,
+          });
+        }
+      }
+
+      const region = await this.prisma.region.create({
+        data: regionData,
+      });
+
+      console.log('✅ Region created in DB:', JSON.stringify(region, null, 2));
+      return region;
+    } catch (error) {
+      console.error('❌ Error in RegionService.createRegion:', error);
+      throw error;
+    }
   }
 
   async findUserRegions(userId: number) {
@@ -256,7 +292,7 @@ export class RegionService {
 
       // Create alert if needed
       if (shouldCreateAlert && alertType) {
-        await this.prisma.regionAlert.create({
+        const alertData = await this.prisma.regionAlert.create({
           data: {
             regionId: region.id,
             userId: region.userId,
@@ -266,7 +302,20 @@ export class RegionService {
             latitude,
             longitude,
           },
+          include: {
+            region: {
+              select: { name: true },
+            },
+          },
         });
+
+        // Broadcast alert via Redis/WebSocket
+        await this.redisService.publish(
+          'region:alert',
+          JSON.stringify(alertData),
+        );
+
+        console.log('🚨 Region alert created and broadcasted:', alertData);
       }
     }
   }

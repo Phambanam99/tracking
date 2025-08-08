@@ -1,12 +1,12 @@
 "use client";
 
-import "ol/ol.css";
 import { useRef, useMemo, useState } from "react";
 import Map from "ol/Map";
 import VectorLayer from "ol/layer/Vector";
 import VectorSource from "ol/source/Vector";
 import Feature from "ol/Feature";
 import { Cluster } from "ol/source";
+import { Draw } from "ol/interaction";
 import { useAircraftStore } from "../stores/aircraftStore";
 import { useVesselStore } from "../stores/vesselStore";
 import { useMapStore } from "../stores/mapStore";
@@ -31,6 +31,7 @@ export default function MapComponentClustered() {
   const aircraftLayerRef = useRef<VectorLayer<Cluster> | null>(null);
   const vesselLayerRef = useRef<VectorLayer<Cluster> | null>(null);
   const regionLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const drawInteractionRef = useRef<Draw | null>(null);
   const lastDrawnFeatureRef = useRef<Feature | null>(null);
 
   const { aircrafts } = useAircraftStore();
@@ -60,13 +61,7 @@ export default function MapComponentClustered() {
   // Use custom hooks for all functionality
   useDataLoader();
   useWebSocketHandler();
-  useMapInitialization({
-    mapRef,
-    mapInstanceRef,
-    aircraftLayerRef,
-    vesselLayerRef,
-    regionLayerRef,
-  });
+  useMapInitialization();
   useMapClickHandler({ mapInstanceRef, mapRef });
   useDrawingMode({ mapInstanceRef, regionLayerRef });
   useRegionsRendering({ regionLayerRef });
@@ -76,7 +71,7 @@ export default function MapComponentClustered() {
   const filteredAircrafts = useMemo(() => {
     if (!filters.showAircraft) return [];
 
-    const result = aircrafts.filter((aircraft) => {
+    return aircrafts.filter((aircraft) => {
       if (!filters.searchQuery) return true;
 
       const searchLower = filters.searchQuery.toLowerCase();
@@ -87,20 +82,12 @@ export default function MapComponentClustered() {
         aircraft.operator?.toLowerCase().includes(searchLower)
       );
     });
-
-    console.log(
-      "Filtered aircrafts:",
-      result.length,
-      "from total:",
-      aircrafts.length
-    );
-    return result;
   }, [aircrafts, filters.showAircraft, filters.searchQuery]);
 
   const filteredVessels = useMemo(() => {
     if (!filters.showVessels) return [];
 
-    const result = vessels.filter((vessel) => {
+    return vessels.filter((vessel) => {
       if (!filters.searchQuery) return true;
 
       const searchLower = filters.searchQuery.toLowerCase();
@@ -111,14 +98,6 @@ export default function MapComponentClustered() {
         vessel.flag?.toLowerCase().includes(searchLower)
       );
     });
-
-    console.log(
-      "Filtered vessels:",
-      result.length,
-      "from total:",
-      vessels.length
-    );
-    return result;
   }, [vessels, filters.showVessels, filters.searchQuery]);
 
   // Handle creating region with name
@@ -161,25 +140,14 @@ export default function MapComponentClustered() {
   };
 
   return (
-    <div className="relative w-full h-full" style={{ minHeight: "400px" }}>
+    <div className="relative w-full h-full">
       {/* Map container */}
-      {/* Map container */}
-      <div
-        ref={mapRef}
-        className="w-full h-full z-[10]"
-        style={{
-          minHeight: "400px",
-          width: "100%",
-          height: "100%",
-          position: "relative",
-          pointerEvents: "auto", // Ensure map can receive clicks
-        }}
-      />
+      <div ref={mapRef} className="w-full h-full" />
 
       {/* Toggle for Map Controls */}
       <button
         onClick={() => setShowMapControls(!showMapControls)}
-        className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-2 hover:bg-gray-50 transition-colors z-[2]"
+        className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-2 hover:bg-gray-50 transition-colors z-[1000]"
         title={showMapControls ? "Ẩn điều khiển" : "Hiện điều khiển"}
       >
         <svg
@@ -199,17 +167,17 @@ export default function MapComponentClustered() {
 
       {/* Map Controls - Conditionally rendered */}
       {showMapControls && (
-        <div className="absolute top-16 right-4 z-[1000]">
+        <div className="absolute top-16 left-4 z-[1000]">
           <MapControls />
         </div>
       )}
 
       {/* Map Filters */}
-      <div className="absolute top-4 left-4 z-[1000]">
+      <div className="absolute top-4 right-4 z-[1000]">
         <MapFilters
-          filters={filters}
-          aircraftCount={filteredAircrafts.length}
-          vesselCount={filteredVessels.length}
+          showAircraft={filters.showAircraft}
+          showVessels={filters.showVessels}
+          searchQuery={filters.searchQuery}
           onToggleAircraft={toggleAircraftVisibility}
           onToggleVessels={toggleVesselVisibility}
           onSearchChange={setSearchQuery}

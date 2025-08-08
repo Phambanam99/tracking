@@ -74,7 +74,7 @@ const RegionManager: React.FC = () => {
         </div>
       )}
 
-      {regions.length === 0 ? (
+      {regions?.length === 0 ? (
         <div className="text-center py-8">
           <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 mb-2">Chưa có vùng theo dõi nào</p>
@@ -87,7 +87,7 @@ const RegionManager: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {regions.map((region) => (
+          {regions?.map((region) => (
             <div
               key={region.id}
               className={`border rounded-lg p-4 hover:shadow-md transition-shadow ${

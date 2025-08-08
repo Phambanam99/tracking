@@ -28,24 +28,52 @@ export class TrackingService {
     alias?: string,
     notes?: string,
   ) {
-    return this.prisma.userTrackedAircraft.create({
-      data: {
+    // First check if aircraft exists
+    const aircraft = await this.prisma.aircraft.findUnique({
+      where: { id: aircraftId },
+    });
+
+    if (!aircraft) {
+      throw new Error(`Aircraft with ID ${aircraftId} not found`);
+    }
+
+    // Check if already tracking
+    const existingTracking = await this.prisma.userTrackedAircraft.findFirst({
+      where: {
         userId,
         aircraftId,
-        alias,
-        notes,
       },
-      include: {
-        aircraft: {
-          include: {
-            positions: {
-              orderBy: { timestamp: 'desc' },
-              take: 1,
+    });
+
+    if (existingTracking) {
+      throw new Error(`Aircraft ${aircraftId} is already being tracked`);
+    }
+
+    try {
+      return await this.prisma.userTrackedAircraft.create({
+        data: {
+          userId,
+          aircraftId,
+          alias,
+          notes,
+        },
+        include: {
+          aircraft: {
+            include: {
+              positions: {
+                orderBy: { timestamp: 'desc' },
+                take: 1,
+              },
             },
           },
         },
-      },
-    });
+      });
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        throw new Error(`Aircraft ${aircraftId} is already being tracked`);
+      }
+      throw error;
+    }
   }
 
   async untrackAircraft(userId: number, aircraftId: number) {

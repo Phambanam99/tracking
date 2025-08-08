@@ -136,15 +136,15 @@ export const useAuthStore = create<AuthState>()(
       },
 
       initializeAuth: async () => {
-        console.log("🚀 initializeAuth called");
+        // console.log("🚀 initializeAuth called");
         set({ isLoading: true });
         const state = useAuthStore.getState();
 
         if (state.token) {
-          console.log("🔑 Token found in state, validating...");
+          // console.log("🔑 Token found in state, validating...");
           await state.validateToken();
         } else {
-          console.log("🚫 No token found in state");
+          // console.log("🚫 No token found in state");
           // Ensure we set loading to false even when no token
           set({
             isLoading: false,
@@ -153,7 +153,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         set({ isLoading: false });
-        console.log("✅ initializeAuth completed");
+        // console.log("✅ initializeAuth completed");
       },
     }),
     {

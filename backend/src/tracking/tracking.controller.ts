@@ -28,13 +28,21 @@ export class TrackingController {
     @Body() body: TrackItemDto,
     @Request() req: any,
   ) {
-    const userId = req.user.id;
-    return this.trackingService.trackAircraft(
-      userId,
-      parseInt(aircraftId),
-      body.alias,
-      body.notes,
-    );
+    try {
+      const userId = req.user.id;
+      return await this.trackingService.trackAircraft(
+        userId,
+        parseInt(aircraftId),
+        body.alias,
+        body.notes,
+      );
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        // Unique constraint violation - already tracking
+        throw new Error('Aircraft is already being tracked');
+      }
+      throw error;
+    }
   }
 
   @Delete('aircraft/:id')

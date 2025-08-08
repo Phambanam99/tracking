@@ -86,8 +86,7 @@ const MapPopup: React.FC<MapPopupProps> = ({
 
     const popup = popupRef.current;
     const mapContainer =
-      popup.closest(".relative.w-full.overflow-hidden") ||
-      popup.closest("main");
+      popup.closest(".relative.w-full.h-full") || popup.closest("main");
     if (!mapContainer) return [0, 0];
 
     const mapRect = mapContainer.getBoundingClientRect();
@@ -110,8 +109,7 @@ const MapPopup: React.FC<MapPopupProps> = ({
 
     const popup = popupRef.current;
     const mapContainer =
-      popup.closest(".relative.w-full.overflow-hidden") ||
-      popup.closest("main");
+      popup.closest(".relative.w-full.h-full") || popup.closest("main");
     if (!mapContainer) return [x, y];
 
     const mapRect = mapContainer.getBoundingClientRect();
@@ -219,11 +217,23 @@ const MapPopup: React.FC<MapPopupProps> = ({
     }
   };
 
-  const formatDateTime = (date: Date) => {
-    return new Intl.DateTimeFormat("vi-VN", {
-      dateStyle: "short",
-      timeStyle: "medium",
-    }).format(date);
+  const formatDateTime = (date: Date | string) => {
+    try {
+      const dateObj = typeof date === "string" ? new Date(date) : date;
+
+      // Check if date is valid
+      if (isNaN(dateObj.getTime())) {
+        return "Invalid date";
+      }
+
+      return new Intl.DateTimeFormat("vi-VN", {
+        dateStyle: "short",
+        timeStyle: "medium",
+      }).format(dateObj);
+    } catch (error) {
+      console.error("Error formatting date:", error, date);
+      return "Invalid date";
+    }
   };
 
   const formatCoordinate = (coord: number, isLongitude = false) => {
@@ -240,7 +250,7 @@ const MapPopup: React.FC<MapPopupProps> = ({
   return (
     <div
       ref={popupRef}
-      className={`absolute z-30 bg-white rounded-lg shadow-xl border border-gray-200 min-w-80 max-w-96 ${
+      className={`absolute z-[2000] bg-white rounded-lg shadow-xl border border-gray-200 min-w-80 max-w-96 ${
         isDragging ? "cursor-grabbing select-none" : "cursor-default"
       }`}
       style={{

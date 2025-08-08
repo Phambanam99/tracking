@@ -3,21 +3,32 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
-import { useState } from "react";
+import { useRegionStore } from "@/stores/regionStore";
+import { useState, useEffect } from "react";
+import NotificationDropdown from "./NotificationDropdown";
 
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuthStore();
+  const { unreadAlertCount, fetchAlerts } = useRegionStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
+  // Fetch alerts when component mounts and user is authenticated
+  useEffect(() => {
+    if (user) {
+      fetchAlerts(true); // Fetch unread alerts
+    }
+  }, [user, fetchAlerts]);
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: "📊" },
-    { name: "Bản đồ theo dõi", href: "/", icon: "🗺️" },
-    { name: "Quản lý máy bay", href: "/aircraft", icon: "✈️" },
-    { name: "Quản lý tàu thuyền", href: "/vessels", icon: "🚢" },
-    { name: "Danh sách theo dõi", href: "/tracking", icon: "⭐" },
-    { name: "Theo dõi báo chí", href: "/news", icon: "📰" },
+    { name: "Bản đồ ", href: "/", icon: "🗺️" },
+    { name: "Máy bay", href: "/aircraft", icon: "✈️" },
+    { name: "Tàu thuyền", href: "/vessels", icon: "🚢" },
+    { name: "Theo dõi", href: "/tracking", icon: "⭐" },
+    { name: "Báo chí", href: "/news", icon: "📰" },
   ];
 
   const handleLogout = () => {
@@ -53,7 +64,41 @@ export default function Header() {
             </div>
           </div>
 
-          <div className="hidden sm:ml-6 sm:flex sm:items-center">
+          <div className="hidden sm:ml-6 sm:flex sm:items-center space-x-4">
+            {/* Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                className="relative p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 rounded-full"
+              >
+                <span className="sr-only">View notifications</span>
+                <svg
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 17h5l-3-3V11a9 9 0 10-18 0v3l-3 3h5m9 0v1a3 3 0 11-6 0v-1m6 0H9"
+                  />
+                </svg>
+                {unreadAlertCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full">
+                    {unreadAlertCount > 99 ? "99+" : unreadAlertCount}
+                  </span>
+                )}
+              </button>
+
+              <NotificationDropdown
+                isOpen={isNotificationOpen}
+                onClose={() => setIsNotificationOpen(false)}
+              />
+            </div>
+
+            {/* User Menu */}
             <div className="relative">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}

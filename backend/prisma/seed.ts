@@ -4,7 +4,7 @@ import * as bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding database...');
+  
 
   // Create demo admin user
   const hashedPassword = await bcrypt.hash('password', 10);
@@ -19,9 +19,6 @@ async function main() {
       role: 'ADMIN',
     },
   });
-
-  console.log('Created admin user:', adminUser);
-
   // Create demo operator user
   const operatorUser = await prisma.user.upsert({
     where: { username: 'operator' },
@@ -33,8 +30,6 @@ async function main() {
       role: 'OPERATOR',
     },
   });
-
-  console.log('Created operator user:', operatorUser);
 
   // Create demo viewer user
   const viewerUser = await prisma.user.upsert({
@@ -48,8 +43,6 @@ async function main() {
     },
   });
 
-  console.log('Created viewer user:', viewerUser);
-
   // Create sample aircraft
   const aircraft1 = await prisma.aircraft.upsert({
     where: { flightId: 'VN123' },
@@ -62,8 +55,6 @@ async function main() {
       operator: 'Vietnam Airlines',
     },
   });
-
-  console.log('Created aircraft:', aircraft1);
 
   // Add position for aircraft
   await prisma.aircraftPosition.create({
@@ -93,8 +84,6 @@ async function main() {
     },
   });
 
-  console.log('Created vessel:', vessel1);
-
   // Add position for vessel
   await prisma.vesselPosition.create({
     data: {
@@ -108,8 +97,6 @@ async function main() {
       timestamp: new Date(),
     },
   });
-
-  console.log('Database seeded successfully!');
 }
 
 main()

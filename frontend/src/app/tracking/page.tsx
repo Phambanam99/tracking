@@ -242,7 +242,7 @@ export default function TrackingPage() {
         {/* Region Management and Alerts Sidebar */}
         <div className="fixed right-4 top-20 w-96 space-y-4 z-10">
           <RegionAlerts />
-          <RegionManager />
+          {/* <RegionManager /> */}
         </div>
       </div>
     </ProtectedRoute>

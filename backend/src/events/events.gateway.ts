@@ -13,7 +13,7 @@ import { RedisService } from '../redis/redis.service';
 
 @WebSocketGateway({
   cors: {
-    origin: ['http://localhost:3001', 'http://localhost:3000'], // Frontend URLs
+    origin: ['http://localhost:4000', 'http://localhost:4001'], // Frontend URLs
     credentials: true,
   },
   namespace: '/tracking',

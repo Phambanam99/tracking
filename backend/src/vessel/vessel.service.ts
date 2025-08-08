@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TrackingService } from '../tracking/tracking.service';
 import {
   CreateVesselDto,
   UpdateVesselDto,
@@ -8,13 +9,15 @@ import {
 
 @Injectable()
 export class VesselService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private trackingService: TrackingService,
+  ) {}
 
   /**
    * Find all vessels with their last known position
    */
   async findAllWithLastPosition() {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const vessels = await this.prisma.vessel.findMany({
       include: {
         positions: {
@@ -161,7 +164,7 @@ export class VesselService {
       timestamp?: Date;
     },
   ) {
-    return this.prisma.vesselPosition.create({
+    const positionRecord = await this.prisma.vesselPosition.create({
       data: {
         vesselId,
         latitude: position.latitude,
@@ -173,5 +176,14 @@ export class VesselService {
         timestamp: position.timestamp || new Date(),
       },
     });
+
+    // Trigger region alert processing
+    await this.trackingService.processVesselPositionUpdate(
+      vesselId,
+      position.latitude,
+      position.longitude,
+    );
+
+    return positionRecord;
   }
 }

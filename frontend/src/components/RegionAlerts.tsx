@@ -6,6 +6,8 @@ const RegionAlerts: React.FC = () => {
   const {
     alerts,
     unreadAlertCount,
+    isLoading,
+    error,
     fetchAlerts,
     markAlertAsRead,
     markAllAlertsAsRead,
@@ -61,7 +63,42 @@ const RegionAlerts: React.FC = () => {
     await markAlertAsRead(alertId);
   };
 
-  if (alerts.length === 0) {
+  if (isLoading) {
+    return (
+      <div className="p-4 bg-white rounded-lg shadow">
+        <div className="flex items-center gap-2 mb-4">
+          <Bell className="h-5 w-5 text-gray-400" />
+          <h2 className="text-lg font-semibold text-gray-700">Cảnh báo vùng</h2>
+        </div>
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-3"></div>
+          <p className="text-gray-500">Đang tải cảnh báo...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 bg-white rounded-lg shadow">
+        <div className="flex items-center gap-2 mb-4">
+          <Bell className="h-5 w-5 text-gray-400" />
+          <h2 className="text-lg font-semibold text-gray-700">Cảnh báo vùng</h2>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-600 text-sm">{error}</p>
+          <button
+            onClick={() => fetchAlerts()}
+            className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+          >
+            Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (alerts?.length === 0) {
     return (
       <div className="p-4 bg-white rounded-lg shadow">
         <div className="flex items-center gap-2 mb-4">
@@ -99,7 +136,7 @@ const RegionAlerts: React.FC = () => {
       </div>
 
       <div className="space-y-2 max-h-96 overflow-y-auto">
-        {alerts.map((alert) => (
+        {alerts?.map((alert) => (
           <div
             key={alert.id}
             className={`p-3 rounded-lg border transition-colors ${
@@ -146,7 +183,7 @@ const RegionAlerts: React.FC = () => {
         ))}
       </div>
 
-      {alerts.length > 10 && (
+      {alerts && alerts.length > 10 && (
         <div className="mt-3 text-center">
           <button className="text-sm text-blue-600 hover:text-blue-800">
             Xem tất cả cảnh báo

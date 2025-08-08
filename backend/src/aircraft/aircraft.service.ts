@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TrackingService } from '../tracking/tracking.service';
 import {
   CreateAircraftDto,
   UpdateAircraftDto,
@@ -8,7 +9,10 @@ import {
 
 @Injectable()
 export class AircraftService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private trackingService: TrackingService,
+  ) {}
 
   /**
    * Find all aircraft with their last known position
@@ -149,7 +153,7 @@ export class AircraftService {
       timestamp?: Date;
     },
   ) {
-    return this.prisma.aircraftPosition.create({
+    const positionRecord = await this.prisma.aircraftPosition.create({
       data: {
         aircraftId,
         latitude: position.latitude,
@@ -160,5 +164,14 @@ export class AircraftService {
         timestamp: position.timestamp || new Date(),
       },
     });
+
+    // Trigger region alert processing
+    await this.trackingService.processAircraftPositionUpdate(
+      aircraftId,
+      position.latitude,
+      position.longitude,
+    );
+
+    return positionRecord;
   }
 }

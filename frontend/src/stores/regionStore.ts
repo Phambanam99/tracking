@@ -9,7 +9,7 @@ export interface Region {
   isActive: boolean;
   alertOnEntry: boolean;
   alertOnExit: boolean;
-  boundary: any; // GeoJSON polygon
+  boundary: object; // GeoJSON polygon
   regionType: "POLYGON" | "CIRCLE";
   centerLat?: number;
   centerLng?: number;
@@ -55,6 +55,9 @@ interface RegionState {
   markAlertAsRead: (alertId: number) => Promise<void>;
   markAllAlertsAsRead: () => Promise<void>;
   addNewAlert: (alert: RegionAlert) => void;
+
+  // Cleanup function
+  cleanupRegions: () => void;
 }
 
 export const useRegionStore = create<RegionState>()(
@@ -72,8 +75,9 @@ export const useRegionStore = create<RegionState>()(
         set({ isLoading: true, error: null });
         try {
           const response = await api.get("/regions");
-          set({ regions: response.data, isLoading: false });
+          set({ regions: response, isLoading: false });
         } catch (error: any) {
+          console.error("Error fetching regions:", error);
           set({
             error:
               error.response?.data?.message || "Lỗi khi tải danh sách vùng",
@@ -86,12 +90,19 @@ export const useRegionStore = create<RegionState>()(
         set({ isLoading: true, error: null });
         try {
           const response = await api.post("/regions", regionData);
-          const newRegion = response.data;
-          set((state) => ({
-            regions: [...state.regions, newRegion],
-            isLoading: false,
-          }));
+          const newRegion = response;
+          console.log("Created region response:", newRegion);
+
+          if (newRegion && newRegion.id) {
+            set((state) => ({
+              regions: [...(state.regions || []).filter(Boolean), newRegion],
+              isLoading: false,
+            }));
+          } else {
+            throw new Error("Invalid region data received from server");
+          }
         } catch (error: any) {
+          console.error("Error creating region:", error);
           set({
             error: error.response?.data?.message || "Lỗi khi tạo vùng mới",
             isLoading: false,
@@ -104,9 +115,9 @@ export const useRegionStore = create<RegionState>()(
         set({ isLoading: true, error: null });
         try {
           const response = await api.put(`/regions/${id}`, regionData);
-          const updatedRegion = response.data;
+          const updatedRegion = response;
           set((state) => ({
-            regions: state.regions.map((r) =>
+            regions: (state.regions || []).map((r) =>
               r.id === id ? updatedRegion : r
             ),
             selectedRegion:
@@ -129,12 +140,13 @@ export const useRegionStore = create<RegionState>()(
         try {
           await api.delete(`/regions/${id}`);
           set((state) => ({
-            regions: state.regions.filter((r) => r.id !== id),
+            regions: (state.regions || []).filter((r) => r && r.id !== id),
             selectedRegion:
               state.selectedRegion?.id === id ? null : state.selectedRegion,
             isLoading: false,
           }));
         } catch (error: any) {
+          console.error("Error deleting region:", error);
           set({
             error: error.response?.data?.message || "Lỗi khi xóa vùng",
             isLoading: false,
@@ -156,7 +168,8 @@ export const useRegionStore = create<RegionState>()(
           const response = await api.get(
             `/regions/alerts/list?unread=${unreadOnly}`
           );
-          const alerts = response.data;
+          console.log("Alert ", response)
+          const alerts = response;
           const unreadCount = alerts.filter(
             (alert: RegionAlert) => !alert.isRead
           ).length;
@@ -208,6 +221,12 @@ export const useRegionStore = create<RegionState>()(
         set((state) => ({
           alerts: [alert, ...state.alerts],
           unreadAlertCount: state.unreadAlertCount + 1,
+        }));
+      },
+
+      cleanupRegions: () => {
+        set((state) => ({
+          regions: (state.regions || []).filter(Boolean),
         }));
       },
     }),

@@ -21,11 +21,13 @@ export class RegionController {
   constructor(private readonly regionService: RegionService) {}
 
   @Post()
-  async createRegion(
-    @Request() req: any,
-    @Body() createRegionDto: CreateRegionDto,
-  ) {
-    return this.regionService.createRegion(req.user.id, createRegionDto);
+  async createRegion(@Request() req, @Body() createRegionDto: CreateRegionDto) {
+    const result = this.regionService.createRegion(
+      req.user.id,
+      createRegionDto,
+    );
+    console.log(result);
+    return result;
   }
 
   @Get()
