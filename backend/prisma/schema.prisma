@@ -1,0 +1,263 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User management for authentication and authorization
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  username  String   @unique
+  password  String // Hashed password
+  firstName String?
+  lastName  String?
+  role      UserRole @default(USER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // User sessions/tokens
+  sessions UserSession[]
+
+  // Personal tracking relationships
+  trackedAircrafts UserTrackedAircraft[]
+  trackedVessels   UserTrackedVessel[]
+
+  // Region and alert relationships
+  regions      Region[]
+  regionAlerts RegionAlert[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  OPERATOR
+  USER
+  VIEWER
+}
+
+model UserSession {
+  id           String   @id @default(cuid())
+  userId       Int
+  accessToken  String   @unique
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+// Aircraft model for tracking aircraft data
+model Aircraft {
+  id           Int      @id @default(autoincrement())
+  flightId     String   @unique // Unique identifier for the aircraft/flight
+  callSign     String? // Aircraft call sign
+  registration String? // Aircraft registration number
+  aircraftType String? // Type of aircraft
+  operator     String? // Operating airline/company
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationship with positions
+  positions AircraftPosition[]
+
+  // Personal tracking relationships
+  trackedByUsers UserTrackedAircraft[]
+
+  @@map("aircrafts")
+}
+
+// Aircraft position tracking model
+model AircraftPosition {
+  id         Int      @id @default(autoincrement())
+  aircraftId Int // Foreign key to Aircraft
+  latitude   Float // GPS latitude
+  longitude  Float // GPS longitude
+  altitude   Int? // Altitude in feet
+  speed      Int? // Speed in knots
+  heading    Int? // Heading in degrees (0-360)
+  timestamp  DateTime @default(now()) // When this position was recorded
+
+  // Relationship with aircraft
+  aircraft Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+
+  @@index([aircraftId])
+  @@index([timestamp])
+  @@map("aircraft_positions")
+}
+
+// Vessel model for tracking ship/boat data
+model Vessel {
+  id         Int      @id @default(autoincrement())
+  mmsi       String   @unique // Maritime Mobile Service Identity
+  vesselName String? // Name of the vessel
+  vesselType String? // Type of vessel (cargo, passenger, etc.)
+  flag       String? // Flag state/country
+  operator   String? // Operating company
+  length     Int? // Length in meters
+  width      Int? // Width in meters
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relationship with positions
+  positions VesselPosition[]
+
+  // Personal tracking relationships
+  trackedByUsers UserTrackedVessel[]
+
+  @@map("vessels")
+}
+
+// User tracking models for personal watchlists
+model UserTrackedAircraft {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  aircraftId Int
+  alias      String? // User-defined alias for this aircraft
+  notes      String? // User notes about this aircraft
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aircraft Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, aircraftId])
+  @@map("user_tracked_aircrafts")
+}
+
+model UserTrackedVessel {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  vesselId  Int
+  alias     String? // User-defined alias for this vessel
+  notes     String? // User notes about this vessel
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vessel Vessel @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, vesselId])
+  @@map("user_tracked_vessels")
+}
+
+// Vessel position tracking model
+model VesselPosition {
+  id        Int      @id @default(autoincrement())
+  vesselId  Int // Foreign key to Vessel
+  latitude  Float // GPS latitude
+  longitude Float // GPS longitude
+  speed     Float? // Speed in knots
+  course    Int? // Course over ground in degrees (0-360)
+  heading   Int? // True heading in degrees (0-360)
+  status    String? // Navigation status (anchored, underway, etc.)
+  timestamp DateTime @default(now()) // When this position was recorded
+
+  // Relationship with vessel
+  vessel Vessel @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+
+  @@index([vesselId])
+  @@index([timestamp])
+  @@map("vessel_positions")
+}
+
+// Region/Area of Interest models for geographic zones
+model Region {
+  id           Int      @id @default(autoincrement())
+  name         String // User-friendly name for the region
+  description  String? // Optional description
+  userId       Int // Owner of this region
+  isActive     Boolean  @default(true) // Whether region monitoring is enabled
+  alertOnEntry Boolean  @default(true) // Alert when objects enter
+  alertOnExit  Boolean  @default(true) // Alert when objects exit
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Geographic boundary (GeoJSON polygon)
+  boundary Json // Stores GeoJSON polygon coordinates
+
+  // Region type (circular, polygon, etc.)
+  regionType RegionType @default(POLYGON)
+
+  // For circular regions only
+  centerLat Float? // Center latitude for circular regions
+  centerLng Float? // Center longitude for circular regions
+  radius    Float? // Radius in meters for circular regions
+
+  // Relationships
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alerts        RegionAlert[]
+  objectHistory RegionObjectHistory[]
+
+  @@index([userId])
+  @@map("regions")
+}
+
+enum RegionType {
+  POLYGON
+  CIRCLE
+}
+
+// Alert model for region entry/exit notifications
+model RegionAlert {
+  id         Int        @id @default(autoincrement())
+  regionId   Int
+  userId     Int
+  objectType ObjectType // Aircraft or Vessel
+  objectId   Int // ID of the aircraft or vessel
+  alertType  AlertType // Entry or Exit
+  latitude   Float // Position where alert triggered
+  longitude  Float // Position where alert triggered
+  isRead     Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+
+  // Relationships
+  region Region @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([regionId])
+  @@index([createdAt])
+  @@map("region_alerts")
+}
+
+enum ObjectType {
+  AIRCRAFT
+  VESSEL
+}
+
+enum AlertType {
+  ENTRY
+  EXIT
+}
+
+// Position history for tracking object movements in/out of regions
+model RegionObjectHistory {
+  id         Int        @id @default(autoincrement())
+  regionId   Int
+  objectType ObjectType
+  objectId   Int
+  isInside   Boolean // Whether object is currently inside region
+  enteredAt  DateTime? // When object entered region
+  exitedAt   DateTime? // When object exited region
+  updatedAt  DateTime   @updatedAt
+
+  // Relationships
+  region Region @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@unique([regionId, objectType, objectId])
+  @@index([regionId])
+  @@map("region_object_history")
+}
