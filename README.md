@@ -1,129 +1,180 @@
-# Tracking System - Hệ thống theo dõi tàu thuyền và máy bay
+# Tracking System — Hệ thống theo dõi tàu thuyền và máy bay
 
-## Mô tả dự án
-Hệ thống theo dõi real-time cho tàu thuyền và máy bay với các tính năng:
-- Theo dõi vị trí thời gian thực
-- Quản lý vùng quan tâm (Region of Interest)
-- Cảnh báo khi vật thể đi vào/ra khỏi vùng
-- Giao diện web hiện đại với bản đồ tương tác
+Ứng dụng theo dõi thời gian thực (real-time) cho tàu thuyền và máy bay với bản đồ tương tác, cảnh báo vùng, và quản lý theo dõi cá nhân.
 
-## Cấu trúc dự án
-```
-├── backend/          # NestJS API server
-├── frontend/         # Next.js web application  
-└── README.md         # Tài liệu dự án
+## Cấu trúc thư mục
+
+```text
+tracking/
+├── backend/    # NestJS API + WebSocket, Prisma, Redis
+├── frontend/   # Next.js 15 (React 19), Zustand, OpenLayers
+└── Docker-compose.yml
 ```
 
-## Công nghệ sử dụng
+## Công nghệ
 
-### Backend
-- **NestJS** - Node.js framework
-- **Prisma** - Database ORM
-- **PostgreSQL** - Database
-- **Redis** - Caching và pub/sub
-- **WebSocket** - Real-time communication
-- **JWT** - Authentication
+- Backend: NestJS 11, Prisma 6, PostgreSQL (PostGIS), Redis 7, Socket.IO, JWT, Swagger
+- Frontend: Next.js 15, React 19, TypeScript, Tailwind CSS 4, Zustand, OpenLayers (ol)
 
-### Frontend  
-- **Next.js 15** - React framework
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Styling
-- **Zustand** - State management
-- **Leaflet** - Interactive maps
-- **Socket.io** - WebSocket client
+## Nhanh chóng chạy thử
 
-## Tính năng chính
+Các cổng mặc định:
 
-### ✅ Đã hoàn thành
-- Hệ thống authentication với JWT
-- Theo dõi vị trí tàu thuyền và máy bay
-- API quản lý vùng quan tâm (ROI)
-- Cảnh báo real-time khi vật thể vào/ra vùng
-- Giao diện web responsive
-- WebSocket cho cập nhật real-time
+- Backend: `http://localhost:3000` (API prefix: `/api`)
+- Frontend: `http://localhost:4000`
+- Swagger: `http://localhost:3000/api/docs`
 
-### 🔧 Đang phát triển
-- Công cụ vẽ vùng trên bản đồ
-- Hiển thị vùng trên bản đồ
-- Tối ưu hóa hiệu suất
+API sử dụng header phiên bản: `X-API-Version` (mặc định `1.0.0`). Swagger đã tự động chèn header này cho các request từ UI.
 
-## Cài đặt và chạy
+### 1) Khởi chạy cơ sở dữ liệu và Redis bằng Docker
 
-### Prerequisites
-- Node.js 18+
-- PostgreSQL
-- Redis
-- npm hoặc yarn
+```bash
+docker compose up -d
+```
 
-### Backend
+Docker cung cấp:
+
+- PostgreSQL (PostGIS) user: `admin`, password: `Phamnam99`, db: `tracking`
+- Redis: cổng 6379
+
+### 2) Backend (NestJS)
+
 ```bash
 cd backend
 npm install
-npm run prisma:migrate
+
+# Thiết lập Prisma và DB
+npx prisma generate
+npx prisma migrate dev
+
+# (Tùy chọn) Seed dữ liệu mẫu nếu có script trong `prisma/seed.ts`
+npm run seed
+
+# Chạy dev
 npm run start:dev
 ```
 
-### Frontend
+Tạo file `backend/.env` (ví dụ):
+
+```env
+PORT=3000
+DATABASE_URL=postgresql://admin:Phamnam99@localhost:5432/tracking?schema=public
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=change-me
+JWT_EXPIRES_IN=24h
+FRONTEND_ORIGIN=http://localhost:4000
+```
+
+### 3) Frontend (Next.js)
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-## API Endpoints
+Tạo file `frontend/.env.local` (ví dụ):
 
-### Authentication
-- `POST /auth/login` - Đăng nhập
-- `POST /auth/register` - Đăng ký
-- `POST /auth/refresh` - Refresh token
-
-### Regions
-- `GET /regions` - Lấy danh sách vùng
-- `POST /regions` - Tạo vùng mới
-- `PUT /regions/:id` - Cập nhật vùng
-- `DELETE /regions/:id` - Xóa vùng
-- `GET /regions/alerts/list` - Lấy danh sách cảnh báo
-
-### Tracking
-- `GET /tracking` - Lấy danh sách theo dõi
-- `POST /tracking/aircraft/:id` - Theo dõi máy bay
-- `POST /tracking/vessel/:id` - Theo dõi tàu thuyền
-
-## Cấu hình môi trường
-
-### Backend (.env)
-```
-DATABASE_URL="postgresql://user:password@localhost:5432/tracking_db"
-JWT_SECRET="your-jwt-secret-key"
-JWT_EXPIRES_IN="24h"
-REDIS_URL="redis://localhost:6379"
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3000/api
+NEXT_PUBLIC_API_VERSION=1.0.0
 ```
 
-### Frontend (.env.local)
+## API & Tích hợp
+
+- Tất cả API đặt dưới prefix: `/api`
+- Yêu cầu header `X-API-Version: 1.0.0` (frontend mặc định đã gửi; Swagger tự chèn)
+- Tài liệu: truy cập `http://localhost:3000/api/docs`
+
+Một số endpoint hữu ích (tham khảo):
+
+- Auth: `POST /api/auth/register`, `POST /api/auth/login`
+- Aircraft: `GET /api/aircrafts/initial`, `GET /api/aircrafts/:id/history`
+- Vessels: `GET /api/vessels/initial`, `GET /api/vessels/:id/history`
+- Regions & Alerts: `GET /api/regions`, `POST /api/regions`, `GET /api/regions/alerts/list`
+
+Xem file hướng dẫn thử nhanh các endpoint trong `backend/test-auth-endpoints.md`.
+
+## WebSocket (Socket.IO)
+
+- Namespace: `/tracking`
+- CORS mặc định cho: `http://localhost:4000`, `http://localhost:4001`
+
+Sự kiện tiêu biểu (server phát ra):
+
+- `connectionCount`, `aircraftPositionUpdate`, `vesselPositionUpdate`, `regionAlert`, `newAircraft`, `newVessel`
+
+Thông điệp client gửi (subscribe):
+
+- `subscribeToAircraft` `{ aircraftId?: number }`
+- `subscribeToVessels` `{ vesselId?: number }`
+- `subscribeViewport` / `updateViewport` `{ bbox: [minLon, minLat, maxLon, maxLat] }`
+- `ping` → nhận `pong`
+
+Ví dụ kết nối từ frontend (giả định API ở `http://localhost:3000`):
+
+```ts
+import { io } from "socket.io-client";
+const socket = io("http://localhost:3000/tracking", { withCredentials: true });
+socket.on("connectionCount", (n) => console.log("clients:", n));
+socket.emit("subscribeViewport", { bbox: [105.5, 20.5, 106.5, 21.5] });
 ```
-NEXT_PUBLIC_API_URL="http://localhost:3000"
+
+## Cấu trúc mã nguồn
+
+```text
+backend/
+  src/
+    auth/            # JWT login/register, guards, strategies
+    aircraft/        # API máy bay + lịch sử vị trí
+    vessel/          # API tàu thuyền + lịch sử vị trí
+    region/          # API vùng theo dõi + cảnh báo
+    tracking/        # Tổng hợp theo dõi
+    events/          # Socket.IO gateway (namespace /tracking)
+    prisma/          # Prisma module/service
+    redis/           # Redis module/service
+    common/          # filters, interceptors, version
+    main.ts          # Swagger, CORS, API prefix, version header
+  prisma/
+    schema.prisma    # Models: User, Aircraft, Vessel, Region, Alerts, ...
+    migrations/      # Lịch sử migration
+
+frontend/
+  src/
+    app/             # Next.js app routes (dashboard, tracking, ...)
+    components/      # Map, RegionManager, AuthProvider, ...
+    hooks/           # useWebSocketHandler, useDataLoader, ...
+    services/        # api.ts (gửi X-API-Version), websocket.ts
+    stores/          # Zustand stores (auth, map, tracking, ...)
 ```
+
+## Lệnh hữu ích
+
+Backend (`backend/package.json`):
+
+- `start:dev`: chạy Nest watch mode
+- `build`, `start:prod`: build/chạy production
+- `lint`, `format`, `typecheck`
+- `seed`: chạy `prisma/seed.ts`
+
+Frontend (`frontend/package.json`):
+
+- `dev`: chạy Next ở cổng 4000
+- `build`, `start`
+- `lint`, `format`, `typecheck`
+
+## Khắc phục sự cố
+
+- Không truy cập được Swagger: đảm bảo backend chạy cổng 3000 và truy cập `http://localhost:3000/api/docs`
+- Lỗi CORS: đặt `FRONTEND_ORIGIN` trong `backend/.env` khớp với URL frontend (mặc định `http://localhost:4000`)
+- DB không kết nối: chạy `docker compose up -d` hoặc chỉnh `DATABASE_URL` cho đúng user/password/port
+- Prisma lỗi loại bảng: chạy `npx prisma migrate dev` hoặc `npx prisma db push` (chỉ khi hiểu rõ hậu quả)
+- Xung đột cổng: đổi `PORT` backend hoặc `-p` frontend (`frontend/package.json` mặc định 4000)
 
 ## Đóng góp
-1. Fork dự án
-2. Tạo feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit thay đổi (`git commit -m 'Add some AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Mở Pull Request
+
+1) Fork repo  2) Tạo nhánh `feature/*`  3) Commit  4) Push  5) Tạo Pull Request
 
 ## License
-Dự án này được phát hành dưới giấy phép MIT.
 
-## Liên hệ
-- Email: admin@tracking-system.com
-- GitHub: https://github.com/tracking-system
-
-## Changelog
-
-### v1.0.0 (2025-08-08)
-- ✅ Khởi tạo dự án với NestJS và Next.js
-- ✅ Xây dựng hệ thống authentication
-- ✅ Thêm chức năng theo dõi vật thể
-- ✅ Triển khai hệ thống vùng quan tâm và cảnh báo
-- ✅ Tích hợp WebSocket cho real-time updates
-- ✅ Giao diện web với bản đồ tương tác
+MIT
