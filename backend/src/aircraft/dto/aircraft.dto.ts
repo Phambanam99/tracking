@@ -1,11 +1,4 @@
-import {
-  IsString,
-  IsOptional,
-  IsInt,
-  IsNotEmpty,
-  Min,
-  Max,
-} from 'class-validator';
+import { IsString, IsOptional, IsInt, IsNotEmpty, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -179,6 +172,13 @@ export class AircraftHistoryQueryDto {
   @Min(1)
   @Max(1000)
   limit?: number;
+
+  @ApiPropertyOptional({ description: 'Offset for pagination', example: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
 }
 
 // Response DTOs

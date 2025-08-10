@@ -24,9 +24,7 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // Enable CORS using env var FRONTEND_ORIGIN (comma-separated allowed)
-  const allowedOrigins = (
-    process.env.FRONTEND_ORIGIN || 'http://localhost:4000'
-  )
+  const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:4000')
     .split(',')
     .map((s) => s.trim());
   app.enableCors({
@@ -51,10 +49,7 @@ async function bootstrap() {
     .setTitle('Tracking API')
     .setDescription('API documentation for Tracking service')
     .setVersion(API_VERSION)
-    .addBearerAuth(
-      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
-      'bearer',
-    )
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'bearer')
     // .addApiKey(
     //   { type: 'apiKey', in: 'header', name: 'X-API-Version' },
     //   'api-version',

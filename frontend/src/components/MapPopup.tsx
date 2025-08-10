@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { X, Plane, Ship, MapPin, Clock, Move } from "lucide-react";
 import { useTrackingStore } from "@/stores/trackingStore";
+import api from "@/services/apiClient";
+import { useMapStore } from "@/stores/mapStore";
 
 interface Aircraft {
   id: number;
@@ -60,6 +62,7 @@ const MapPopup: React.FC<MapPopupProps> = ({
   const [currentPosition, setCurrentPosition] = useState<
     [number, number] | null
   >(null);
+  const [historyHours, setHistoryHours] = useState(24);
   const popupRef = useRef<HTMLDivElement>(null);
 
   // Tracking functionality
@@ -69,6 +72,13 @@ const MapPopup: React.FC<MapPopupProps> = ({
     untrackItem,
     loading: trackingLoading,
   } = useTrackingStore();
+
+  const {
+    setHistoryLoading,
+    setHistoryError,
+    setHistoryPath,
+    clearHistory,
+  } = useMapStore();
 
   // Update current position when position prop changes - center the popup instead of using click position
   useEffect(() => {
@@ -245,6 +255,37 @@ const MapPopup: React.FC<MapPopupProps> = ({
       ? "N"
       : "S";
     return `${Math.abs(coord).toFixed(6)}° ${direction}`;
+  };
+
+  const loadHistory = async () => {
+    if (!feature) return;
+    const isAircraft = !!feature.aircraft;
+    const id = isAircraft ? feature.aircraft!.id : feature.vessel!.id;
+    const fromISO = new Date(Date.now() - historyHours * 3600 * 1000).toISOString();
+    try {
+      setHistoryLoading(true);
+      setHistoryError(null);
+      const endpoint = isAircraft
+        ? `/aircrafts/${id}/history?from=${encodeURIComponent(fromISO)}`
+        : `/vessels/${id}/history?from=${encodeURIComponent(fromISO)}`;
+      const data = await api.get(endpoint);
+      const positions = Array.isArray(data.positions) ? data.positions : [];
+      setHistoryPath({
+        type: isAircraft ? "aircraft" : "vessel",
+        id,
+        from: fromISO,
+        positions: positions.map((p: any) => ({
+          latitude: p.latitude,
+          longitude: p.longitude,
+          timestamp: p.timestamp,
+        })),
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Fetch history failed";
+      setHistoryError(message);
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   return (
@@ -463,6 +504,38 @@ const MapPopup: React.FC<MapPopupProps> = ({
               ? "Bỏ theo dõi"
               : "Theo dõi"}
           </button>
+        </div>
+
+        {/* History controls */}
+        <div className="pt-3 border-t space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm text-gray-600 flex items-center space-x-2">
+              <span>Khoảng thời gian (giờ):</span>
+              <input
+                type="number"
+                min={1}
+                max={168}
+                value={historyHours}
+                onChange={(e) => setHistoryHours(Math.max(1, Math.min(2400, Number(e.target.value) || 1)))}
+                className="w-20 border rounded px-2 py-1 text-sm"
+              />
+            </label>
+            <div className="space-x-2">
+              <button
+                onClick={loadHistory}
+                className="px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors"
+              >
+                Hiển thị lịch sử
+              </button>
+              <button
+                onClick={clearHistory}
+                className="px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+              >
+                Xóa lịch sử
+              </button>
+            </div>
+          </div>
+          {/* <p className="text-xs text-gray-500">Lịch sử sẽ vẽ đường đi trên bản đồ cho đối tượng được chọn.</p> */}
         </div>
       </div>
     </div>

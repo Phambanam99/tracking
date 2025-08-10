@@ -7,6 +7,10 @@ import { fromLonLat } from 'ol/proj';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import Feature from 'ol/Feature';
+import type { FeatureLike } from 'ol/Feature';
+import LineString from 'ol/geom/LineString';
+import Point from 'ol/geom/Point';
+import { Stroke, Style, Circle as CircleStyle, Fill, Text } from 'ol/style';
 import { Cluster } from 'ol/source';
 import { useAircraftStore } from '../stores/aircraftStore';
 import { useVesselStore } from '../stores/vesselStore';
@@ -14,7 +18,7 @@ import { useMapStore } from '../stores/mapStore';
 import { useRegionStore } from '../stores/regionStore';
 import DrawingActionPopup from './DrawingActionPopup';
 import MapPopup from './MapPopup';
-import MapFiltersRedesigned from './MapFiltersRedesigned';
+import MapFiltersRedesigned from './MapFilters';
 import { useTrackingStore } from '../stores/trackingStore';
 import MapControls from './MapControls';
 import {
@@ -25,6 +29,7 @@ import {
   useRegionsRendering,
   useWebSocketHandler,
   useFeatureUpdater,
+  useViewportDataLoader,
 } from '../hooks';
 
 export default function MapComponentClustered() {
@@ -33,6 +38,8 @@ export default function MapComponentClustered() {
   const aircraftLayerRef = useRef<VectorLayer<Cluster> | null>(null);
   const vesselLayerRef = useRef<VectorLayer<Cluster> | null>(null);
   const regionLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const historyLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const historyPointsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const lastDrawnFeatureRef = useRef<Feature | null>(null);
 
   const { aircrafts } = useAircraftStore();
@@ -65,6 +72,7 @@ export default function MapComponentClustered() {
   // Use custom hooks for all functionality
   useDataLoader();
   useWebSocketHandler();
+  useViewportDataLoader({ mapInstanceRef });
   useMapInitialization({
     mapRef,
     mapInstanceRef,
@@ -76,6 +84,39 @@ export default function MapComponentClustered() {
   useDrawingMode({ mapInstanceRef, regionLayerRef });
   useRegionsRendering({ regionLayerRef });
   useFeatureUpdater({ aircraftLayerRef, vesselLayerRef });
+
+  // Push viewport bbox to server for realtime filtering
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    const toLonLatAny = (window as any)?.ol?.proj?.toLonLat;
+    const sendBbox = () => {
+      const size = map.getSize();
+      if (!size) return;
+      const extent = map.getView().calculateExtent(size);
+      if (!toLonLatAny) return;
+      const bl = toLonLatAny([extent[0], extent[1]]);
+      const tr = toLonLatAny([extent[2], extent[3]]);
+      if (bl && tr) {
+        const bbox: [number, number, number, number] = [bl[0], bl[1], tr[0], tr[1]];
+        import('../services/websocket').then(({ websocketService }) => {
+          if (websocketService.socket) {
+            websocketService.updateViewport(bbox);
+          } else {
+            websocketService.connect();
+            setTimeout(() => websocketService.subscribeViewport(bbox), 200);
+          }
+        });
+      }
+    };
+    // initial send
+    setTimeout(sendBbox, 200);
+    // update on moveend
+    map.on('moveend', sendBbox);
+    return () => {
+      (map as any).un('moveend', sendBbox);
+    };
+  }, [mapInstanceRef]);
 
   // Respond to focusTarget by centering map and switching the tab/layer visibility
   useEffect(() => {
@@ -119,6 +160,173 @@ export default function MapComponentClustered() {
     setActiveFilterTab,
     setFocusTarget,
   ]);
+
+  // History path rendering
+  const { historyPath } = useMapStore();
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+
+    // Create layers once
+    if (!historyLayerRef.current) {
+      historyLayerRef.current = new VectorLayer({
+        source: new VectorSource(),
+        style: new Style({
+          stroke: new Stroke({ color: 'rgba(34,197,94,0.9)', width: 3 }),
+        }),
+        zIndex: 1000,
+      });
+      map.addLayer(historyLayerRef.current);
+    }
+    if (!historyPointsLayerRef.current) {
+      historyPointsLayerRef.current = new VectorLayer({
+        source: new VectorSource(),
+        zIndex: 1001,
+      });
+      map.addLayer(historyPointsLayerRef.current);
+    }
+
+    const lineSource = historyLayerRef.current.getSource();
+    const pointsSource = historyPointsLayerRef.current.getSource();
+    if (!lineSource || !pointsSource) return;
+
+    const rebuild = () => {
+      lineSource.clear();
+      pointsSource.clear();
+
+      if (!historyPath || historyPath.positions.length < 2) return;
+
+      const positions = historyPath.positions;
+      const projected = positions.map((p) => fromLonLat([p.longitude, p.latitude]));
+      const line = new LineString(projected);
+      lineSource.addFeature(new Feature({ geometry: line }));
+
+      // Always add start and end markers
+      const startTime = new Date(positions[0].timestamp);
+      const endTime = new Date(positions[positions.length - 1].timestamp);
+      const formatTime = (d: Date) =>
+        d.toLocaleString('vi-VN', {
+          year: '2-digit',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+      const startFeature = new Feature({ geometry: new Point(projected[0]) });
+      startFeature.setStyle(
+        new Style({
+          image: new CircleStyle({ radius: 5, fill: new Fill({ color: '#3b82f6' }), stroke: new Stroke({ color: '#1e40af', width: 1 }) }),
+          text: new Text({ text: `Bắt đầu ${formatTime(startTime)}`, offsetY: -14, font: '12px sans-serif', fill: new Fill({ color: '#1f2937' }), stroke: new Stroke({ color: 'white', width: 3 }) }),
+        }),
+      );
+      pointsSource.addFeature(startFeature);
+
+      const endFeature = new Feature({ geometry: new Point(projected[projected.length - 1]) });
+      endFeature.setStyle(
+        new Style({
+          image: new CircleStyle({ radius: 5, fill: new Fill({ color: '#ef4444' }), stroke: new Stroke({ color: '#991b1b', width: 1 }) }),
+          text: new Text({ text: `Kết thúc ${formatTime(endTime)}`, offsetY: -14, font: '12px sans-serif', fill: new Fill({ color: '#1f2937' }), stroke: new Stroke({ color: 'white', width: 3 }) }),
+        }),
+      );
+      pointsSource.addFeature(endFeature);
+
+      // Intelligent sampling for intermediate points
+      const zoom = map.getView().getZoom() ?? 8;
+      const minPixelDistance = zoom < 7 ? 120 : zoom < 10 ? 80 : 40;
+      let lastKeptPixel: [number, number] | null = null;
+      const maxPoints = 200;
+      let kept = 0;
+
+      for (let i = 1; i < projected.length - 1; i++) {
+        const coord = projected[i];
+        const pixel = map.getPixelFromCoordinate(coord) as [number, number];
+        if (!lastKeptPixel) {
+          lastKeptPixel = pixel;
+        } else {
+          const dx = pixel[0] - lastKeptPixel[0];
+          const dy = pixel[1] - lastKeptPixel[1];
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < minPixelDistance) continue;
+          lastKeptPixel = pixel;
+        }
+        if (kept >= maxPoints) break;
+        kept++;
+
+        const t = new Date(positions[i].timestamp);
+        const feature = new Feature({ geometry: new Point(coord) });
+        feature.set('timeLabel', formatTime(t));
+        feature.setStyle(
+          new Style({
+            image: new CircleStyle({ radius: 3, fill: new Fill({ color: '#10b981' }), stroke: new Stroke({ color: '#047857', width: 1 }) }),
+          }),
+        );
+        pointsSource.addFeature(feature);
+      }
+
+      // Do not auto-zoom when showing history (keep user's current view)
+    };
+
+    // Initial build
+    rebuild();
+
+    // Hover interaction to show time labels on demand
+    const hoverOverlayStyle = (feature: FeatureLike) => {
+      const label = feature.get('timeLabel');
+      if (!label) return undefined;
+      return new Style({
+        image: new CircleStyle({ radius: 4, fill: new Fill({ color: '#0ea5e9' }), stroke: new Stroke({ color: '#0369a1', width: 1 }) }),
+        text: new Text({ text: label, offsetY: -12, font: '12px sans-serif', fill: new Fill({ color: '#111827' }), stroke: new Stroke({ color: 'white', width: 3 }) }),
+      });
+    };
+
+    let lastHover: Feature | null = null;
+    const onPointerMove = (evt: any) => {
+      if (!historyPointsLayerRef.current) return;
+      const layer = historyPointsLayerRef.current;
+      const pixel = evt.pixel;
+      let hovered: Feature | null = null;
+      map.forEachFeatureAtPixel(
+        pixel,
+        (f: FeatureLike, lyr) => {
+          if (lyr === layer) {
+            hovered = f as Feature;
+            return true;
+          }
+          return undefined;
+        },
+        { hitTolerance: 6 },
+      );
+
+      if (lastHover && lastHover !== hovered) {
+        // reset previous feature style
+        lastHover.setStyle(
+          new Style({
+            image: new CircleStyle({ radius: 3, fill: new Fill({ color: '#10b981' }), stroke: new Stroke({ color: '#047857', width: 1 }) }),
+          }),
+        );
+      }
+
+      if (hovered) {
+        const style = hoverOverlayStyle(hovered as FeatureLike);
+        if (style) (hovered as Feature).setStyle(style);
+      }
+      lastHover = hovered;
+    };
+
+    map.on('pointermove', onPointerMove);
+
+    // Rebuild on zoom/pan to adapt sampling density
+    const onMoveEnd = () => {
+      if (historyPath) rebuild();
+    };
+    map.on('moveend', onMoveEnd);
+
+    return () => {
+      map.un('pointermove', onPointerMove);
+      map.un('moveend', onMoveEnd);
+    };
+  }, [historyPath, mapInstanceRef]);
 
   // Filter data based on search query and visibility settings
   const filteredAircrafts = useMemo(() => {

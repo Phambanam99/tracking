@@ -1,5 +1,8 @@
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const prisma = new PrismaClient();
 
@@ -95,6 +98,107 @@ async function main() {
       timestamp: new Date(),
     },
   });
+
+  // Seed a demo vessel and its historical track from prisma/track.json
+  // The track.json appears to store Web Mercator meters mislabeled as LATITUDE (x) and LONGITUDE (y)
+  // We convert from EPSG:3857 to WGS84 lat/lon.
+  const webMercatorToWGS84 = (xMeters: number, yMeters: number): { lat: number; lon: number } => {
+    const originShift = 20037508.34; // meters
+    const lon = (xMeters / originShift) * 180;
+    let lat = (yMeters / originShift) * 180;
+    lat = (180 / Math.PI) * (2 * Math.atan(Math.exp((lat * Math.PI) / 180)) - Math.PI / 2);
+    return { lat, lon };
+  };
+
+  const trackFilePath = path.resolve(__dirname, 'track.json');
+  if (fs.existsSync(trackFilePath)) {
+    const raw = fs.readFileSync(trackFilePath, 'utf8');
+    try {
+      const json = JSON.parse(raw) as {
+        track?: Array<{
+          LATITUDE: number; // actually X in meters
+          LONGITUDE: number; // actually Y in meters
+          PORT?: string;
+          COURSE?: number;
+          SPEED?: number;
+          TSTAMP?: number; // unix seconds
+          DRAUGHT?: number;
+        }>;
+      };
+
+      const points = Array.isArray(json.track) ? json.track : [];
+      if (points.length > 0) {
+        const demoVessel = await prisma.vessel.upsert({
+          where: { mmsi: '999000111' },
+          update: {},
+          create: {
+            mmsi: '999000111',
+            vesselName: 'Demo Track Vessel',
+            vesselType: 'Cargo',
+            flag: 'VN',
+            operator: 'Demo Line',
+            length: 180,
+            width: 28,
+          },
+        });
+
+        // Clean old positions if reseeding
+        await prisma.vesselPosition.deleteMany({
+          where: { vesselId: demoVessel.id },
+        });
+
+        // Compute timestamp shift so the last point aligns with now
+        const unixTimestamps = points
+          .map((p) => (typeof p.TSTAMP === 'number' ? p.TSTAMP : undefined))
+          .filter((v): v is number => typeof v === 'number');
+        const maxTs = unixTimestamps.length > 0 ? Math.max(...unixTimestamps) : undefined;
+        const shiftMs = maxTs ? Date.now() - maxTs * 1000 : 0;
+
+        // Map and batch insert positions to avoid enormous single payloads
+        const batchSize = 1000;
+        let batch: {
+          vesselId: number;
+          latitude: number;
+          longitude: number;
+          speed?: number | null;
+          course?: number | null;
+          heading?: number | null;
+          status?: string | null;
+          timestamp: Date;
+        }[] = [];
+
+        for (const p of points) {
+          // Interpret LONGITUDE as X meters (eastings) and LATITUDE as Y meters (northings)
+          const { lat, lon } = webMercatorToWGS84(p.LONGITUDE, p.LATITUDE);
+          const speed = typeof p.SPEED === 'number' ? p.SPEED : null;
+          const course = typeof p.COURSE === 'number' ? Math.round(p.COURSE) : null;
+          const timestamp =
+            typeof p.TSTAMP === 'number' ? new Date(p.TSTAMP * 1000 + shiftMs) : new Date();
+
+          batch.push({
+            vesselId: demoVessel.id,
+            latitude: lat,
+            longitude: lon,
+            speed,
+            course,
+            heading: course,
+            status: speed && speed > 0 ? 'Under way using engine' : 'Moored',
+            timestamp,
+          });
+
+          if (batch.length >= batchSize) {
+            await prisma.vesselPosition.createMany({ data: batch });
+            batch = [];
+          }
+        }
+        if (batch.length > 0) {
+          await prisma.vesselPosition.createMany({ data: batch });
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to parse prisma/track.json; skipping track seed.', err);
+    }
+  }
 }
 
 main()

@@ -3,6 +3,9 @@ import { websocketService } from "../services/websocket";
 import { useAircraftStore, Aircraft } from "../stores/aircraftStore";
 import { useVesselStore, Vessel } from "../stores/vesselStore";
 import { useRegionStore } from "../stores/regionStore";
+import { useMapStore } from "../stores/mapStore";
+import Map from "ol/Map";
+import { toLonLat } from "ol/proj";
 
 interface RegionAlert {
   id: number;
@@ -15,6 +18,7 @@ export function useWebSocketHandler() {
   const { updateAircraft } = useAircraftStore();
   const { updateVessel } = useVesselStore();
   const { fetchRegions } = useRegionStore();
+  const { } = useMapStore();
 
   // Connect WebSocket
   useEffect(() => {
@@ -57,4 +61,16 @@ export function useWebSocketHandler() {
       websocketService.offRegionAlert(handleRegionAlert);
     };
   }, [updateAircraft, updateVessel, fetchRegions]);
+
+  // Subscribe viewport bbox for server-side filtering
+  useEffect(() => {
+    // Try to find map container and read bbox periodically
+    const interval = setInterval(() => {
+      const mapCanvas = document.querySelector('.ol-viewport');
+      if (!mapCanvas) return;
+      // We cannot get OL map instance directly here; rely on MapComponent to call viewport updates ideally.
+      // As a minimal approach, skip here.
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 }

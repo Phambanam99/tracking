@@ -29,8 +29,15 @@ export class VesselController {
    */
   @Get('initial')
   @ApiOperation({ summary: 'Get all vessels with last position' })
-  async findAllWithLastPosition(): Promise<VesselResponseDto[]> {
-    return this.vesselService.findAllWithLastPosition();
+  async findAllWithLastPosition(@Query('bbox') bbox?: string): Promise<VesselResponseDto[]> {
+    let parsedBbox: [number, number, number, number] | undefined;
+    if (bbox) {
+      const parts = bbox.split(',').map((p) => parseFloat(p.trim()));
+      if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
+        parsedBbox = [parts[0], parts[1], parts[2], parts[3]];
+      }
+    }
+    return this.vesselService.findAllWithLastPosition(parsedBbox);
   }
 
   /**
@@ -42,10 +49,12 @@ export class VesselController {
     @Param('id', ParseIntPipe) id: number,
     @Query() queryDto: VesselHistoryQueryDto,
   ) {
-    const fromDate =
-      queryDto.from || new Date(Date.now() - 24 * 60 * 60 * 1000); // Default to last 24 hours
+    const fromDate = queryDto.from || new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const toDate = queryDto.to || new Date();
+    const limit = queryDto.limit || 1000;
+    const offset = (queryDto as any).offset ? Number((queryDto as any).offset) : 0;
 
-    const vessel = await this.vesselService.findHistory(id, fromDate);
+    const vessel = await this.vesselService.findHistory(id, fromDate, toDate, limit, offset);
 
     if (!vessel) {
       return { error: 'Vessel not found' };
@@ -59,9 +68,7 @@ export class VesselController {
    */
   @Post()
   @ApiOperation({ summary: 'Create a new vessel' })
-  async create(
-    @Body() createVesselDto: CreateVesselDto,
-  ): Promise<VesselResponseDto> {
+  async create(@Body() createVesselDto: CreateVesselDto): Promise<VesselResponseDto> {
     return this.vesselService.create(createVesselDto);
   }
 
@@ -82,9 +89,7 @@ export class VesselController {
    */
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a vessel' })
-  async delete(
-    @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ message: string }> {
+  async delete(@Param('id', ParseIntPipe) id: number): Promise<{ message: string }> {
     await this.vesselService.delete(id);
     return { message: 'Vessel deleted successfully' };
   }

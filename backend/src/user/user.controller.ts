@@ -14,25 +14,12 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserFiltersService } from './user-filters.service';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiTags,
-  ApiResponse,
-  ApiParam,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles, UserRole } from '../auth/decorators/roles.decorator';
-import {
-  CreateUserDto,
-  UpdateUserDto,
-  ChangePasswordDto,
-} from './dto/user.dto';
-import {
-  SaveUserFiltersDto,
-  UserFiltersResponseDto,
-} from './dto/user-filters.dto';
+import { CreateUserDto, UpdateUserDto, ChangePasswordDto } from './dto/user.dto';
+import { SaveUserFiltersDto, UserFiltersResponseDto } from './dto/user-filters.dto';
 
 @ApiTags('users')
 @Controller('users')
@@ -58,10 +45,7 @@ export class UserController {
    */
   @Put('profile')
   @ApiOperation({ summary: 'Update current user profile' })
-  async updateProfile(
-    @Request() req: any,
-    @Body() updateUserDto: UpdateUserDto,
-  ) {
+  async updateProfile(@Request() req: any, @Body() updateUserDto: UpdateUserDto) {
     return this.userService.updateUser(req.user.id, updateUserDto);
   }
 
@@ -71,14 +55,8 @@ export class UserController {
   @Put('change-password')
   @ApiOperation({ summary: 'Change current user password' })
   @HttpCode(HttpStatus.OK)
-  async changePassword(
-    @Request() req: any,
-    @Body() changePasswordDto: ChangePasswordDto,
-  ) {
-    return this.userService.changePassword(
-      req.user.id,
-      changePasswordDto.newPassword,
-    );
+  async changePassword(@Request() req: any, @Body() changePasswordDto: ChangePasswordDto) {
+    return this.userService.changePassword(req.user.id, changePasswordDto.newPassword);
   }
 
   /**
@@ -121,10 +99,7 @@ export class UserController {
   @ApiOperation({ summary: 'Update user (admin)' })
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
-  async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateUserDto: UpdateUserDto,
-  ) {
+  async update(@Param('id', ParseIntPipe) id: number, @Body() updateUserDto: UpdateUserDto) {
     return this.userService.updateUser(id, updateUserDto);
   }
 
@@ -219,9 +194,7 @@ export class UserController {
     type: UserFiltersResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Default filters not found' })
-  async getDefaultFilters(
-    @Request() req: any,
-  ): Promise<UserFiltersResponseDto | null> {
+  async getDefaultFilters(@Request() req: any): Promise<UserFiltersResponseDto | null> {
     return this.userFiltersService.getDefaultFilters(req.user.sub);
   }
 

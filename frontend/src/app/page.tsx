@@ -6,7 +6,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 
 // Dynamically import MapComponent to avoid SSR issues with OpenLayers
 const MapComponent = dynamic(
-  () => import("../components/MapComponentClustered"),
+  () => import("../components/MapComponent"),
   {
     ssr: false,
     loading: () => (

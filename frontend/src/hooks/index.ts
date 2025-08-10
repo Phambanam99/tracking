@@ -5,3 +5,4 @@ export { useDrawingMode } from "./useDrawingMode";
 export { useRegionsRendering } from "./useRegionsRendering";
 export { useWebSocketHandler } from "./useWebSocketHandler";
 export { useFeatureUpdater } from "./useFeatureUpdater";
+export { useViewportDataLoader } from "./useViewportDataLoader";

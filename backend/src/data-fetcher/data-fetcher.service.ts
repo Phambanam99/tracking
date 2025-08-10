@@ -85,10 +85,7 @@ export class DataFetcherService {
         });
 
         // Add new position
-        await this.aircraftService.addPosition(
-          aircraft.id,
-          aircraftData.position,
-        );
+        await this.aircraftService.addPosition(aircraft.id, aircraftData.position);
 
         // Publish real-time update to Redis
         await this.redisService.publish(
@@ -101,14 +98,9 @@ export class DataFetcherService {
           }),
         );
 
-        this.logger.debug(
-          `✅ Updated aircraft ${aircraftData.flightId} and published to Redis`,
-        );
+        this.logger.debug(`✅ Updated aircraft ${aircraftData.flightId} and published to Redis`);
       } catch (error) {
-        this.logger.error(
-          `Error updating aircraft ${aircraftData.flightId}:`,
-          error,
-        );
+        this.logger.error(`Error updating aircraft ${aircraftData.flightId}:`, error);
       }
     }
   }
@@ -182,14 +174,9 @@ export class DataFetcherService {
           }),
         );
 
-        this.logger.debug(
-          `✅ Updated vessel ${vesselData.vesselName} and published to Redis`,
-        );
+        this.logger.debug(`✅ Updated vessel ${vesselData.vesselName} and published to Redis`);
       } catch (error) {
-        this.logger.error(
-          `Error updating vessel ${vesselData.vesselName}:`,
-          error,
-        );
+        this.logger.error(`Error updating vessel ${vesselData.vesselName}:`, error);
       }
     }
   }

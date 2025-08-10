@@ -1,11 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TrackingService } from '../tracking/tracking.service';
-import {
-  CreateVesselDto,
-  UpdateVesselDto,
-  CreateVesselPositionDto,
-} from './dto/vessel.dto';
+import { CreateVesselDto, UpdateVesselDto, CreateVesselPositionDto } from './dto/vessel.dto';
 
 @Injectable()
 export class VesselService {
@@ -17,10 +13,17 @@ export class VesselService {
   /**
    * Find all vessels with their last known position
    */
-  async findAllWithLastPosition() {
+  async findAllWithLastPosition(bbox?: [number, number, number, number]) {
+    const positionWhere = bbox
+      ? {
+          longitude: { gte: bbox[0], lte: bbox[2] },
+          latitude: { gte: bbox[1], lte: bbox[3] },
+        }
+      : {};
     const vessels = await this.prisma.vessel.findMany({
       include: {
         positions: {
+          where: positionWhere,
           orderBy: { timestamp: 'desc' },
           take: 1,
         },
@@ -82,7 +85,7 @@ export class VesselService {
   /**
    * Find vessel by ID with its complete history
    */
-  async findHistory(id: number, fromDate: Date) {
+  async findHistory(id: number, fromDate: Date, toDate: Date, limit: number, offset = 0) {
     const vessel = await this.prisma.vessel.findUnique({
       where: { id },
       include: {
@@ -90,9 +93,12 @@ export class VesselService {
           where: {
             timestamp: {
               gte: fromDate,
+              lte: toDate,
             },
           },
           orderBy: { timestamp: 'asc' },
+          take: limit,
+          skip: offset,
         },
       },
     });

@@ -10,13 +10,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { AircraftService } from './aircraft.service';
-import {
-  ApiOperation,
-  ApiTags,
-  ApiResponse,
-  ApiParam,
-  ApiQuery,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiTags, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import {
   CreateAircraftDto,
   UpdateAircraftDto,
@@ -40,8 +34,16 @@ export class AircraftController {
     description: 'List of all aircrafts with their last positions',
     type: [AircraftResponseDto],
   })
-  async findAllWithLastPosition(): Promise<AircraftResponseDto[]> {
-    return this.aircraftService.findAllWithLastPosition();
+  async findAllWithLastPosition(@Query('bbox') bbox?: string): Promise<AircraftResponseDto[]> {
+    // bbox is "minLon,minLat,maxLon,maxLat"
+    let parsedBbox: [number, number, number, number] | undefined;
+    if (bbox) {
+      const parts = bbox.split(',').map((p) => parseFloat(p.trim()));
+      if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
+        parsedBbox = [parts[0], parts[1], parts[2], parts[3]];
+      }
+    }
+    return this.aircraftService.findAllWithLastPosition(parsedBbox);
   }
 
   /**
@@ -74,10 +76,12 @@ export class AircraftController {
     @Param('id', ParseIntPipe) id: number,
     @Query() queryDto: AircraftHistoryQueryDto,
   ) {
-    const fromDate =
-      queryDto.from || new Date(Date.now() - 24 * 60 * 60 * 1000); // Default to last 24 hours
+    const fromDate = queryDto.from || new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const toDate = queryDto.to || new Date();
+    const limit = queryDto.limit || 1000;
+    const offset = (queryDto as any).offset ? Number((queryDto as any).offset) : 0;
 
-    const aircraft = await this.aircraftService.findHistory(id, fromDate);
+    const aircraft = await this.aircraftService.findHistory(id, fromDate, toDate, limit, offset);
 
     if (!aircraft) {
       return { error: 'Aircraft not found' };
@@ -97,9 +101,7 @@ export class AircraftController {
     type: AircraftResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Invalid input data' })
-  async create(
-    @Body() createAircraftDto: CreateAircraftDto,
-  ): Promise<AircraftResponseDto> {
+  async create(@Body() createAircraftDto: CreateAircraftDto): Promise<AircraftResponseDto> {
     return this.aircraftService.create(createAircraftDto);
   }
 
@@ -131,9 +133,7 @@ export class AircraftController {
   @ApiParam({ name: 'id', description: 'Aircraft ID', type: 'number' })
   @ApiResponse({ status: 200, description: 'Aircraft deleted successfully' })
   @ApiResponse({ status: 404, description: 'Aircraft not found' })
-  async delete(
-    @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ message: string }> {
+  async delete(@Param('id', ParseIntPipe) id: number): Promise<{ message: string }> {
     await this.aircraftService.delete(id);
     return { message: 'Aircraft deleted successfully' };
   }

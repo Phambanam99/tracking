@@ -39,26 +39,36 @@ export const websocketService = {
 
   onAircraftUpdate(callback: (data: any) => void) {
     if (this.socket) {
-      this.socket.on('aircraft-update', callback);
+      this.socket.on('aircraftPositionUpdate', callback);
     }
   },
 
   onVesselUpdate(callback: (data: any) => void) {
     if (this.socket) {
-      this.socket.on('vessel-update', callback);
+      this.socket.on('vesselPositionUpdate', callback);
     }
   },
 
   offAircraftUpdate(callback: (data: any) => void) {
     if (this.socket) {
-      this.socket.off('aircraft-update', callback);
+      this.socket.off('aircraftPositionUpdate', callback);
     }
   },
 
   offVesselUpdate(callback: (data: any) => void) {
     if (this.socket) {
-      this.socket.off('vessel-update', callback);
+      this.socket.off('vesselPositionUpdate', callback);
     }
+  },
+
+  subscribeViewport(bbox: [number, number, number, number]) {
+    if (!this.socket) return;
+    this.socket.emit('subscribeViewport', { bbox });
+  },
+
+  updateViewport(bbox: [number, number, number, number]) {
+    if (!this.socket) return;
+    this.socket.emit('updateViewport', { bbox });
   },
 
   onRegionAlert(callback: (data: any) => void) {

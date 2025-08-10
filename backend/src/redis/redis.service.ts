@@ -55,10 +55,7 @@ export class RedisService implements OnModuleDestroy {
     return this.pubClient.publish(channel, message);
   }
 
-  async subscribe(
-    channel: string,
-    callback: (message: string) => void,
-  ): Promise<void> {
+  async subscribe(channel: string, callback: (message: string) => void): Promise<void> {
     await this.subClient.subscribe(channel);
     this.subClient.on('message', (receivedChannel, message) => {
       if (receivedChannel === channel) {

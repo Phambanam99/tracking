@@ -159,10 +159,7 @@ export class UserService {
   /**
    * Validate password
    */
-  async validatePassword(
-    plainPassword: string,
-    hashedPassword: string,
-  ): Promise<boolean> {
+  async validatePassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
     return bcrypt.compare(plainPassword, hashedPassword);
   }
 
@@ -203,12 +200,7 @@ export class UserService {
   /**
    * Create or update user session
    */
-  async createSession(
-    userId: number,
-    accessToken: string,
-    refreshToken: string,
-    expiresAt: Date,
-  ) {
+  async createSession(userId: number, accessToken: string, refreshToken: string, expiresAt: Date) {
     // Delete existing sessions for this user
     await this.prisma.userSession.deleteMany({
       where: { userId },

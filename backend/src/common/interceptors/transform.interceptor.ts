@@ -1,9 +1,4 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  NestInterceptor,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { API_VERSION } from '../version';
@@ -22,11 +17,7 @@ export class TransformInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       map((data: unknown) => {
-        if (
-          data &&
-          typeof data === 'object' &&
-          'success' in (data as Record<string, unknown>)
-        ) {
+        if (data && typeof data === 'object' && 'success' in (data as Record<string, unknown>)) {
           // Already standardized
           return data;
         }

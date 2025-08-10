@@ -1,22 +1,12 @@
-import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  SaveUserFiltersDto,
-  UserFiltersResponseDto,
-} from './dto/user-filters.dto';
+import { SaveUserFiltersDto, UserFiltersResponseDto } from './dto/user-filters.dto';
 
 @Injectable()
 export class UserFiltersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async saveUserFilters(
-    userId: number,
-    dto: SaveUserFiltersDto,
-  ): Promise<UserFiltersResponseDto> {
+  async saveUserFilters(userId: number, dto: SaveUserFiltersDto): Promise<UserFiltersResponseDto> {
     try {
       const userFilters = await this.prisma.userFilters.upsert({
         where: {
@@ -61,10 +51,7 @@ export class UserFiltersService {
     return userFilters.map(this.mapToResponseDto);
   }
 
-  async getUserFilterById(
-    userId: number,
-    filterId: number,
-  ): Promise<UserFiltersResponseDto> {
+  async getUserFilterById(userId: number, filterId: number): Promise<UserFiltersResponseDto> {
     const userFilters = await this.prisma.userFilters.findFirst({
       where: {
         id: filterId,
@@ -96,9 +83,7 @@ export class UserFiltersService {
     });
   }
 
-  async getDefaultFilters(
-    userId: number,
-  ): Promise<UserFiltersResponseDto | null> {
+  async getDefaultFilters(userId: number): Promise<UserFiltersResponseDto | null> {
     const defaultFilters = await this.prisma.userFilters.findFirst({
       where: {
         userId,

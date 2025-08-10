@@ -66,6 +66,17 @@ interface FeatureData {
   };
 }
 
+export interface HistoryPath {
+  type: 'aircraft' | 'vessel';
+  id: number;
+  from?: string; // ISO string
+  positions: Array<{
+    latitude: number;
+    longitude: number;
+    timestamp: Date | string;
+  }>;
+}
+
 interface MapState {
   filters: MapFilters;
   // Persisted per-user filters
@@ -84,6 +95,15 @@ interface MapState {
   isPopupVisible: boolean;
   // Cross-page focus request
   focusTarget: { type: 'aircraft' | 'vessel'; id: number } | null;
+
+  // History overlay state and actions
+  historyPath: HistoryPath | null;
+  isLoadingHistory: boolean;
+  historyError: string | null;
+  setHistoryPath: (path: HistoryPath | null) => void;
+  setHistoryLoading: (loading: boolean) => void;
+  setHistoryError: (error: string | null) => void;
+  clearHistory: () => void;
 
   // Region drawing state
   isDrawingMode: boolean;
@@ -175,6 +195,15 @@ export const useMapStore = create<MapState>()(
       isPopupVisible: false,
       // Cross-page focus
       focusTarget: null,
+
+      // History overlay state
+      historyPath: null,
+      isLoadingHistory: false,
+      historyError: null,
+      setHistoryPath: (path: HistoryPath | null) => set({ historyPath: path }),
+      setHistoryLoading: (loading: boolean) => set({ isLoadingHistory: loading }),
+      setHistoryError: (error: string | null) => set({ historyError: error }),
+      clearHistory: () => set({ historyPath: null, historyError: null }),
 
       // Region drawing state
       isDrawingMode: false,

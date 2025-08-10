@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useVesselStore } from '@/stores/vesselStore';
 import { useMapStore } from '@/stores/mapStore';
+import HistoryTable from './HistoryTable';
 
 interface Vessel {
   id: number;
@@ -322,6 +323,9 @@ export default function VesselDetailPage() {
                         </p>
                       </div>
                     )}
+
+                    {/* Paginated history table */}
+                    <HistoryTable vesselId={vessel.id} />
                   </div>
                 </div>
               </div>

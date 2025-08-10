@@ -20,7 +20,7 @@ export default function NewsPage() {
   const [searchTerm, setSearchTerm] = useState("");
 
   // Mock data for demonstration
-  const [articles] = useState<NewsArticle[]>([
+  const [articles, setArticles] = useState<NewsArticle[]>([
     {
       id: 1,
       title: "Hệ thống theo dõi máy bay mới được triển khai",
@@ -100,6 +100,53 @@ export default function NewsPage() {
     }
   };
 
+  // View/Edit state
+  const [viewing, setViewing] = useState<NewsArticle | null>(null);
+  const [editing, setEditing] = useState<{
+    mode: "create" | "edit";
+    article: NewsArticle;
+  } | null>(null);
+
+  const startView = (article: NewsArticle) => setViewing(article);
+
+  const startEdit = (article?: NewsArticle) => {
+    if (article) {
+      setEditing({ mode: "edit", article: { ...article } });
+    } else {
+      // create
+      const nextId = (articles.reduce((m, a) => Math.max(m, a.id), 0) || 0) + 1;
+      setEditing({
+        mode: "create",
+        article: {
+          id: nextId,
+          title: "",
+          content: "",
+          category: selectedCategory === "all" ? "technology" : selectedCategory,
+          author: "",
+          publishedAt: new Date().toISOString(),
+          tags: [],
+          status: "draft",
+        },
+      });
+    }
+  };
+
+  const saveEdit = () => {
+    if (!editing) return;
+    const a = editing.article;
+    if (editing.mode === "edit") {
+      setArticles((prev) => prev.map((x) => (x.id === a.id ? a : x)));
+    } else {
+      setArticles((prev) => [a, ...prev]);
+    }
+    setEditing(null);
+  };
+
+  const updateEditingField = (key: keyof NewsArticle, value: any) => {
+    if (!editing) return;
+    setEditing({ ...editing, article: { ...editing.article, [key]: value } });
+  };
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
@@ -145,7 +192,10 @@ export default function NewsPage() {
                       </button>
                     ))}
                   </div>
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                  <button
+                    onClick={() => startEdit()}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
                     📝 Tạo bài viết
                   </button>
                 </div>
@@ -207,10 +257,16 @@ export default function NewsPage() {
                       </div>
 
                       <div className="flex items-center space-x-2">
-                        <button className="text-indigo-600 hover:text-indigo-900 text-sm font-medium">
+                        <button
+                          onClick={() => startView(article)}
+                          className="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                        >
                           Xem
                         </button>
-                        <button className="text-gray-600 hover:text-gray-900 text-sm font-medium">
+                        <button
+                          onClick={() => startEdit(article)}
+                          className="text-gray-600 hover:text-gray-900 text-sm font-medium"
+                       >
                           Sửa
                         </button>
                       </div>
@@ -234,6 +290,109 @@ export default function NewsPage() {
             </div>
           </div>
         </main>
+
+        {/* View modal */}
+        {viewing && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white w-full max-w-2xl rounded-lg shadow-lg">
+              <div className="px-4 py-3 border-b flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">Xem bài viết</h3>
+                <button onClick={() => setViewing(null)} className="text-gray-500 hover:text-gray-700">✕</button>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="text-xs text-gray-500">{new Date(viewing.publishedAt).toLocaleString("vi-VN")}</div>
+                <h2 className="text-2xl font-bold">{viewing.title}</h2>
+                <div className="text-sm text-gray-600">Tác giả: {viewing.author || "N/A"}</div>
+                <div className="prose max-w-none text-gray-800 whitespace-pre-wrap">{viewing.content}</div>
+                <div className="flex flex-wrap gap-2">
+                  {viewing.tags.map((t, i) => (
+                    <span key={i} className="px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs">#{t}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit modal */}
+        {editing && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white w-full max-w-2xl rounded-lg shadow-lg">
+              <div className="px-4 py-3 border-b flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">
+                  {editing.mode === "edit" ? "Sửa bài viết" : "Tạo bài viết"}
+                </h3>
+                <button onClick={() => setEditing(null)} className="text-gray-500 hover:text-gray-700">✕</button>
+              </div>
+              <div className="p-4 space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Tiêu đề</label>
+                  <input
+                    className="w-full border rounded px-3 py-2"
+                    value={editing.article.title}
+                    onChange={(e) => updateEditingField("title", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Nội dung</label>
+                  <textarea
+                    rows={6}
+                    className="w-full border rounded px-3 py-2"
+                    value={editing.article.content}
+                    onChange={(e) => updateEditingField("content", e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Chuyên mục</label>
+                    <select
+                      className="w-full border rounded px-3 py-2"
+                      value={editing.article.category}
+                      onChange={(e) => updateEditingField("category", e.target.value)}
+                    >
+                      {categories.filter(c=>c.value!=='all').map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Tác giả</label>
+                    <input
+                      className="w-full border rounded px-3 py-2"
+                      value={editing.article.author}
+                      onChange={(e) => updateEditingField("author", e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Trạng thái</label>
+                    <select
+                      className="w-full border rounded px-3 py-2"
+                      value={editing.article.status}
+                      onChange={(e) => updateEditingField("status", e.target.value)}
+                    >
+                      <option value="draft">Bản nháp</option>
+                      <option value="published">Đã xuất bản</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Tags (phân tách bằng dấu phẩy)</label>
+                    <input
+                      className="w-full border rounded px-3 py-2"
+                      value={editing.article.tags.join(", ")}
+                      onChange={(e) => updateEditingField("tags", e.target.value.split(",").map(s=>s.trim()).filter(Boolean))}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setEditing(null)} className="px-4 py-2 border rounded">Hủy</button>
+                  <button onClick={saveEdit} className="px-4 py-2 bg-indigo-600 text-white rounded">Lưu</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ProtectedRoute>
   );

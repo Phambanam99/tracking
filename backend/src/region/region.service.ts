@@ -14,10 +14,7 @@ export class RegionService {
   async createRegion(userId: number, createRegionDto: CreateRegionDto) {
     console.log('🚀 RegionService.createRegion called');
     console.log('📝 UserId:', userId);
-    console.log(
-      '📝 CreateRegionDto:',
-      JSON.stringify(createRegionDto, null, 2),
-    );
+    console.log('📝 CreateRegionDto:', JSON.stringify(createRegionDto, null, 2));
 
     try {
       // Prepare the data for creation
@@ -67,11 +64,7 @@ export class RegionService {
     });
   }
 
-  async updateRegion(
-    id: number,
-    userId: number,
-    updateRegionDto: UpdateRegionDto,
-  ) {
+  async updateRegion(id: number, userId: number, updateRegionDto: UpdateRegionDto) {
     return this.prisma.region.update({
       where: { id },
       data: {
@@ -143,10 +136,7 @@ export class RegionService {
   }
 
   // Check if a point is inside a polygon using ray casting algorithm
-  private isPointInPolygon(
-    point: [number, number],
-    polygon: [number, number][],
-  ): boolean {
+  private isPointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
     const [x, y] = point;
     let inside = false;
 
@@ -310,10 +300,7 @@ export class RegionService {
         });
 
         // Broadcast alert via Redis/WebSocket
-        await this.redisService.publish(
-          'region:alert',
-          JSON.stringify(alertData),
-        );
+        await this.redisService.publish('region:alert', JSON.stringify(alertData));
 
         console.log('🚨 Region alert created and broadcasted:', alertData);
       }

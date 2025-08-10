@@ -17,10 +17,17 @@ export class AircraftService {
   /**
    * Find all aircraft with their last known position
    */
-  async findAllWithLastPosition() {
+  async findAllWithLastPosition(bbox?: [number, number, number, number]) {
+    const positionWhere = bbox
+      ? {
+          longitude: { gte: bbox[0], lte: bbox[2] },
+          latitude: { gte: bbox[1], lte: bbox[3] },
+        }
+      : {};
     const aircrafts = await this.prisma.aircraft.findMany({
       include: {
         positions: {
+          where: positionWhere,
           orderBy: { timestamp: 'desc' },
           take: 1,
         },
@@ -80,7 +87,7 @@ export class AircraftService {
   /**
    * Find aircraft by ID with its complete history
    */
-  async findHistory(id: number, fromDate: Date) {
+  async findHistory(id: number, fromDate: Date, toDate: Date, limit: number, offset = 0) {
     const aircraft = await this.prisma.aircraft.findUnique({
       where: { id },
       include: {
@@ -88,9 +95,12 @@ export class AircraftService {
           where: {
             timestamp: {
               gte: fromDate,
+              lte: toDate,
             },
           },
           orderBy: { timestamp: 'asc' },
+          take: limit,
+          skip: offset,
         },
       },
     });

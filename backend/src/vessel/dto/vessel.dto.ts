@@ -1,11 +1,4 @@
-import {
-  IsString,
-  IsOptional,
-  IsNumber,
-  IsNotEmpty,
-  Min,
-  Max,
-} from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsNotEmpty, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 // Base DTO for creating vessel
@@ -137,6 +130,12 @@ export class VesselHistoryQueryDto {
   @Min(1)
   @Max(1000)
   limit?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  offset?: number;
 }
 
 // Response DTOs

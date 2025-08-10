@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Delete,
-  Param,
-  Body,
-  UseGuards,
-  Request,
-} from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, UseGuards, Request } from '@nestjs/common';
 import { TrackingService } from './tracking.service';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '../auth/guards/auth.guard';
@@ -57,10 +48,7 @@ export class TrackingController {
 
   @Get('aircraft/:id/status')
   @ApiOperation({ summary: 'Get aircraft tracking status' })
-  async getAircraftTrackingStatus(
-    @Param('id') aircraftId: string,
-    @Request() req: any,
-  ) {
+  async getAircraftTrackingStatus(@Param('id') aircraftId: string, @Request() req: any) {
     const userId = req.user.id;
     const isTracking = await this.trackingService.isTracking(
       userId,
@@ -79,12 +67,7 @@ export class TrackingController {
     @Request() req: any,
   ) {
     const userId = req.user.id;
-    return this.trackingService.trackVessel(
-      userId,
-      parseInt(vesselId),
-      body.alias,
-      body.notes,
-    );
+    return this.trackingService.trackVessel(userId, parseInt(vesselId), body.alias, body.notes);
   }
 
   @Delete('vessel/:id')
@@ -96,16 +79,9 @@ export class TrackingController {
 
   @Get('vessel/:id/status')
   @ApiOperation({ summary: 'Get vessel tracking status' })
-  async getVesselTrackingStatus(
-    @Param('id') vesselId: string,
-    @Request() req: any,
-  ) {
+  async getVesselTrackingStatus(@Param('id') vesselId: string, @Request() req: any) {
     const userId = req.user.id;
-    const isTracking = await this.trackingService.isTracking(
-      userId,
-      'vessel',
-      parseInt(vesselId),
-    );
+    const isTracking = await this.trackingService.isTracking(userId, 'vessel', parseInt(vesselId));
     return { isTracking };
   }
 

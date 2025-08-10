@@ -1,11 +1,4 @@
-import {
-  IsString,
-  IsBoolean,
-  IsOptional,
-  IsNumber,
-  IsObject,
-  IsEnum,
-} from 'class-validator';
+import { IsString, IsBoolean, IsOptional, IsNumber, IsObject, IsEnum } from 'class-validator';
 import { RegionType } from '@prisma/client';
 
 export class CreateRegionDto {

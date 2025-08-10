@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAircraftStore } from '@/stores/aircraftStore';
 import { useMapStore } from '@/stores/mapStore';
+import HistoryTable from './HistoryTable';
 
 interface Aircraft {
   id: number;
@@ -285,6 +286,9 @@ export default function AircraftDetailPage() {
                         </p>
                       </div>
                     )}
+
+                    {/* Paginated history table */}
+                    <HistoryTable aircraftId={aircraft.id} />
                   </div>
                 </div>
               </div>

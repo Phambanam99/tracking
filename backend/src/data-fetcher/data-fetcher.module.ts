@@ -7,13 +7,7 @@ import { VesselModule } from '../vessel/vessel.module';
 import { RedisModule } from '../redis/redis.module';
 
 @Module({
-  imports: [
-    ScheduleModule.forRoot(),
-    PrismaModule,
-    AircraftModule,
-    VesselModule,
-    RedisModule,
-  ],
+  imports: [ScheduleModule.forRoot(), PrismaModule, AircraftModule, VesselModule, RedisModule],
   providers: [DataFetcherService],
   exports: [DataFetcherService],
 })

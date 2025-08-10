@@ -25,10 +25,7 @@ export class RegionController {
   @Post()
   @ApiOperation({ summary: 'Create a region' })
   async createRegion(@Request() req, @Body() createRegionDto: CreateRegionDto) {
-    const result = this.regionService.createRegion(
-      req.user.id,
-      createRegionDto,
-    );
+    const result = this.regionService.createRegion(req.user.id, createRegionDto);
     console.log(result);
     return result;
   }
@@ -57,28 +54,19 @@ export class RegionController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete region' })
-  async deleteRegion(
-    @Request() req: any,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async deleteRegion(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
     return this.regionService.deleteRegion(id, req.user.id);
   }
 
   @Get('alerts/list')
   @ApiOperation({ summary: 'List user alerts' })
-  async getUserAlerts(
-    @Request() req: any,
-    @Query('unread') unreadOnly?: string,
-  ) {
+  async getUserAlerts(@Request() req: any, @Query('unread') unreadOnly?: string) {
     return this.regionService.getUserAlerts(req.user.id, unreadOnly === 'true');
   }
 
   @Put('alerts/:id/read')
   @ApiOperation({ summary: 'Mark alert as read' })
-  async markAlertAsRead(
-    @Request() req: any,
-    @Param('id', ParseIntPipe) alertId: number,
-  ) {
+  async markAlertAsRead(@Request() req: any, @Param('id', ParseIntPipe) alertId: number) {
     return this.regionService.markAlertAsRead(alertId, req.user.id);
   }
 
