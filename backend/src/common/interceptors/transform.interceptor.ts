@@ -1,4 +1,9 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
+} from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { API_VERSION } from '../version';
@@ -11,9 +16,9 @@ export class TransformInterceptor implements NestInterceptor {
     const request = http.getRequest();
 
     // Ensure version header is present on all responses
-    try {
+    if (response && typeof response.setHeader === 'function') {
       response.setHeader('X-API-Version', API_VERSION);
-    } catch {}
+    }
 
     return next.handle().pipe(
       map((data: unknown) => {

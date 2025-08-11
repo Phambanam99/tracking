@@ -24,16 +24,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? (exception.getResponse() as any)
         : 'Internal server error';
 
-    try {
+    if (response && typeof response.setHeader === 'function') {
       response.setHeader('X-API-Version', API_VERSION);
-    } catch {}
+    }
 
     response.status(status).json({
       success: false,
-      error:
-        typeof message === 'string'
-          ? { message }
-          : message,
+      error: typeof message === 'string' ? { message } : message,
       path: request?.url,
       timestamp: new Date().toISOString(),
     });

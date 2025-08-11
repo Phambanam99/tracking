@@ -13,7 +13,14 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { UserService } from './user.service';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { UserFiltersService } from './user-filters.service';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiTags,
+  ApiResponse,
+  ApiParam,
+} from '@nestjs/swagger';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles, UserRole } from '../auth/decorators/roles.decorator';
@@ -22,13 +29,20 @@ import {
   UpdateUserDto,
   ChangePasswordDto,
 } from './dto/user.dto';
+import {
+  SaveUserFiltersDto,
+  UserFiltersResponseDto,
+} from './dto/user-filters.dto';
 
 @ApiTags('users')
 @Controller('users')
 @UseGuards(AuthGuard)
 @ApiBearerAuth('bearer')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly userFiltersService: UserFiltersService,
+  ) {}
 
   /**
    * Get current user profile
@@ -123,5 +137,109 @@ export class UserController {
   @Roles(UserRole.ADMIN)
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.userService.deleteUser(id);
+  }
+
+  /**
+   * Save user filters
+   */
+  @Post('filters')
+  @ApiOperation({ summary: 'Save user filters' })
+  @ApiResponse({
+    status: 201,
+    description: 'Filters saved successfully',
+    type: UserFiltersResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid filter data' })
+  @ApiResponse({ status: 409, description: 'Filter name already exists' })
+  async saveFilters(
+    @Request() req: any,
+    @Body() dto: SaveUserFiltersDto,
+  ): Promise<UserFiltersResponseDto> {
+    return this.userFiltersService.saveUserFilters(req.user.sub, dto);
+  }
+
+  /**
+   * Get user filters
+   */
+  @Get('filters')
+  @ApiOperation({ summary: 'Get all user filters' })
+  @ApiResponse({
+    status: 200,
+    description: 'User filters retrieved successfully',
+    type: [UserFiltersResponseDto],
+  })
+  async getFilters(@Request() req: any): Promise<UserFiltersResponseDto[]> {
+    return this.userFiltersService.getUserFilters(req.user.sub);
+  }
+
+  /**
+   * Get user filter by ID
+   */
+  @Get('filters/:id')
+  @ApiOperation({ summary: 'Get user filter by ID' })
+  @ApiParam({ name: 'id', description: 'Filter ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'User filter retrieved successfully',
+    type: UserFiltersResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Filter not found' })
+  async getFilterById(
+    @Request() req: any,
+    @Param('id', ParseIntPipe) filterId: number,
+  ): Promise<UserFiltersResponseDto> {
+    return this.userFiltersService.getUserFilterById(req.user.sub, filterId);
+  }
+
+  /**
+   * Delete user filter
+   */
+  @Delete('filters/:id')
+  @ApiOperation({ summary: 'Delete user filter' })
+  @ApiParam({ name: 'id', description: 'Filter ID' })
+  @ApiResponse({ status: 200, description: 'Filter deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Filter not found' })
+  @HttpCode(HttpStatus.OK)
+  async deleteFilter(
+    @Request() req: any,
+    @Param('id', ParseIntPipe) filterId: number,
+  ): Promise<{ message: string }> {
+    await this.userFiltersService.deleteUserFilter(req.user.sub, filterId);
+    return { message: 'Filter deleted successfully' };
+  }
+
+  /**
+   * Get default filters
+   */
+  @Get('filters/default')
+  @ApiOperation({ summary: 'Get default user filters' })
+  @ApiResponse({
+    status: 200,
+    description: 'Default filters retrieved successfully',
+    type: UserFiltersResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Default filters not found' })
+  async getDefaultFilters(
+    @Request() req: any,
+  ): Promise<UserFiltersResponseDto | null> {
+    return this.userFiltersService.getDefaultFilters(req.user.sub);
+  }
+
+  /**
+   * Save default filters
+   */
+  @Put('filters/default')
+  @ApiOperation({ summary: 'Save default user filters' })
+  @ApiResponse({
+    status: 200,
+    description: 'Default filters saved successfully',
+    type: UserFiltersResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid filter data' })
+  async saveDefaultFilters(
+    @Request() req: any,
+    @Body() dto: Omit<SaveUserFiltersDto, 'name'>,
+  ): Promise<UserFiltersResponseDto> {
+    return this.userFiltersService.saveDefaultFilters(req.user.sub, dto);
   }
 }

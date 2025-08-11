@@ -1,12 +1,13 @@
-import { useEffect } from "react";
-import VectorLayer from "ol/layer/Vector";
-import Feature from "ol/Feature";
-import Point from "ol/geom/Point";
-import { fromLonLat } from "ol/proj";
-import { Cluster } from "ol/source";
-import { useAircraftStore } from "../stores/aircraftStore";
-import { useVesselStore } from "../stores/vesselStore";
-import { useMapStore } from "../stores/mapStore";
+import { useEffect } from 'react';
+import VectorLayer from 'ol/layer/Vector';
+import Feature from 'ol/Feature';
+import Point from 'ol/geom/Point';
+import { fromLonLat } from 'ol/proj';
+import { Cluster } from 'ol/source';
+import { useAircraftStore } from '../stores/aircraftStore';
+import { useVesselStore } from '../stores/vesselStore';
+import { useMapStore } from '../stores/mapStore';
+import { useTrackingStore } from '../stores/trackingStore';
 
 interface UseFeatureUpdaterProps {
   aircraftLayerRef: React.RefObject<VectorLayer<Cluster> | null>;
@@ -19,7 +20,8 @@ export function useFeatureUpdater({
 }: UseFeatureUpdaterProps) {
   const { aircrafts } = useAircraftStore();
   const { vessels } = useVesselStore();
-  const { filters } = useMapStore();
+  const { trackedItems } = useTrackingStore();
+  const { filters, aircraftViewMode, vesselViewMode } = useMapStore();
   const { showAircraft: aircraftVisible, showVessels: vesselVisible } = filters;
 
   // Update aircraft features
@@ -38,9 +40,81 @@ export function useFeatureUpdater({
 
     // Only add aircraft if visible
     if (aircraftVisible && aircrafts.length > 0) {
-      console.log("Updating aircraft features:", aircrafts.length, "aircraft");
+      // Build filtered list applying view mode and advanced filters
+      let targetAircrafts = aircrafts;
 
-      aircrafts.forEach((aircraft) => {
+      if (aircraftViewMode === 'tracked') {
+        const trackedAircraftIds = trackedItems
+          .filter((item) => item.type === 'aircraft')
+          .map((item) => item.data.id);
+        targetAircrafts = targetAircrafts.filter((a) =>
+          trackedAircraftIds.includes(a.id),
+        );
+      }
+
+      const filteredAircrafts = targetAircrafts.filter((aircraft) => {
+        const af = filters.aircraft;
+        const noAdvancedFilters =
+          !af.searchQuery &&
+          !af.operator &&
+          !af.aircraftType &&
+          af.minAltitude == null &&
+          af.maxAltitude == null &&
+          af.minSpeed == null &&
+          af.maxSpeed == null;
+        if (noAdvancedFilters) return true;
+
+        const searchLower = (af.searchQuery || '').toLowerCase();
+        const matchesSearch =
+          !searchLower ||
+          aircraft.flightId.toLowerCase().includes(searchLower) ||
+          aircraft.callSign?.toLowerCase().includes(searchLower) ||
+          aircraft.registration?.toLowerCase().includes(searchLower) ||
+          aircraft.operator?.toLowerCase().includes(searchLower) ||
+          aircraft.aircraftType?.toLowerCase().includes(searchLower);
+
+        const matchesOperator =
+          !af.operator ||
+          (aircraft.operator || '')
+            .toLowerCase()
+            .includes(af.operator.toLowerCase());
+        const matchesType =
+          !af.aircraftType ||
+          (aircraft.aircraftType || '')
+            .toLowerCase()
+            .includes(af.aircraftType.toLowerCase());
+
+        const speed = aircraft.lastPosition?.speed ?? null;
+        const altitude = aircraft.lastPosition?.altitude ?? null;
+        const matchesSpeedMin =
+          af.minSpeed == null || (speed != null && speed >= af.minSpeed);
+        const matchesSpeedMax =
+          af.maxSpeed == null || (speed != null && speed <= af.maxSpeed);
+        const matchesAltMin =
+          af.minAltitude == null ||
+          (altitude != null && altitude >= af.minAltitude);
+        const matchesAltMax =
+          af.maxAltitude == null ||
+          (altitude != null && altitude <= af.maxAltitude);
+
+        return (
+          matchesSearch &&
+          matchesOperator &&
+          matchesType &&
+          matchesSpeedMin &&
+          matchesSpeedMax &&
+          matchesAltMin &&
+          matchesAltMax
+        );
+      });
+
+      console.log(
+        'Updating aircraft features:',
+        filteredAircrafts.length,
+        'aircraft (post-filter)',
+      );
+
+      filteredAircrafts.forEach((aircraft) => {
         if (aircraft.lastPosition) {
           const coordinates = fromLonLat([
             aircraft.lastPosition.longitude,
@@ -49,7 +123,7 @@ export function useFeatureUpdater({
 
           const feature = new Feature({
             geometry: new Point(coordinates),
-            type: "aircraft",
+            type: 'aircraft',
             aircraft,
           });
 
@@ -58,11 +132,18 @@ export function useFeatureUpdater({
       });
 
       console.log(
-        "Aircraft features updated, total:",
-        aircraftSource.getFeatures().length
+        'Aircraft features updated, total:',
+        aircraftSource.getFeatures().length,
       );
     }
-  }, [aircrafts, aircraftVisible, aircraftLayerRef]);
+  }, [
+    aircrafts,
+    aircraftVisible,
+    aircraftViewMode,
+    filters.aircraft,
+    trackedItems,
+    aircraftLayerRef,
+  ]);
 
   // Update vessel features
   useEffect(() => {
@@ -80,9 +161,75 @@ export function useFeatureUpdater({
 
     // Only add vessels if visible
     if (vesselVisible && vessels.length > 0) {
-      console.log("Updating vessel features:", vessels.length, "vessels");
+      // Build filtered list applying view mode and advanced filters
+      let targetVessels = vessels;
 
-      vessels.forEach((vessel) => {
+      if (vesselViewMode === 'tracked') {
+        const trackedVesselIds = trackedItems
+          .filter((item) => item.type === 'vessel')
+          .map((item) => item.data.id);
+        targetVessels = targetVessels.filter((v) =>
+          trackedVesselIds.includes(v.id),
+        );
+      }
+
+      const filteredVessels = targetVessels.filter((vessel) => {
+        const vf = filters.vessel;
+        const noAdvancedFilters =
+          !vf.searchQuery &&
+          !vf.operator &&
+          !vf.vesselType &&
+          !vf.flag &&
+          vf.minSpeed == null &&
+          vf.maxSpeed == null;
+        if (noAdvancedFilters) return true;
+
+        const searchLower = (vf.searchQuery || '').toLowerCase();
+        const matchesSearch =
+          !searchLower ||
+          vessel.mmsi.toLowerCase().includes(searchLower) ||
+          vessel.vesselName?.toLowerCase().includes(searchLower) ||
+          vessel.operator?.toLowerCase().includes(searchLower) ||
+          vessel.flag?.toLowerCase().includes(searchLower) ||
+          vessel.vesselType?.toLowerCase().includes(searchLower);
+
+        const matchesOperator =
+          !vf.operator ||
+          (vessel.operator || '')
+            .toLowerCase()
+            .includes(vf.operator.toLowerCase());
+        const matchesType =
+          !vf.vesselType ||
+          (vessel.vesselType || '')
+            .toLowerCase()
+            .includes(vf.vesselType.toLowerCase());
+        const matchesFlag =
+          !vf.flag ||
+          (vessel.flag || '').toLowerCase().includes(vf.flag.toLowerCase());
+
+        const speed = vessel.lastPosition?.speed ?? null;
+        const matchesSpeedMin =
+          vf.minSpeed == null || (speed != null && speed >= vf.minSpeed);
+        const matchesSpeedMax =
+          vf.maxSpeed == null || (speed != null && speed <= vf.maxSpeed);
+
+        return (
+          matchesSearch &&
+          matchesOperator &&
+          matchesType &&
+          matchesFlag &&
+          matchesSpeedMin &&
+          matchesSpeedMax
+        );
+      });
+
+      console.log(
+        'Updating vessel features:',
+        filteredVessels.length,
+        'vessels (post-filter)',
+      );
+
+      filteredVessels.forEach((vessel) => {
         if (vessel.lastPosition) {
           const coordinates = fromLonLat([
             vessel.lastPosition.longitude,
@@ -91,7 +238,7 @@ export function useFeatureUpdater({
 
           const feature = new Feature({
             geometry: new Point(coordinates),
-            type: "vessel",
+            type: 'vessel',
             vessel,
           });
 
@@ -100,9 +247,16 @@ export function useFeatureUpdater({
       });
 
       console.log(
-        "Vessel features updated, total:",
-        vesselSource.getFeatures().length
+        'Vessel features updated, total:',
+        vesselSource.getFeatures().length,
       );
     }
-  }, [vessels, vesselVisible, vesselLayerRef]);
+  }, [
+    vessels,
+    vesselVisible,
+    vesselViewMode,
+    filters.vessel,
+    trackedItems,
+    vesselLayerRef,
+  ]);
 }

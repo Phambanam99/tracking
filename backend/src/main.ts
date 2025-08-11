@@ -51,12 +51,68 @@ async function bootstrap() {
     .setTitle('Tracking API')
     .setDescription('API documentation for Tracking service')
     .setVersion(API_VERSION)
-    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'bearer')
-    .addApiKey({ type: 'apiKey', in: 'header', name: 'X-API-Version' }, 'api-version')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      'bearer',
+    )
+    // .addApiKey(
+    //   { type: 'apiKey', in: 'header', name: 'X-API-Version' },
+    //   'api-version',
+    // )
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, swaggerDocument, {
-    swaggerOptions: { persistAuthorization: true },
+    swaggerOptions: {
+      persistAuthorization: true,
+      defaultModelsExpandDepth: -1,
+      defaultModelExpandDepth: 3,
+      displayRequestDuration: true,
+      docExpansion: 'list',
+      filter: true,
+      showExtensions: true,
+      showCommonExtensions: true,
+      tryItOutEnabled: true,
+    },
+    customSiteTitle: 'Tracking API Documentation',
+    customCss: `
+      .swagger-ui .auth-wrapper .authorize {
+        background-color: #4CAF50 !important;
+        color: white !important;
+      }
+      .swagger-ui .auth-wrapper .authorize:hover {
+        background-color: #45a049 !important;
+      }
+    `,
+    customJs: `
+      // Auto-inject X-API-Version header for all requests
+      window.addEventListener('load', function() {
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options = {}) {
+          if (url.includes('/api/') && !options.headers) {
+            options.headers = {};
+          }
+          if (url.includes('/api/') && options.headers && !options.headers['X-API-Version']) {
+            options.headers['X-API-Version'] = '${API_VERSION}';
+          }
+          return originalFetch(url, options);
+        };
+        
+        // Also intercept XMLHttpRequest
+        const originalOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(method, url, ...args) {
+          if (url.includes('/api/')) {
+            this.addEventListener('readystatechange', function() {
+              if (this.readyState === 1) { // OPENED
+                if (!this.getRequestHeader('X-API-Version')) {
+                  this.setRequestHeader('X-API-Version', '${API_VERSION}');
+                }
+              }
+            });
+          }
+          return originalOpen.call(this, method, url, ...args);
+        };
+      });
+    `,
   });
 
   await app.listen(process.env.PORT ?? 3000);

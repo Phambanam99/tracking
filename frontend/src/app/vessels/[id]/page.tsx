@@ -1,10 +1,11 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Header from "@/components/Header";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import { useVesselStore } from "@/stores/vesselStore";
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Header from '@/components/Header';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { useVesselStore } from '@/stores/vesselStore';
+import { useMapStore } from '@/stores/mapStore';
 
 interface Vessel {
   id: number;
@@ -33,6 +34,7 @@ export default function VesselDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { vessels, fetchVessels } = useVesselStore();
+  const { setFocusTarget } = useMapStore();
   const [vessel, setVessel] = useState<Vessel | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -81,7 +83,7 @@ export default function VesselDetailPage() {
                 Tàu thuyền với ID này không tồn tại.
               </p>
               <button
-                onClick={() => router.push("/vessels")}
+                onClick={() => router.push('/vessels')}
                 className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
               >
                 Quay lại danh sách
@@ -112,7 +114,7 @@ export default function VesselDetailPage() {
               </div>
               <div className="flex space-x-3">
                 <button
-                  onClick={() => router.push("/vessels")}
+                  onClick={() => router.push('/vessels')}
                   className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                 >
                   Quay lại
@@ -214,7 +216,7 @@ export default function VesselDetailPage() {
                         </dt>
                         <dd className="mt-1 text-sm text-gray-900">
                           {new Date(vessel.createdAt).toLocaleDateString(
-                            "vi-VN"
+                            'vi-VN',
                           )}
                         </dd>
                       </div>
@@ -238,10 +240,10 @@ export default function VesselDetailPage() {
                                 Vị trí hiện tại
                               </h4>
                               <p className="text-sm text-gray-500">
-                                Cập nhật:{" "}
+                                Cập nhật:{' '}
                                 {new Date(
-                                  vessel.lastPosition.timestamp
-                                ).toLocaleString("vi-VN")}
+                                  vessel.lastPosition.timestamp,
+                                ).toLocaleString('vi-VN')}
                               </p>
                             </div>
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -340,11 +342,11 @@ export default function VesselDetailPage() {
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                             vessel.lastPosition
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
                           }`}
                         >
-                          {vessel.lastPosition ? "Có tín hiệu" : "Mất tín hiệu"}
+                          {vessel.lastPosition ? 'Có tín hiệu' : 'Mất tín hiệu'}
                         </span>
                       </div>
 
@@ -356,8 +358,8 @@ export default function VesselDetailPage() {
                             </span>
                             <span className="text-sm text-gray-900">
                               {new Date(
-                                vessel.lastPosition.timestamp
-                              ).toLocaleTimeString("vi-VN")}
+                                vessel.lastPosition.timestamp,
+                              ).toLocaleTimeString('vi-VN')}
                             </span>
                           </div>
 
@@ -383,7 +385,16 @@ export default function VesselDetailPage() {
                     </div>
 
                     <div className="mt-6">
-                      <button className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                      <button
+                        className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                        onClick={() => {
+                          if (vessel) {
+                            setFocusTarget({ type: 'vessel', id: vessel.id });
+                            // Điều hướng tới trang map (trang chủ)
+                            router.push('/');
+                          }
+                        }}
+                      >
                         📍 Xem trên bản đồ
                       </button>
                     </div>
