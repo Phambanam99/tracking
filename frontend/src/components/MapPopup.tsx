@@ -211,7 +211,9 @@ const MapPopup: React.FC<MapPopupProps> = ({
     } catch (error) {
       console.error('Failed to toggle tracking:', error);
       // Show user-friendly error message
-      if (error instanceof Error && error.message.includes('authentication')) {
+      const status = (error as any)?.status as number | undefined;
+      const message = error instanceof Error ? error.message : '';
+      if (status === 401 || status === 403 || message.toLowerCase().includes('forbidden') || message.toLowerCase().includes('unauthorized')) {
         alert(
           'Bạn cần đăng nhập để sử dụng tính năng theo dõi. Vui lòng đăng nhập và thử lại.',
         );

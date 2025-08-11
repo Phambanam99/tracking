@@ -40,7 +40,10 @@ class ApiService {
       const errorMessage =
         (payload && (payload.error?.message || payload.message)) ||
         `HTTP ${response.status}`;
-      throw new Error(errorMessage);
+      // Attach status for downstream handling
+      const error = new Error(errorMessage) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
     }
 
     // Standardized success envelope: { success: true, data }

@@ -7,7 +7,7 @@ import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import OSM from 'ol/source/OSM';
 import Cluster from 'ol/source/Cluster'; // ✅ default import
-import { defaults as defaultControls, Attribution } from 'ol/control';
+// import { defaults as defaultControls, Attribution } from 'ol/control';
 import {
   Style,
   Text,
@@ -26,8 +26,8 @@ import {
 interface UseMapInitializationProps {
   mapRef: React.RefObject<HTMLDivElement | null>;
   mapInstanceRef: React.RefObject<Map | null>;
-  aircraftLayerRef: React.RefObject<VectorLayer<Cluster> | null>;
-  vesselLayerRef: React.RefObject<VectorLayer<Cluster> | null>;
+  aircraftLayerRef: React.RefObject<VectorLayer<any> | null>;
+  vesselLayerRef: React.RefObject<VectorLayer<any> | null>;
   regionLayerRef: React.RefObject<VectorLayer<VectorSource> | null>;
 }
 
@@ -63,17 +63,88 @@ export function useMapInitialization(
       const vesselSource = new VectorSource();
       const regionSource = new VectorSource();
 
-      // Optimized clusters for large datasets
-      const aircraftCluster = new Cluster({
-        source: aircraftSource,
-        distance: 60,
-        minDistance: 20,
-      });
-      const vesselCluster = new Cluster({
-        source: vesselSource,
-        distance: 60,
-        minDistance: 20,
-      });
+      // Enable/disable clustering via env (default: enabled)
+      const disableCluster =
+        (process.env.NEXT_PUBLIC_DISABLE_CLUSTER || '').toLowerCase() ===
+        'true';
+      const clusterExplicit = process.env.NEXT_PUBLIC_CLUSTER_ENABLED;
+      const clusterEnabled =
+        clusterExplicit != null
+          ? clusterExplicit.toLowerCase() === 'true'
+          : !disableCluster;
+
+      // Optimized clusters for large datasets (only if enabled)
+      const aircraftCluster = clusterEnabled
+        ? new Cluster({
+            source: aircraftSource,
+            distance: 60,
+            minDistance: 20,
+          })
+        : null;
+      const vesselCluster = clusterEnabled
+        ? new Cluster({
+            source: vesselSource,
+            distance: 60,
+            minDistance: 20,
+          })
+        : null;
+
+      // Style caches to avoid repeated object allocations
+      const clusterStyleCacheAircraft: Record<string, Style> = {};
+      // const singleDotStyleAircraft: Record<string, Style> = {};
+      const iconStyleAircraft: Record<string, Style> = {};
+
+      const getClusterStyleAircraft = (
+        sizeBucket: number,
+        withText: boolean,
+      ): Style => {
+        const key = `${sizeBucket}-${withText ? 't' : 'n'}`;
+        if (!clusterStyleCacheAircraft[key]) {
+          clusterStyleCacheAircraft[key] = new Style({
+            image: new CircleStyle({
+              radius: Math.min(15 + sizeBucket * 2, 30),
+              fill: new Fill({ color: 'rgba(59,130,246,0.8)' }),
+              stroke: new Stroke({ color: 'white', width: 2 }),
+            }),
+            text: withText
+              ? new Text({
+                  text: String(sizeBucket),
+                  fill: new Fill({ color: 'white' }),
+                  font: 'bold 12px sans-serif',
+                })
+              : undefined,
+          });
+        }
+        return clusterStyleCacheAircraft[key];
+      };
+
+      // const getSingleDotStyleAircraft = (): Style => {
+      //   const key = 'dot';
+      //   if (!singleDotStyleAircraft[key]) {
+      //     singleDotStyleAircraft[key] = new Style({
+      //       image: new CircleStyle({
+      //         radius: 4,
+      //         fill: new Fill({ color: 'rgba(59,130,246,0.9)' }),
+      //         stroke: new Stroke({ color: 'white', width: 1 }),
+      //       }),
+      //     });
+      //   }
+      //   return singleDotStyleAircraft[key];
+      // };
+
+      const getIconStyleAircraft = (headingKey: number): Style => {
+        const key = String(headingKey);
+        if (!iconStyleAircraft[key]) {
+          iconStyleAircraft[key] = new Style({
+            image: new Icon({
+              src: '/aircraft-icon.svg',
+              scale: 0.8,
+              rotation: (headingKey * Math.PI) / 180,
+            }),
+          });
+        }
+        return iconStyleAircraft[key];
+      };
 
       // Style function nên dùng resolution (không truy cập map ở đây)
       const aircraftVectorStyle: import('ol/style/Style').StyleFunction = (
@@ -87,18 +158,9 @@ export function useMapInitialization(
 
         const size = features.length;
         if (size > 1) {
-          return new Style({
-            image: new CircleStyle({
-              radius: Math.min(15 + size * 2, 30),
-              fill: new Fill({ color: 'rgba(59,130,246,0.8)' }),
-              stroke: new Stroke({ color: 'white', width: 2 }),
-            }),
-            text: new Text({
-              text: String(size),
-              fill: new Fill({ color: 'white' }),
-              font: 'bold 12px sans-serif',
-            }),
-          });
+          const bucket = Math.min(99, Math.max(2, size));
+          const showText = zoom > 6;
+          return getClusterStyleAircraft(bucket, showText);
         }
 
         if (shouldSimplifyIcons(zoom)) {
@@ -112,15 +174,67 @@ export function useMapInitialization(
         }
 
         const aircraft = features[0]?.get('aircraft');
-        return new Style({
-          image: new Icon({
-            src: '/aircraft-icon.svg',
-            scale: 0.8,
-            rotation: aircraft?.lastPosition?.heading
-              ? (aircraft.lastPosition.heading * Math.PI) / 180
-              : 0,
-          }),
-        });
+        const heading = aircraft?.lastPosition?.heading || 0;
+        const headingKey = Math.round(heading / 5) * 5;
+        return getIconStyleAircraft(headingKey);
+      };
+
+      const clusterStyleCacheVessel: Record<string, Style> = {};
+      // const singleDotStyleVessel: Record<string, Style> = {};
+      const iconStyleVessel: Record<string, Style> = {};
+
+      const getClusterStyleVessel = (
+        sizeBucket: number,
+        withText: boolean,
+      ): Style => {
+        const key = `${sizeBucket}-${withText ? 't' : 'n'}`;
+        if (!clusterStyleCacheVessel[key]) {
+          // Scale icon by cluster size bucket (bounded)
+          // 0.8 -> 1.3
+          clusterStyleCacheVessel[key] = new Style({
+            image: new Icon({
+              src: '/vessel-cluster.svg',
+              anchor: [0.5, 0.5],
+            }),
+            text: withText
+              ? new Text({
+                  text: String(sizeBucket),
+                  fill: new Fill({ color: 'white' }),
+                  font: 'bold 12px sans-serif',
+                  offsetY: 0,
+                })
+              : undefined,
+          });
+        }
+        return clusterStyleCacheVessel[key];
+      };
+
+      // const getSingleDotStyleVessel = (): Style => {
+      //   const key = 'dot';
+      //   if (!singleDotStyleVessel[key]) {
+      //     singleDotStyleVessel[key] = new Style({
+      //       image: new CircleStyle({
+      //         radius: 4,
+      //         fill: new Fill({ color: 'rgba(34,197,94,0.9)' }),
+      //         stroke: new Stroke({ color: 'white', width: 1 }),
+      //       }),
+      //     });
+      //   }
+      //   return singleDotStyleVessel[key];
+      // };
+
+      const getIconStyleVessel = (headingKey: number): Style => {
+        const key = String(headingKey);
+        if (!iconStyleVessel[key]) {
+          iconStyleVessel[key] = new Style({
+            image: new Icon({
+              src: '/vessel-icon.svg',
+              scale: 0.8,
+              rotation: (headingKey * Math.PI) / 180,
+            }),
+          });
+        }
+        return iconStyleVessel[key];
       };
 
       const vesselVectorStyle: import('ol/style/Style').StyleFunction = (
@@ -134,18 +248,9 @@ export function useMapInitialization(
 
         const size = features.length;
         if (size > 1) {
-          return new Style({
-            image: new CircleStyle({
-              radius: Math.min(15 + size * 2, 30),
-              fill: new Fill({ color: 'rgba(34,197,94,0.8)' }),
-              stroke: new Stroke({ color: 'white', width: 2 }),
-            }),
-            text: new Text({
-              text: String(size),
-              fill: new Fill({ color: 'white' }),
-              font: 'bold 12px sans-serif',
-            }),
-          });
+          const bucket = Math.min(99, Math.max(2, size));
+          const showText = zoom > 6;
+          return getClusterStyleVessel(bucket, showText);
         }
 
         if (shouldSimplifyIcons(zoom)) {
@@ -159,29 +264,25 @@ export function useMapInitialization(
         }
 
         const vessel = features[0]?.get('vessel');
-        return new Style({
-          image: new Icon({
-            src: '/vessel-icon.svg',
-            scale: 0.8,
-            rotation: vessel?.lastPosition?.heading
-              ? (vessel.lastPosition.heading * Math.PI) / 180
-              : 0,
-          }),
-        });
+        const heading = vessel?.lastPosition?.heading || 0;
+        const headingKey = Math.round(heading / 5) * 5;
+        return getIconStyleVessel(headingKey);
       };
 
       const aircraftLayer = new VectorLayer({
-        source: aircraftCluster,
+        source: aircraftCluster ?? aircraftSource,
         style: aircraftVectorStyle,
-
-        updateWhileAnimating: false, // Disable updates during animation
-        updateWhileInteracting: false, // Disable updates during interaction
+        declutter: false,
+        renderBuffer: 32,
+        updateWhileAnimating: false,
+        updateWhileInteracting: false,
       });
 
       const vesselLayer = new VectorLayer({
-        source: vesselCluster,
+        source: vesselCluster ?? vesselSource,
         style: vesselVectorStyle,
-
+        declutter: false,
+        renderBuffer: 32,
         updateWhileAnimating: false,
         updateWhileInteracting: false,
       });
@@ -199,9 +300,8 @@ export function useMapInitialization(
       // Map (giữ Attribution hợp lệ cho OSM)
       const map = new Map({
         target: mapRef.current!,
-        controls: defaultControls({ attribution: true }).extend([
-          new Attribution({ collapsible: true }),
-        ]),
+        pixelRatio: 1,
+
         layers: [
           new TileLayer({
             source: new OSM(), // ❗️đừng xoá attribution của OSM
@@ -213,6 +313,8 @@ export function useMapInitialization(
         view: new View({
           center: fromLonLat([108.2194, 16.0544]), // VN center
           zoom: 6,
+          minZoom: 4,
+          maxZoom: 16,
         }),
       });
 
@@ -220,9 +322,11 @@ export function useMapInitialization(
       const updateByZoom = () => {
         const z = map.getView().getZoom() ?? 6;
 
-        const dist = getClusterDistance(z);
-        aircraftCluster.setDistance(dist);
-        vesselCluster.setDistance(dist);
+        if (clusterEnabled) {
+          const dist = getClusterDistance(z);
+          aircraftCluster?.setDistance(dist);
+          vesselCluster?.setDistance(dist);
+        }
 
         // WebGL disabled - always use vector layers
         aircraftLayer.setVisible(true);

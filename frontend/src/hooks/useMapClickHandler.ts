@@ -19,8 +19,7 @@ export function useMapClickHandler({
     let retryTimer: number | null = null;
     let attached = false;
     let attachedMap: Map | null = null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let clickHandler: ((event: any) => void) | null = null;
+    let clickHandler: ((event: unknown) => void) | null = null;
 
     const tryAttach = () => {
       const mapInstance = mapInstanceRef.current;
@@ -30,9 +29,9 @@ export function useMapClickHandler({
         return;
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      clickHandler = (event: any) => {
-        const features = mapInstance.getFeaturesAtPixel(event.pixel, {
+      clickHandler = (evt: unknown) => {
+        const event = evt as { pixel: [number, number] };
+        const features = mapInstance.getFeaturesAtPixel(event.pixel as any, {
           hitTolerance: 8,
         });
 
@@ -100,12 +99,13 @@ export function useMapClickHandler({
               Array.isArray(clusteredFeatures) &&
               clusteredFeatures.length > 1
             ) {
-              const extent = clickedFeature.getGeometry()?.getExtent();
-              if (extent) {
-                mapInstance.getView().fit(extent, {
-                  duration: 300,
-                  padding: [50, 50, 50, 50],
-                });
+              const geom = clickedFeature.getGeometry() as any;
+              if (geom && typeof geom.getCoordinates === 'function') {
+                const coord = geom.getCoordinates();
+                const view = mapInstance.getView();
+                const current = view.getZoom() ?? 6;
+                const target = Math.min(current + 2, 14);
+                view.animate({ center: coord, zoom: target, duration: 300 });
               }
             }
           }
@@ -127,8 +127,7 @@ export function useMapClickHandler({
         clearTimeout(retryTimer);
       }
       if (attached && attachedMap && clickHandler) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (attachedMap as any).un('singleclick', clickHandler);
+        (attachedMap as unknown as any).un('singleclick', clickHandler);
       }
     };
   }, [

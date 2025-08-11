@@ -3,7 +3,7 @@ import { useAircraftStore } from '../stores/aircraftStore';
 import { useVesselStore } from '../stores/vesselStore';
 import api from '../services/apiClient';
 import { useMapStore } from '../stores/mapStore';
-import { toLonLat } from 'ol/proj';
+// Removed unused import
 
 export function useDataLoader() {
   const { setAircrafts } = useAircraftStore();
@@ -16,8 +16,8 @@ export function useDataLoader() {
         console.log('Loading initial data by viewport bbox...');
         // Try to read current map view bbox (if map exists)
         // Fallback to whole world if not available
-        let bboxParam = '';
-        const mapEl = document.querySelector('.ol-viewport');
+        const bboxParam = '';
+        const _mapEl = document.querySelector('.ol-viewport');
         // We can't access OL Map instance here directly; load all for now
         // A future improvement: pass map instance or current extent via context
 

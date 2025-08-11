@@ -3,15 +3,15 @@ import VectorLayer from 'ol/layer/Vector';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
 import { fromLonLat } from 'ol/proj';
-import { Cluster } from 'ol/source';
+import Cluster from 'ol/source/Cluster';
 import { useAircraftStore } from '../stores/aircraftStore';
 import { useVesselStore } from '../stores/vesselStore';
 import { useMapStore } from '../stores/mapStore';
 import { useTrackingStore } from '../stores/trackingStore';
 
 interface UseFeatureUpdaterProps {
-  aircraftLayerRef: React.RefObject<VectorLayer<Cluster> | null>;
-  vesselLayerRef: React.RefObject<VectorLayer<Cluster> | null>;
+  aircraftLayerRef: React.RefObject<VectorLayer<any> | null>;
+  vesselLayerRef: React.RefObject<VectorLayer<any> | null>;
 }
 
 export function useFeatureUpdater({
@@ -28,12 +28,15 @@ export function useFeatureUpdater({
   useEffect(() => {
     if (!aircraftLayerRef.current) return;
 
-    // Get the cluster source first, then get the underlying vector source
-    const clusterSource = aircraftLayerRef.current.getSource();
-    if (!clusterSource) return;
-
-    const aircraftSource = clusterSource.getSource();
-    if (!aircraftSource) return;
+    // Get layer source; support both Cluster and VectorSource
+    const layerSource: any = aircraftLayerRef.current.getSource();
+    if (!layerSource) return;
+    const aircraftSource: any =
+      typeof layerSource.getSource === 'function'
+        ? layerSource.getSource()
+        : layerSource;
+    if (!aircraftSource || typeof aircraftSource.addFeatures !== 'function')
+      return;
 
     // Clear existing features then batch add
     aircraftSource.clear();
@@ -149,12 +152,14 @@ export function useFeatureUpdater({
   useEffect(() => {
     if (!vesselLayerRef.current) return;
 
-    // Get the cluster source first, then get the underlying vector source
-    const clusterSource = vesselLayerRef.current.getSource();
-    if (!clusterSource) return;
-
-    const vesselSource = clusterSource.getSource();
-    if (!vesselSource) return;
+    // Get layer source; support both Cluster and VectorSource
+    const layerSource: any = vesselLayerRef.current.getSource();
+    if (!layerSource) return;
+    const vesselSource: any =
+      typeof layerSource.getSource === 'function'
+        ? layerSource.getSource()
+        : layerSource;
+    if (!vesselSource || typeof vesselSource.addFeatures !== 'function') return;
 
     // Clear existing features then batch add
     vesselSource.clear();

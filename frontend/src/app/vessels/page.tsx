@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -9,23 +9,32 @@ import { useVesselStore } from '@/stores/vesselStore';
 export default function VesselsPage() {
   const { vessels, loading, error, fetchVessels } = useVesselStore();
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [filterType, setFilterType] = useState('all');
 
   useEffect(() => {
     fetchVessels(1, 50);
   }, [fetchVessels]);
 
-  const filteredVessels = vessels.filter((vessel) => {
-    const matchesSearch =
-      vessel.mmsi.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vessel.vesselName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vessel.flag?.toLowerCase().includes(searchTerm.toLowerCase());
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(searchTerm.trim()), 300);
+    return () => clearTimeout(id);
+  }, [searchTerm]);
 
-    if (filterType === 'all') return matchesSearch;
-    if (filterType === 'active') return matchesSearch && vessel.lastPosition;
-    if (filterType === 'inactive') return matchesSearch && !vessel.lastPosition;
-    return matchesSearch;
-  });
+  const filteredVessels = useMemo(() => {
+    const q = debouncedQuery.toLowerCase();
+    return vessels.filter((vessel) => {
+      const matchesSearch =
+        vessel.mmsi.toLowerCase().includes(q) ||
+        (vessel.vesselName?.toLowerCase().includes(q) ?? false) ||
+        (vessel.flag?.toLowerCase().includes(q) ?? false);
+
+      if (filterType === 'all') return matchesSearch;
+      if (filterType === 'active') return matchesSearch && !!vessel.lastPosition;
+      if (filterType === 'inactive') return matchesSearch && !vessel.lastPosition;
+      return matchesSearch;
+    });
+  }, [vessels, debouncedQuery, filterType]);
 
   return (
     <ProtectedRoute>
@@ -71,7 +80,7 @@ export default function VesselsPage() {
               </div>
             </div>
 
-            {/* Vessels List (paginated basic) */}
+            {/* Vessels Table */}
             <div className="card overflow-hidden sm:rounded-md">
               {loading ? (
                 <div className="flex justify-center items-center h-32">
@@ -83,88 +92,75 @@ export default function VesselsPage() {
                 </div>
               ) : (
                 <>
-                  <ul className="divide-y divide-gray-200">
-                  {filteredVessels.map((vessel) => (
-                    <li key={vessel.id}>
-                      <Link
-                        href={`/vessels/${vessel.id}`}
-                        className="block hover:bg-gray-50 px-4 py-4 sm:px-6"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-10 w-10 bg-green-100 rounded-full flex items-center justify-center">
-                              <span className="text-green-600 font-semibold">
-                                🚢
-                              </span>
-                            </div>
-                            <div className="ml-4">
-                              <div className="flex items-center">
-                                <p className="text-sm font-medium text-indigo-600">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full table-fixed">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-2/5">
+                            Tên tàu / MMSI
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-24">
+                            Tín hiệu
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-32">
+                            Quốc tịch
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-40">
+                            Loại tàu
+                          </th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 w-28">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {filteredVessels.map((vessel) => (
+                          <tr key={vessel.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 align-middle">
+                              <div className="font-medium text-indigo-600">
+                                <Link href={`/vessels/${vessel.id}`}>
                                   {vessel.vesselName || vessel.mmsi}
-                                </p>
-                                <span
-                                  className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                    vessel.lastPosition
-                                      ? 'bg-green-100 text-green-800'
-                                      : 'bg-gray-100 text-gray-800'
-                                  }`}
-                                >
-                                  {vessel.lastPosition
-                                    ? 'Có tín hiệu'
-                                    : 'Mất tín hiệu'}
-                                </span>
+                                </Link>
                               </div>
-                              <p className="text-sm text-gray-500">
-                                MMSI: {vessel.mmsi} •{' '}
-                                {vessel.vesselType || 'Loại tàu không xác định'}
-                              </p>
-                              <div className="flex items-center text-sm text-gray-500">
-                                {vessel.flag && <span>🏴 {vessel.flag}</span>}
-                                {vessel.operator && (
-                                  <span className="ml-2">
-                                    Vận hành: {vessel.operator}
-                                  </span>
-                                )}
-                                {vessel.length && vessel.width && (
-                                  <span className="ml-2">
-                                    Kích thước: {vessel.length}m x{' '}
-                                    {vessel.width}m
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            {vessel.lastPosition && (
-                              <div className="text-sm text-gray-500">
-                                <p>
-                                  Tốc độ: {vessel.lastPosition.speed || 0} knots
-                                </p>
-                                <p>Hướng: {vessel.lastPosition.course || 0}°</p>
-                                <p className="text-xs">
-                                  Cập nhật:{' '}
-                                  {new Date(
-                                    vessel.lastPosition.timestamp,
-                                  ).toLocaleString('vi-VN')}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                  {filteredVessels.length === 0 && (
-                    <li className="px-4 py-8 text-center text-gray-500">
-                      Không tìm thấy tàu thuyền nào
-                    </li>
-                  )}
-                  </ul>
+                              <div className="text-xs text-gray-500">MMSI: {vessel.mmsi}</div>
+                            </td>
+                            <td className="px-4 py-2 align-middle">
+                              <span
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  vessel.lastPosition
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}
+                              >
+                                {vessel.lastPosition ? 'Có tín hiệu' : 'Mất tín hiệu'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 align-middle">{vessel.flag || '-'}</td>
+                            <td className="px-4 py-2 align-middle">
+                              {vessel.vesselType || 'Không xác định'}
+                            </td>
+                            <td className="px-4 py-2 align-middle text-right">
+                              <Link href={`/vessels/${vessel.id}`} className="text-indigo-600 hover:underline">
+                                Chi tiết
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                        {filteredVessels.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                              Không tìm thấy tàu thuyền nào
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
 
                   <div className="p-4 flex items-center justify-between text-sm text-gray-600">
                     <button
                       className="btn"
-                      onClick={() => fetchVessels(1, 50, searchTerm)}
+                      onClick={() => fetchVessels(1, 50, debouncedQuery)}
                     >
                       Làm mới
                     </button>

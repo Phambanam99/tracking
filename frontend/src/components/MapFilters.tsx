@@ -13,7 +13,6 @@ import {
   X,
   Settings,
   Eye,
-  EyeOff,
   Star,
   Database,
 } from 'lucide-react';
@@ -39,6 +38,7 @@ export default function MapFiltersRedesigned({
     activeFilterTab,
     aircraftViewMode,
     vesselViewMode,
+    applyFilters,
     setActiveFilterTab,
     setAircraftViewMode,
     setVesselViewMode,
@@ -54,7 +54,7 @@ export default function MapFiltersRedesigned({
     setVesselSpeedRange,
     resetAircraftFilters,
     resetVesselFilters,
-    resetFilters,
+    
   } = useMapStore();
 
   const { user } = useAuthStore();
@@ -385,14 +385,18 @@ export default function MapFiltersRedesigned({
                 <RotateCcw className="w-4 h-4" />
                 <span>Đặt lại</span>
               </button>
-              <button
-                onClick={resetFilters}
-                className="flex items-center space-x-2 px-3 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors text-sm"
-              >
-                <EyeOff className="w-4 h-4" />
-                <span>Xóa tất cả</span>
-              </button>
+              
               <div className="flex-1"></div>
+              <button
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                onClick={() => {
+                  applyFilters();
+                  setIsOpen(false);
+                }}
+              >
+                <Search className="w-4 h-4" />
+                <span>Tìm kiếm</span>
+              </button>
               <button
                 className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                 onClick={() => {

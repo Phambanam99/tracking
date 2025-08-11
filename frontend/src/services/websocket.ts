@@ -7,6 +7,9 @@ export const websocketService = {
 
   connect() {
     if (typeof window === 'undefined') return; // SSR protection
+    if (this.socket && (this.socket.connected || this.socket.connecting)) {
+      return;
+    }
 
     // Dynamically import socket.io-client only on client side
     import('socket.io-client').then(({ io }) => {

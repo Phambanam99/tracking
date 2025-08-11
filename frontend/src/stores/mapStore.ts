@@ -79,10 +79,12 @@ export interface HistoryPath {
 
 interface MapState {
   filters: MapFilters;
+  appliedFilters: MapFilters | null;
   // Persisted per-user filters
   currentUserId: string;
   filtersByUser: Record<string, MapFilters>;
   _updateFilters: (updater: (prev: MapFilters) => MapFilters) => void;
+  applyFilters: () => void;
   // Tabs and view modes
   activeFilterTab: 'aircraft' | 'vessel';
   aircraftViewMode: 'all' | 'tracked';
@@ -94,7 +96,13 @@ interface MapState {
   popupPosition: [number, number] | null;
   isPopupVisible: boolean;
   // Cross-page focus request
-  focusTarget: { type: 'aircraft' | 'vessel'; id: number } | null;
+  focusTarget: {
+    type: 'aircraft' | 'vessel';
+    id: number;
+    latitude?: number;
+    longitude?: number;
+    zoom?: number;
+  } | null;
 
   // History overlay state and actions
   historyPath: HistoryPath | null;
@@ -147,7 +155,13 @@ interface MapState {
   hidePopup: () => void;
   setSelectedFeature: (feature: FeatureData) => void;
   setFocusTarget: (
-    target: { type: 'aircraft' | 'vessel'; id: number } | null,
+    target: {
+      type: 'aircraft' | 'vessel';
+      id: number;
+      latitude?: number;
+      longitude?: number;
+      zoom?: number;
+    } | null,
   ) => void;
 
   // Region drawing actions
@@ -185,6 +199,7 @@ export const useMapStore = create<MapState>()(
   persist(
     (set, get) => ({
       filters: defaultFilters,
+      appliedFilters: null,
       currentUserId: 'guest',
       filtersByUser: {},
       activeFilterTab: 'vessel',
@@ -225,6 +240,16 @@ export const useMapStore = create<MapState>()(
         set({
           filters: newFilters,
           filtersByUser: { ...state.filtersByUser, [userId]: newFilters },
+        });
+      },
+
+      // Explicitly apply current filters as active filters used by the map
+      applyFilters: () => {
+        const state = get();
+        const userId = state.currentUserId || 'guest';
+        set({
+          appliedFilters: state.filters,
+          filtersByUser: { ...state.filtersByUser, [userId]: state.filters },
         });
       },
 
@@ -347,6 +372,7 @@ export const useMapStore = create<MapState>()(
           filtersByUser: { ...state.filtersByUser, [userId]: defaultFilters },
           aircraftViewMode: 'all',
           vesselViewMode: 'all',
+          appliedFilters: defaultFilters,
         });
       },
 

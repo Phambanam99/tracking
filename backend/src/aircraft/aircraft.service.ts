@@ -41,6 +41,16 @@ export class AircraftService {
               : 50000; // Increased from 6000 to 50000 for high zoom
 
     const aircrafts = await this.prisma.aircraft.findMany({
+      where: bbox
+        ? {
+            positions: {
+              some: {
+                longitude: { gte: bbox[0], lte: bbox[2] },
+                latitude: { gte: bbox[1], lte: bbox[3] },
+              },
+            },
+          }
+        : {},
       include: {
         positions: {
           where: positionWhere,
