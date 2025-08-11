@@ -7,6 +7,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAircraftStore } from '@/stores/aircraftStore';
 import { useMapStore } from '@/stores/mapStore';
 import { useTrackingStore } from '@/stores/trackingStore';
+import api from '@/services/apiClient';
 import HistoryTable from './HistoryTable';
 
 interface Aircraft {
@@ -39,6 +40,10 @@ export default function AircraftDetailPage() {
   const [loading, setLoading] = useState(true);
   const [trackingBusy, setTrackingBusy] = useState(false);
 
+  const SIGNAL_STALE_MINUTES = Number(
+    process.env.NEXT_PUBLIC_SIGNAL_STALE_MINUTES || 10,
+  );
+
   useEffect(() => {
     const loadAircraft = async () => {
       if (aircrafts.length === 0) {
@@ -50,6 +55,14 @@ export default function AircraftDetailPage() {
 
       if (foundAircraft) {
         setAircraft(foundAircraft);
+      } else {
+        // Fallback: fetch detail by ID from backend
+        try {
+          const detail = await api.get(`/aircrafts/${aircraftId}`);
+          if (detail && !detail.error) setAircraft(detail);
+        } catch {
+          // ignore
+        }
       }
       setLoading(false);
     };
@@ -338,17 +351,25 @@ export default function AircraftDetailPage() {
                         <span className="text-sm font-medium text-gray-500">
                           Tín hiệu
                         </span>
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            aircraft.lastPosition
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}
-                        >
-                          {aircraft.lastPosition
-                            ? 'Có tín hiệu'
-                            : 'Mất tín hiệu'}
-                        </span>
+                        {(() => {
+                          const ts = aircraft.lastPosition?.timestamp
+                            ? new Date(aircraft.lastPosition.timestamp).getTime()
+                            : null;
+                          const now = Date.now();
+                          const hasSignal =
+                            ts !== null && now - ts <= SIGNAL_STALE_MINUTES * 60 * 1000;
+                          return (
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                hasSignal
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}
+                            >
+                              {hasSignal ? 'Có tín hiệu' : 'Mất tín hiệu'}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       {aircraft.lastPosition && (

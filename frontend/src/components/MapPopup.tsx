@@ -508,8 +508,8 @@ const MapPopup: React.FC<MapPopupProps> = ({
 
         {/* History controls */}
         <div className="pt-3 border-t space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-600 flex items-center space-x-2">
+          <div className="flex flex-col items-center justify-between">
+            <label className=" flex justify-between text-sm text-gray-600 flex items-center space-x-2">
               <span>Khoảng thời gian (giờ):</span>
               <input
                 type="number"
@@ -524,7 +524,7 @@ const MapPopup: React.FC<MapPopupProps> = ({
                 className="w-20 border rounded px-2 py-1 text-sm"
               />
             </label>
-            <div className="space-x-2">
+            <div className="flex justify-between space-x-2">
               <button
                 onClick={loadHistory}
                 className="px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors"

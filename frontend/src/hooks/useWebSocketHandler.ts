@@ -17,7 +17,7 @@ interface RegionAlert {
 export function useWebSocketHandler() {
   const { updateAircraft } = useAircraftStore();
   const { updateVessel } = useVesselStore();
-  const { fetchRegions } = useRegionStore();
+  const { fetchRegions, addNewAlert } = useRegionStore();
   const {} = useMapStore();
 
   // Connect WebSocket
@@ -42,10 +42,28 @@ export function useWebSocketHandler() {
       updateVessel(vessel);
     };
 
-    // Region alerts (refresh regions when alerts change)
-    const handleRegionAlert = (alert: RegionAlert) => {
-      console.log('Received region alert:', alert);
-      // Refresh regions to get updated alert counts
+    // Region alerts: push alert immediately and refresh regions
+    const handleRegionAlert = (alert: any) => {
+      try {
+        console.log('Received region alert:', alert);
+        // Normalize shape and push into store
+        const normalized = {
+          id: alert.id,
+          regionId: alert.regionId,
+          objectType: alert.objectType,
+          objectId: alert.objectId,
+          alertType: alert.alertType,
+          latitude: alert.latitude,
+          longitude: alert.longitude,
+          isRead: !!alert.isRead,
+          createdAt: alert.createdAt || new Date().toISOString(),
+          region: alert.region || { name: alert.regionName || 'Khu vực' },
+        };
+        addNewAlert(normalized);
+      } catch (e) {
+        // swallow
+      }
+      // Optionally refresh regions to update counts
       fetchRegions();
     };
 
@@ -60,7 +78,7 @@ export function useWebSocketHandler() {
       websocketService.offVesselUpdate(handleVesselUpdate);
       websocketService.offRegionAlert(handleRegionAlert);
     };
-  }, [updateAircraft, updateVessel, fetchRegions]);
+  }, [updateAircraft, updateVessel, fetchRegions, addNewAlert]);
 
   // Subscribe viewport bbox for server-side filtering
   useEffect(() => {

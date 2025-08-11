@@ -7,6 +7,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { useVesselStore } from '@/stores/vesselStore';
 import { useMapStore } from '@/stores/mapStore';
 import { useTrackingStore } from '@/stores/trackingStore';
+import api from '@/services/apiClient';
 import HistoryTable from './HistoryTable';
 
 interface Vessel {
@@ -42,6 +43,10 @@ export default function VesselDetailPage() {
   const [loading, setLoading] = useState(true);
   const [trackingBusy, setTrackingBusy] = useState(false);
 
+  const SIGNAL_STALE_MINUTES = Number(
+    process.env.NEXT_PUBLIC_SIGNAL_STALE_MINUTES || 10,
+  );
+
   useEffect(() => {
     const loadVessel = async () => {
       if (vessels.length === 0) {
@@ -49,10 +54,18 @@ export default function VesselDetailPage() {
       }
 
       const vesselId = parseInt(params.id as string);
-      const foundVessel = vessels.find((v) => v.id === vesselId);
+      let foundVessel = vessels.find((v) => v.id === vesselId);
 
       if (foundVessel) {
         setVessel(foundVessel);
+      } else {
+        // Fallback: fetch detail by ID from backend
+        try {
+          const detail = await api.get(`/vessels/${vesselId}`);
+          if (detail && !detail.error) setVessel(detail);
+        } catch {
+          // ignore
+        }
       }
       setLoading(false);
     };
@@ -375,15 +388,25 @@ export default function VesselDetailPage() {
                         <span className="text-sm font-medium text-gray-500">
                           Tín hiệu
                         </span>
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            vessel.lastPosition
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}
-                        >
-                          {vessel.lastPosition ? 'Có tín hiệu' : 'Mất tín hiệu'}
-                        </span>
+                        {(() => {
+                          const ts = vessel.lastPosition?.timestamp
+                            ? new Date(vessel.lastPosition.timestamp).getTime()
+                            : null;
+                          const now = Date.now();
+                          const hasSignal =
+                            ts !== null && now - ts <= SIGNAL_STALE_MINUTES * 60 * 1000;
+                          return (
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                hasSignal
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}
+                            >
+                              {hasSignal ? 'Có tín hiệu' : 'Mất tín hiệu'}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       {vessel.lastPosition && (
