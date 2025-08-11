@@ -512,7 +512,7 @@ const MapPopup: React.FC<MapPopupProps> = ({
               <input
                 type="number"
                 min={1}
-                max={168}
+                max={2400}
                 value={historyHours}
                 onChange={(e) =>
                   setHistoryHours(

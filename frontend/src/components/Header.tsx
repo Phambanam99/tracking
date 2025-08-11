@@ -37,7 +37,7 @@ export default function Header() {
   };
 
   return (
-    <nav className="sticky top-0 z-40 glass border-b border-[color:var(--border)] app-header">
+    <nav className="sticky top-0 z-40 glass border-b border-gray-200 dark:border-gray-700 app-header">
       <div className="container-app">
         <div className="flex justify-between h-16">
           <div className="flex">
@@ -75,7 +75,7 @@ export default function Header() {
             <div className="relative">
               <button
                 onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                className="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[color:var(--ring)] rounded-full"
+                className="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-full"
               >
                 <span className="sr-only">View notifications</span>
                 <svg
@@ -108,7 +108,7 @@ export default function Header() {
             <div className="relative">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="bg-white dark:bg-[color:var(--card)] flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[color:var(--ring)]"
+                className="bg-white dark:bg-slate-900 flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <span className="sr-only">Open user menu</span>
                 <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">

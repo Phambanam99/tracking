@@ -303,7 +303,7 @@ export default function MapComponentClustered() {
     // Initial build
     rebuild();
 
-    // Hover interaction to show time labels on demand
+    // Hover interaction to show time labels on demand (throttled)
     const hoverOverlayStyle = (feature: FeatureLike) => {
       const label = feature.get('timeLabel');
       if (!label) return undefined;
@@ -324,9 +324,15 @@ export default function MapComponentClustered() {
     };
 
     let lastHover: Feature | null = null;
-    const onPointerMove = (evt: any) => {
+    let hoverRaf = 0;
+    let pendingEvt: any = null;
+    const processHover = (evt: any) => {
       if (!historyPointsLayerRef.current) return;
       const layer = historyPointsLayerRef.current;
+      // Skip expensive hit detection if layer empty
+      const src = layer.getSource();
+      if (!src || src.getFeatures().length === 0) return;
+
       const pixel = evt.pixel;
       let hovered: Feature | null = null;
       map.forEachFeatureAtPixel(
@@ -338,7 +344,7 @@ export default function MapComponentClustered() {
           }
           return undefined;
         },
-        { hitTolerance: 6 },
+        { hitTolerance: 10 },
       );
 
       if (lastHover && lastHover !== hovered) {
@@ -359,6 +365,19 @@ export default function MapComponentClustered() {
         if (style) (hovered as Feature).setStyle(style);
       }
       lastHover = hovered;
+    };
+
+    const onPointerMove = (evt: any) => {
+      if (hoverRaf) {
+        pendingEvt = evt;
+        return;
+      }
+      hoverRaf = requestAnimationFrame(() => {
+        const e = pendingEvt || evt;
+        pendingEvt = null;
+        hoverRaf = 0;
+        processHover(e);
+      });
     };
 
     map.on('pointermove', onPointerMove);
