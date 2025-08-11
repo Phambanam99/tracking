@@ -74,8 +74,8 @@ export const useRegionStore = create<RegionState>()(
       fetchRegions: async () => {
         set({ isLoading: true, error: null });
         try {
-          const response = await api.get("/regions");
-          set({ regions: response, isLoading: false });
+          const regions = await api.get("/regions");
+          set({ regions, isLoading: false });
         } catch (error: any) {
           console.error("Error fetching regions:", error);
           set({
@@ -89,8 +89,7 @@ export const useRegionStore = create<RegionState>()(
       createRegion: async (regionData) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await api.post("/regions", regionData);
-          const newRegion = response;
+          const newRegion = await api.post("/regions", regionData);
           console.log("Created region response:", newRegion);
 
           if (newRegion && newRegion.id) {
@@ -114,8 +113,7 @@ export const useRegionStore = create<RegionState>()(
       updateRegion: async (id, regionData) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await api.put(`/regions/${id}`, regionData);
-          const updatedRegion = response;
+          const updatedRegion = await api.put(`/regions/${id}`, regionData);
           set((state) => ({
             regions: (state.regions || []).map((r) =>
               r.id === id ? updatedRegion : r
@@ -165,11 +163,10 @@ export const useRegionStore = create<RegionState>()(
 
       fetchAlerts: async (unreadOnly = false) => {
         try {
-          const response = await api.get(
+          const alerts = await api.get(
             `/regions/alerts/list?unread=${unreadOnly}`
           );
-          console.log("Alert ", response)
-          const alerts = response;
+          console.log("Alert ", alerts)
           const unreadCount = alerts.filter(
             (alert: RegionAlert) => !alert.isRead
           ).length;

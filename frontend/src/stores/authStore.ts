@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import api from "../services/apiClient";
 
 interface User {
   id: number;
@@ -35,21 +36,7 @@ export const useAuthStore = create<AuthState>()(
         console.log(username + password);
         username = username.trim();
         try {
-          const response = await fetch("http://localhost:3000/auth/login", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ username, password }),
-          });
-          console.log(response);
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || "Login failed");
-          }
-
-          const data = await response.json();
+          const data = await api.post("/auth/login", { username, password });
 
           set({
             user: data.user,
@@ -98,25 +85,7 @@ export const useAuthStore = create<AuthState>()(
             "📞 Making request to /users/profile with token:",
             state.token.substring(0, 20) + "..."
           );
-          const response = await fetch("http://localhost:3000/users/profile", {
-            headers: {
-              Authorization: `Bearer ${state.token}`,
-            },
-          });
-
-          console.log("📥 Profile response status:", response.status);
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.log(
-              "❌ Profile request failed:",
-              response.status,
-              errorText
-            );
-            throw new Error("Token validation failed");
-          }
-
-          const userData = await response.json();
+          const userData = await api.get("/users/profile");
           console.log("✅ Profile data received:", userData);
           console.log("🔧 Setting auth state: isAuthenticated = true");
           set({

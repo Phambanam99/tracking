@@ -1,7 +1,11 @@
 // Enhanced API service for handling HTTP requests with authentication
 import { useAuthStore } from "../stores/authStore";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+// Prefer same-origin proxy via Next.js to backend
+// Default base path is '/api' which next.config.ts rewrites to backend '/api'
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL?.trim() || "/api";
+const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || "1.0.0";
 
 class ApiService {
   private getAuthToken(): string | null {
@@ -20,6 +24,7 @@ class ApiService {
       headers: {
         "Content-Type": "application/json",
         ...(token && { Authorization: `Bearer ${token}` }),
+        "X-API-Version": API_VERSION,
         ...options.headers,
       },
       ...options,
@@ -27,14 +32,32 @@ class ApiService {
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
 
+    // Try to parse JSON body for both success and error
+    const payload = await response
+      .json()
+      .catch(() => ({}));
+
     if (!response.ok) {
-      const errorData = await response
-        .json()
-        .catch(() => ({ message: "Network error" }));
-      throw new Error(errorData.message || `HTTP ${response.status}`);
+      // Standardized error envelope: { success: false, error: { message } }
+      const errorMessage =
+        (payload && (payload.error?.message || payload.message)) ||
+        `HTTP ${response.status}`;
+      throw new Error(errorMessage);
     }
 
-    return response;
+    // Standardized success envelope: { success: true, data }
+    if (payload && typeof payload === "object" && "success" in payload) {
+      return new Response(JSON.stringify(payload.data), {
+        status: response.status,
+        headers: response.headers,
+      });
+    }
+
+    // Fallback: return original payload
+    return new Response(JSON.stringify(payload), {
+      status: response.status,
+      headers: response.headers,
+    });
   }
 
   async get(endpoint: string): Promise<any> {

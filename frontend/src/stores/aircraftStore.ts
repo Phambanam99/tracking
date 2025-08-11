@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import api from "../services/apiClient";
 
 export interface Aircraft {
   id: number;
@@ -47,11 +48,7 @@ export const useAircraftStore = create<AircraftStore>((set) => ({
   fetchAircrafts: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch("http://localhost:3000/aircrafts/initial");
-      if (!response.ok) {
-        throw new Error("Failed to fetch aircrafts");
-      }
-      const aircrafts = await response.json();
+      const aircrafts = await api.get("/aircrafts/initial");
       set({ aircrafts, loading: false });
     } catch (error) {
       set({

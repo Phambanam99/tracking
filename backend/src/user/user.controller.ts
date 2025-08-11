@@ -13,6 +13,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { UserService } from './user.service';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles, UserRole } from '../auth/decorators/roles.decorator';
@@ -22,8 +23,10 @@ import {
   ChangePasswordDto,
 } from './dto/user.dto';
 
+@ApiTags('users')
 @Controller('users')
 @UseGuards(AuthGuard)
+@ApiBearerAuth('bearer')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
@@ -31,6 +34,7 @@ export class UserController {
    * Get current user profile
    */
   @Get('profile')
+  @ApiOperation({ summary: 'Get current user profile' })
   async getProfile(@Request() req: any) {
     return this.userService.findById(req.user.id);
   }
@@ -39,6 +43,7 @@ export class UserController {
    * Update current user profile
    */
   @Put('profile')
+  @ApiOperation({ summary: 'Update current user profile' })
   async updateProfile(
     @Request() req: any,
     @Body() updateUserDto: UpdateUserDto,
@@ -50,6 +55,7 @@ export class UserController {
    * Change current user password
    */
   @Put('change-password')
+  @ApiOperation({ summary: 'Change current user password' })
   @HttpCode(HttpStatus.OK)
   async changePassword(
     @Request() req: any,
@@ -65,6 +71,7 @@ export class UserController {
    * Get all users (Admin only)
    */
   @Get()
+  @ApiOperation({ summary: 'List all users (admin)' })
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   async findAll() {
@@ -75,6 +82,7 @@ export class UserController {
    * Get user by ID (Admin only)
    */
   @Get(':id')
+  @ApiOperation({ summary: 'Get user by id (admin)' })
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   async findOne(@Param('id', ParseIntPipe) id: number) {
@@ -85,6 +93,7 @@ export class UserController {
    * Create new user (Admin only)
    */
   @Post()
+  @ApiOperation({ summary: 'Create user (admin)' })
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   async create(@Body() createUserDto: CreateUserDto) {
@@ -95,6 +104,7 @@ export class UserController {
    * Update user (Admin only)
    */
   @Put(':id')
+  @ApiOperation({ summary: 'Update user (admin)' })
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   async update(
@@ -108,6 +118,7 @@ export class UserController {
    * Delete user (Admin only)
    */
   @Delete(':id')
+  @ApiOperation({ summary: 'Delete user (admin)' })
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   async remove(@Param('id', ParseIntPipe) id: number) {

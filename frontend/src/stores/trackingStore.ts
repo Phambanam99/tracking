@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { useAuthStore } from "./authStore";
+import api from "../services/apiClient";
 
 export interface TrackedItem {
   id: number;
@@ -54,17 +55,7 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
         throw new Error("No authentication token found");
       }
 
-      const response = await fetch("/api/tracking", {
-        headers: {
-          Authorization: `Bearer ${authState.token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch tracked items");
-      }
-
-      const data = await response.json();
+      const data = await api.get("/tracking");
       set({
         trackedItems: data.map((item: any) => ({
           ...item,
@@ -96,18 +87,7 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
       }
 
       const endpoint = type === "aircraft" ? `aircraft/${id}` : `vessel/${id}`;
-      const response = await fetch(`/api/tracking/${endpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authState.token}`,
-        },
-        body: JSON.stringify({ alias, notes }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to track ${type}`);
-      }
+      await api.post(`/tracking/${endpoint}`, { alias, notes });
 
       // Refresh the tracked items list
       await get().fetchTrackedItems();
@@ -128,16 +108,7 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
       }
 
       const endpoint = type === "aircraft" ? `aircraft/${id}` : `vessel/${id}`;
-      const response = await fetch(`/api/tracking/${endpoint}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${authState.token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to untrack ${type}`);
-      }
+      await api.delete(`/tracking/${endpoint}`);
 
       // Remove from local state
       set((state) => ({

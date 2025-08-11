@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { VesselService } from './vessel.service';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CreateVesselDto,
   UpdateVesselDto,
@@ -18,6 +19,7 @@ import {
   VesselResponseDto,
 } from './dto/vessel.dto';
 
+@ApiTags('vessels')
 @Controller('vessels')
 export class VesselController {
   constructor(private readonly vesselService: VesselService) {}
@@ -26,6 +28,7 @@ export class VesselController {
    * Get all vessels with their last known positions
    */
   @Get('initial')
+  @ApiOperation({ summary: 'Get all vessels with last position' })
   async findAllWithLastPosition(): Promise<VesselResponseDto[]> {
     return this.vesselService.findAllWithLastPosition();
   }
@@ -34,6 +37,7 @@ export class VesselController {
    * Get vessel history by ID
    */
   @Get(':id/history')
+  @ApiOperation({ summary: 'Get vessel history' })
   async findHistory(
     @Param('id', ParseIntPipe) id: number,
     @Query() queryDto: VesselHistoryQueryDto,
@@ -54,6 +58,7 @@ export class VesselController {
    * Create a new vessel
    */
   @Post()
+  @ApiOperation({ summary: 'Create a new vessel' })
   async create(
     @Body() createVesselDto: CreateVesselDto,
   ): Promise<VesselResponseDto> {
@@ -64,6 +69,7 @@ export class VesselController {
    * Update a vessel
    */
   @Put(':id')
+  @ApiOperation({ summary: 'Update a vessel' })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateVesselDto: UpdateVesselDto,
@@ -75,6 +81,7 @@ export class VesselController {
    * Delete a vessel
    */
   @Delete(':id')
+  @ApiOperation({ summary: 'Delete a vessel' })
   async delete(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ message: string }> {
@@ -86,6 +93,7 @@ export class VesselController {
    * Add position data for a vessel
    */
   @Post('positions')
+  @ApiOperation({ summary: 'Add vessel position' })
   async addPosition(@Body() createPositionDto: CreateVesselPositionDto) {
     return this.vesselService.addPositionWithDto(createPositionDto);
   }

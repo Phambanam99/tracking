@@ -4,8 +4,6 @@ import * as bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  
-
   // Create demo admin user
   const hashedPassword = await bcrypt.hash('password', 10);
 

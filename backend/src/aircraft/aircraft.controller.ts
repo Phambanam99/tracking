@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { AircraftService } from './aircraft.service';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CreateAircraftDto,
   UpdateAircraftDto,
@@ -18,6 +19,7 @@ import {
   AircraftResponseDto,
 } from './dto/aircraft.dto';
 
+@ApiTags('aircrafts')
 @Controller('aircrafts')
 export class AircraftController {
   constructor(private readonly aircraftService: AircraftService) {}
@@ -26,6 +28,7 @@ export class AircraftController {
    * Get all aircraft with their last known positions
    */
   @Get('initial')
+  @ApiOperation({ summary: 'Get all aircrafts with last position' })
   async findAllWithLastPosition(): Promise<AircraftResponseDto[]> {
     return this.aircraftService.findAllWithLastPosition();
   }
@@ -34,6 +37,7 @@ export class AircraftController {
    * Get aircraft history by ID
    */
   @Get(':id/history')
+  @ApiOperation({ summary: 'Get aircraft history' })
   async findHistory(
     @Param('id', ParseIntPipe) id: number,
     @Query() queryDto: AircraftHistoryQueryDto,
@@ -54,6 +58,7 @@ export class AircraftController {
    * Create a new aircraft
    */
   @Post()
+  @ApiOperation({ summary: 'Create a new aircraft' })
   async create(
     @Body() createAircraftDto: CreateAircraftDto,
   ): Promise<AircraftResponseDto> {
@@ -64,6 +69,7 @@ export class AircraftController {
    * Update an aircraft
    */
   @Put(':id')
+  @ApiOperation({ summary: 'Update an aircraft' })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateAircraftDto: UpdateAircraftDto,
@@ -75,6 +81,7 @@ export class AircraftController {
    * Delete an aircraft
    */
   @Delete(':id')
+  @ApiOperation({ summary: 'Delete an aircraft' })
   async delete(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ message: string }> {
@@ -86,6 +93,7 @@ export class AircraftController {
    * Add position data for an aircraft
    */
   @Post('positions')
+  @ApiOperation({ summary: 'Add aircraft position' })
   async addPosition(@Body() createPositionDto: CreateAircraftPositionDto) {
     return this.aircraftService.addPositionWithDto(createPositionDto);
   }

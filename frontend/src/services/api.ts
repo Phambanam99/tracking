@@ -1,4 +1,5 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim() || "/api";
+const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || "1.0.0";
 
 export interface Aircraft {
   id: number;
@@ -45,7 +46,9 @@ export interface Vessel {
 
 export const apiService = {
   async fetchAircrafts(): Promise<Aircraft[]> {
-    const response = await fetch(`${API_BASE_URL}/aircrafts/initial`);
+    const response = await fetch(`${API_BASE_URL}/aircrafts/initial`, {
+      headers: { "X-API-Version": API_VERSION },
+    });
     if (!response.ok) {
       throw new Error("Failed to fetch aircrafts");
     }
@@ -53,7 +56,9 @@ export const apiService = {
   },
 
   async fetchVessels(): Promise<Vessel[]> {
-    const response = await fetch(`${API_BASE_URL}/vessels/initial`);
+    const response = await fetch(`${API_BASE_URL}/vessels/initial`, {
+      headers: { "X-API-Version": API_VERSION },
+    });
     if (!response.ok) {
       throw new Error("Failed to fetch vessels");
     }
@@ -65,7 +70,8 @@ export const apiService = {
     if (from) params.append("from", from);
 
     const response = await fetch(
-      `${API_BASE_URL}/aircrafts/${id}/history?${params}`
+      `${API_BASE_URL}/aircrafts/${id}/history?${params}`,
+      { headers: { "X-API-Version": API_VERSION } }
     );
     if (!response.ok) {
       throw new Error("Failed to fetch aircraft history");
@@ -78,7 +84,8 @@ export const apiService = {
     if (from) params.append("from", from);
 
     const response = await fetch(
-      `${API_BASE_URL}/vessels/${id}/history?${params}`
+      `${API_BASE_URL}/vessels/${id}/history?${params}`,
+      { headers: { "X-API-Version": API_VERSION } }
     );
     if (!response.ok) {
       throw new Error("Failed to fetch vessel history");

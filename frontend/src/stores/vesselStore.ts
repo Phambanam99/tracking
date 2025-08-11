@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import api from "../services/apiClient";
 
 export interface Vessel {
   id: number;
@@ -50,11 +51,7 @@ export const useVesselStore = create<VesselStore>((set) => ({
   fetchVessels: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch("http://localhost:3000/vessels/initial");
-      if (!response.ok) {
-        throw new Error("Failed to fetch vessels");
-      }
-      const vessels = await response.json();
+      const vessels = await api.get("/vessels/initial");
       set({ vessels, loading: false });
     } catch (error) {
       set({

@@ -8,10 +8,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { AuthGuard } from './guards/auth.guard';
 import { LoginDto, RegisterDto, RefreshTokenDto } from './dto/auth.dto';
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
@@ -21,6 +23,7 @@ export class AuthController {
    */
   @UseGuards(LocalAuthGuard)
   @Post('login')
+  @ApiOperation({ summary: 'User login' })
   @HttpCode(HttpStatus.OK)
   async login(@Request() req: any, @Body() loginDto: LoginDto) {
     return this.authService.login(req.user);
@@ -30,6 +33,7 @@ export class AuthController {
    * Register endpoint
    */
   @Post('register')
+  @ApiOperation({ summary: 'Register new user' })
   async register(@Body() registerDto: RegisterDto) {
     const user = await this.authService.register(registerDto);
     return {
@@ -52,6 +56,7 @@ export class AuthController {
    */
   @UseGuards(AuthGuard)
   @Post('logout')
+  @ApiOperation({ summary: 'Logout current token' })
   @HttpCode(HttpStatus.OK)
   async logout(@Request() req: any) {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -63,6 +68,7 @@ export class AuthController {
    */
   @UseGuards(AuthGuard)
   @Post('me')
+  @ApiOperation({ summary: 'Get current user info' })
   @HttpCode(HttpStatus.OK)
   async getMe(@Request() req: any) {
     return {
