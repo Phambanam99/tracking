@@ -82,6 +82,14 @@ class ApiService {
     return response.json();
   }
 
+  async patch(endpoint: string, data?: any): Promise<any> {
+    const response = await this.request(endpoint, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    return response.json();
+  }
+
   async delete(endpoint: string): Promise<any> {
     const response = await this.request(endpoint, { method: 'DELETE' });
     return response.json();

@@ -80,6 +80,18 @@ export const websocketService = {
     }
   },
 
+  onConfigUpdate(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('configUpdate', callback);
+    }
+  },
+
+  offConfigUpdate(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.off('configUpdate', callback);
+    }
+  },
+
   offRegionAlert(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.off('regionAlert', callback);

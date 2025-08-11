@@ -301,6 +301,35 @@ async function main() {
       console.log('Vessel dataset already satisfies target; skipping vessel seed.');
     }
   }
+
+  // Seed system settings with default values
+  const defaultSystemSettings = await prisma.systemSettings.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      id: 1,
+      clusterEnabled: true,
+      minZoom: 4,
+      maxZoom: 16,
+      signalStaleMinutes: 10,
+      vesselFlagColors: {
+        VN: '#06b6d4',
+        US: '#2563eb',
+        CN: '#ef4444',
+        JP: '#f59e0b',
+        KR: '#10b981',
+      },
+      aircraftOperatorColors: {
+        'VIETNAM AIRLINES': '#2563eb',
+        'VIETJET AIR': '#ef4444',
+        'BAMBOO AIRWAYS': '#10b981',
+        EMIRATES: '#b91c1c',
+        'SINGAPORE AIRLINES': '#f59e0b',
+      },
+    },
+  });
+
+  console.log('✅ System settings seeded:', defaultSystemSettings);
 }
 
 main()

@@ -104,6 +104,15 @@ export default function Header() {
               />
             </div>
 
+            {user?.role === 'ADMIN' && (
+              <Link
+                href="/admin/settings"
+                className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 border rounded-md border-[color:var(--border)] hover:border-gray-300"
+              >
+                ⚙️ Cài đặt
+              </Link>
+            )}
+
             {/* User Menu */}
             <div className="relative">
               <button
@@ -130,6 +139,15 @@ export default function Header() {
                         Vai trò: {user?.role}
                       </div>
                     </div>
+                   {user?.role === 'ADMIN' && (
+                     <Link
+                       href="/admin/settings"
+                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                       onClick={() => setIsMenuOpen(false)}
+                     >
+                       ⚙️ Cài đặt hệ thống
+                     </Link>
+                   )}
                     <button
                       onClick={handleLogout}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -186,6 +204,19 @@ export default function Header() {
                 {item.name}
               </Link>
             ))}
+                {user?.role === 'ADMIN' && (
+                  <Link
+                    href="/admin/settings"
+                    className={`${
+                      pathname === '/admin/settings'
+                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                        : 'border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800'
+                    } block pl-3 pr-4 py-2 border-l-4 text-base font-medium`}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    ⚙️ Cài đặt hệ thống
+                  </Link>
+                )}
           </div>
           <div className="pt-4 pb-3 border-t border-gray-200">
             <div className="px-4">

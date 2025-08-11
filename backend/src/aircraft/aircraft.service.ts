@@ -75,6 +75,35 @@ export class AircraftService {
   }
 
   /**
+   * Find a single aircraft by ID with its last known position
+   */
+  async findByIdWithLastPosition(id: number) {
+    const aircraft = await this.prisma.aircraft.findUnique({
+      where: { id },
+      include: {
+        positions: {
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (!aircraft) return null;
+
+    return {
+      id: aircraft.id,
+      flightId: aircraft.flightId,
+      callSign: aircraft.callSign,
+      registration: aircraft.registration,
+      aircraftType: aircraft.aircraftType,
+      operator: aircraft.operator,
+      createdAt: aircraft.createdAt,
+      updatedAt: aircraft.updatedAt,
+      lastPosition: aircraft.positions[0] || null,
+    };
+  }
+
+  /**
    * Find all aircraft with their last known position (paginated)
    */
   async findAllWithLastPositionPaginated(

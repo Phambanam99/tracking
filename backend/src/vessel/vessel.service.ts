@@ -204,6 +204,35 @@ export class VesselService {
   }
 
   /**
+   * Find a single vessel by ID with its last known position
+   */
+  async findByIdWithLastPosition(id: number) {
+    const vessel = await this.prisma.vessel.findUnique({
+      where: { id },
+      include: {
+        positions: {
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        },
+      },
+    });
+    if (!vessel) return null;
+    return {
+      id: vessel.id,
+      mmsi: vessel.mmsi,
+      vesselName: vessel.vesselName,
+      vesselType: vessel.vesselType,
+      flag: vessel.flag,
+      operator: vessel.operator,
+      length: vessel.length,
+      width: vessel.width,
+      createdAt: vessel.createdAt,
+      updatedAt: vessel.updatedAt,
+      lastPosition: vessel.positions[0] || null,
+    };
+  }
+
+  /**
    * Find vessel by ID with its complete history
    */
   async findHistory(id: number, fromDate: Date, toDate: Date, limit: number, offset = 0) {

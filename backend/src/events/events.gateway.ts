@@ -33,6 +33,21 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
     // Subscribe to Redis channels for real-time data broadcasting
     await this.setupRedisSubscriptions();
+
+    // Broadcast config updates to all clients
+    try {
+      await this.redisService.subscribe('config:update', (message) => {
+        try {
+          const config = JSON.parse(message);
+          this.server.emit('configUpdate', config);
+          this.logger.log('🛠️ Broadcasted configUpdate');
+        } catch (e) {
+          this.logger.error('Failed to parse config update', e as any);
+        }
+      });
+    } catch (e) {
+      this.logger.error('❌ Failed to subscribe config:update', e as any);
+    }
   }
 
   handleConnection(client: Socket) {

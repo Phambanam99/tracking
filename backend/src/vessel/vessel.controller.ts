@@ -28,7 +28,9 @@ export class VesselController {
    * Get all vessels with their last known positions
    */
   @Get('initial')
-  @ApiOperation({ summary: 'Get all vessels with last position (bbox/zoom, no pagination)' })
+  @ApiOperation({
+    summary: 'Get all vessels with last position (bbox/zoom, no pagination)',
+  })
   async findAllWithLastPosition(
     @Query('bbox') bbox?: string,
     @Query('zoom') zoom?: string,
@@ -94,6 +96,19 @@ export class VesselController {
       return { error: 'Vessel not found' };
     }
 
+    return vessel;
+  }
+
+  /**
+   * Get vessel detail with last known position
+   */
+  @Get(':id')
+  @ApiOperation({ summary: 'Get vessel detail with last position' })
+  async findById(@Param('id', ParseIntPipe) id: number) {
+    const vessel = await this.vesselService.findByIdWithLastPosition(id);
+    if (!vessel) {
+      return { error: 'Vessel not found' };
+    }
     return vessel;
   }
 

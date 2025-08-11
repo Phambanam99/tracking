@@ -28,7 +28,9 @@ export class AircraftController {
    * Get all aircraft with their last known positions
    */
   @Get('initial')
-  @ApiOperation({ summary: 'Get all aircrafts with last position (bbox/zoom, no pagination)' })
+  @ApiOperation({
+    summary: 'Get all aircrafts with last position (bbox/zoom, no pagination)',
+  })
   @ApiResponse({
     status: 200,
     description: 'List of aircrafts with last positions filtered by bbox/zoom',
@@ -57,14 +59,24 @@ export class AircraftController {
    */
   @Get()
   @ApiOperation({ summary: 'Paginated list of aircrafts with last position' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (1-based)' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (1-based)',
+  })
   @ApiQuery({
     name: 'pageSize',
     required: false,
     type: Number,
     description: 'Items per page (max 5000)',
   })
-  @ApiQuery({ name: 'q', required: false, type: String, description: 'Search query' })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    type: String,
+    description: 'Search query',
+  })
   async list(
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
@@ -129,6 +141,20 @@ export class AircraftController {
       return { error: 'Aircraft not found' };
     }
 
+    return aircraft;
+  }
+
+  /**
+   * Get aircraft detail with last known position
+   */
+  @Get(':id')
+  @ApiOperation({ summary: 'Get aircraft detail with last position' })
+  @ApiParam({ name: 'id', description: 'Aircraft ID', type: 'number' })
+  async findById(@Param('id', ParseIntPipe) id: number) {
+    const aircraft = await this.aircraftService.findByIdWithLastPosition(id);
+    if (!aircraft) {
+      return { error: 'Aircraft not found' };
+    }
     return aircraft;
   }
 

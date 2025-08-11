@@ -3,6 +3,7 @@ import { websocketService } from '../services/websocket';
 import { useAircraftStore, Aircraft } from '../stores/aircraftStore';
 import { useVesselStore, Vessel } from '../stores/vesselStore';
 import { useRegionStore } from '../stores/regionStore';
+import { useSystemSettingsStore } from '../stores/systemSettingsStore';
 import { useMapStore } from '../stores/mapStore';
 import Map from 'ol/Map';
 import { toLonLat } from 'ol/proj';
@@ -18,6 +19,7 @@ export function useWebSocketHandler() {
   const { updateAircraft } = useAircraftStore();
   const { updateVessel } = useVesselStore();
   const { fetchRegions, addNewAlert } = useRegionStore();
+  const { setSettings } = useSystemSettingsStore();
   const {} = useMapStore();
 
   // Connect WebSocket
@@ -71,14 +73,16 @@ export function useWebSocketHandler() {
     websocketService.onAircraftUpdate(handleAircraftUpdate);
     websocketService.onVesselUpdate(handleVesselUpdate);
     websocketService.onRegionAlert(handleRegionAlert);
+    websocketService.onConfigUpdate(setSettings);
 
     // Cleanup
     return () => {
       websocketService.offAircraftUpdate(handleAircraftUpdate);
       websocketService.offVesselUpdate(handleVesselUpdate);
       websocketService.offRegionAlert(handleRegionAlert);
+      websocketService.offConfigUpdate(setSettings);
     };
-  }, [updateAircraft, updateVessel, fetchRegions, addNewAlert]);
+  }, [updateAircraft, updateVessel, fetchRegions, addNewAlert, setSettings]);
 
   // Subscribe viewport bbox for server-side filtering
   useEffect(() => {
