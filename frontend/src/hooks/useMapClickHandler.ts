@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import Map from "ol/Map";
-import { useMapStore } from "../stores/mapStore";
-import { useRegionStore } from "../stores/regionStore";
+import { useEffect } from 'react';
+import Map from 'ol/Map';
+import { useMapStore } from '../stores/mapStore';
+import { useRegionStore } from '../stores/regionStore';
 
 interface UseMapClickHandlerProps {
   mapInstanceRef: React.RefObject<Map | null>;
@@ -42,7 +42,7 @@ export function useMapClickHandler({
           let region = null;
 
           for (const feature of features) {
-            const featureRegion = feature.get("region");
+            const featureRegion = feature.get('region');
             if (featureRegion) {
               regionFeature = feature;
               region = featureRegion;
@@ -61,8 +61,8 @@ export function useMapClickHandler({
             const clickedFeature = features[0];
 
             // Check for non-clustered single feature
-            const directAircraft = clickedFeature.get("aircraft");
-            const directVessel = clickedFeature.get("vessel");
+            const directAircraft = clickedFeature.get('aircraft');
+            const directVessel = clickedFeature.get('vessel');
             if (directAircraft || directVessel) {
               const featureData = directAircraft
                 ? { aircraft: directAircraft }
@@ -78,15 +78,15 @@ export function useMapClickHandler({
             }
 
             // Handle clustered features
-            const clusteredFeatures = clickedFeature.get("features");
+            const clusteredFeatures = clickedFeature.get('features');
             if (
               clusteredFeatures &&
               Array.isArray(clusteredFeatures) &&
               clusteredFeatures.length === 1
             ) {
               const feature = clusteredFeatures[0];
-              const aircraft = feature.get("aircraft");
-              const vessel = feature.get("vessel");
+              const aircraft = feature.get('aircraft');
+              const vessel = feature.get('vessel');
               const featureData = aircraft ? { aircraft } : { vessel };
               const mapElement = mapRef.current;
               if (mapElement) {
@@ -114,7 +114,7 @@ export function useMapClickHandler({
         }
       };
 
-      mapInstance.on("singleclick", clickHandler);
+      mapInstance.on('singleclick', clickHandler);
       attached = true;
       attachedMap = mapInstance;
     };
@@ -128,7 +128,7 @@ export function useMapClickHandler({
       }
       if (attached && attachedMap && clickHandler) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (attachedMap as any).un("singleclick", clickHandler);
+        (attachedMap as any).un('singleclick', clickHandler);
       }
     };
   }, [

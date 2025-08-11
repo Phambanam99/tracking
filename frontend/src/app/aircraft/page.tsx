@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import Header from "@/components/Header";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import { useAircraftStore } from "@/stores/aircraftStore";
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import Header from '@/components/Header';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { useAircraftStore } from '@/stores/aircraftStore';
 
 export default function AircraftPage() {
   const { aircrafts, loading, error, fetchAircrafts } = useAircraftStore();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState("all");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all');
 
   useEffect(() => {
     fetchAircrafts();
@@ -21,45 +21,42 @@ export default function AircraftPage() {
       aircraft.callSign?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       aircraft.registration?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    if (filterType === "all") return matchesSearch;
-    if (filterType === "active") return matchesSearch && aircraft.lastPosition;
-    if (filterType === "inactive")
+    if (filterType === 'all') return matchesSearch;
+    if (filterType === 'active') return matchesSearch && aircraft.lastPosition;
+    if (filterType === 'inactive')
       return matchesSearch && !aircraft.lastPosition;
     return matchesSearch;
   });
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen">
         <Header />
-
-        <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="px-4 py-6 sm:px-0">
+        <main className="section">
+          <div className="">
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900">
-                Quản lý máy bay
-              </h1>
-              <p className="mt-2 text-gray-600">
+              <h1 className="page-title">Quản lý máy bay</h1>
+              <p className="page-subtitle">
                 Danh sách và quản lý tất cả máy bay trong hệ thống
               </p>
             </div>
 
             {/* Search and Filter */}
-            <div className="bg-white shadow rounded-lg mb-6">
-              <div className="px-4 py-5 sm:p-6">
+            <div className="card mb-6">
+              <div className="card-body">
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex-1">
                     <input
                       type="text"
                       placeholder="Tìm kiếm theo Flight ID, Call Sign, hoặc Registration..."
-                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      className="input"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
                   <div>
                     <select
-                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      className="select"
                       value={filterType}
                       onChange={(e) => setFilterType(e.target.value)}
                     >
@@ -68,10 +65,7 @@ export default function AircraftPage() {
                       <option value="inactive">Mất tín hiệu</option>
                     </select>
                   </div>
-                  <Link
-                    href="/aircraft/new"
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  >
+                  <Link href="/aircraft/new" className="btn-primary">
                     ✈️ Thêm máy bay
                   </Link>
                 </div>
@@ -79,14 +73,14 @@ export default function AircraftPage() {
             </div>
 
             {/* Aircraft List */}
-            <div className="bg-white shadow overflow-hidden sm:rounded-md">
+            <div className="card overflow-hidden sm:rounded-md">
               {loading ? (
                 <div className="flex justify-center items-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                 </div>
               ) : error ? (
-                <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                  <div className="text-red-800">{error}</div>
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40 rounded-md p-4">
+                  <div className="text-red-700 dark:text-red-300">{error}</div>
                 </div>
               ) : (
                 <ul className="divide-y divide-gray-200">
@@ -111,20 +105,20 @@ export default function AircraftPage() {
                                 <span
                                   className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                     aircraft.lastPosition
-                                      ? "bg-green-100 text-green-800"
-                                      : "bg-gray-100 text-gray-800"
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-gray-100 text-gray-800'
                                   }`}
                                 >
                                   {aircraft.lastPosition
-                                    ? "Có tín hiệu"
-                                    : "Mất tín hiệu"}
+                                    ? 'Có tín hiệu'
+                                    : 'Mất tín hiệu'}
                                 </span>
                               </div>
                               <p className="text-sm text-gray-500">
                                 {aircraft.registration &&
                                   `Đăng ký: ${aircraft.registration} • `}
                                 {aircraft.aircraftType ||
-                                  "Loại máy bay không xác định"}
+                                  'Loại máy bay không xác định'}
                               </p>
                               {aircraft.operator && (
                                 <p className="text-sm text-gray-500">
@@ -141,14 +135,14 @@ export default function AircraftPage() {
                                   ft
                                 </p>
                                 <p>
-                                  Tốc độ: {aircraft.lastPosition.speed || 0}{" "}
+                                  Tốc độ: {aircraft.lastPosition.speed || 0}{' '}
                                   knots
                                 </p>
                                 <p className="text-xs">
-                                  Cập nhật:{" "}
+                                  Cập nhật:{' '}
                                   {new Date(
-                                    aircraft.lastPosition.timestamp
-                                  ).toLocaleString("vi-VN")}
+                                    aircraft.lastPosition.timestamp,
+                                  ).toLocaleString('vi-VN')}
                                 </p>
                               </div>
                             )}

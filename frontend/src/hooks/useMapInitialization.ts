@@ -1,11 +1,11 @@
-import { useEffect } from "react";
-import Map from "ol/Map";
-import View from "ol/View";
-import TileLayer from "ol/layer/Tile";
-import VectorLayer from "ol/layer/Vector";
-import VectorSource from "ol/source/Vector";
-import OSM from "ol/source/OSM";
-import { Cluster } from "ol/source";
+import { useEffect } from 'react';
+import Map from 'ol/Map';
+import View from 'ol/View';
+import TileLayer from 'ol/layer/Tile';
+import VectorLayer from 'ol/layer/Vector';
+import VectorSource from 'ol/source/Vector';
+import OSM from 'ol/source/OSM';
+import { Cluster } from 'ol/source';
 import {
   Style,
   Text,
@@ -13,8 +13,8 @@ import {
   Stroke,
   Circle as CircleStyle,
   Icon,
-} from "ol/style";
-import { fromLonLat } from "ol/proj";
+} from 'ol/style';
+import { fromLonLat } from 'ol/proj';
 
 interface UseMapInitializationProps {
   mapRef: React.RefObject<HTMLDivElement | null>;
@@ -42,9 +42,9 @@ export function useMapInitialization(
 
     // Delay initialization to ensure DOM is fully ready
     const timer = setTimeout(() => {
-      console.log("Initializing map...");
-      console.log("Map container element:", mapRef.current);
-      console.log("Container dimensions:", {
+      console.log('Initializing map...');
+      console.log('Map container element:', mapRef.current);
+      console.log('Container dimensions:', {
         width: mapRef.current?.offsetWidth,
         height: mapRef.current?.offsetHeight,
         clientWidth: mapRef.current?.clientWidth,
@@ -57,7 +57,7 @@ export function useMapInitialization(
         mapRef.current.offsetWidth === 0 ||
         mapRef.current.offsetHeight === 0
       ) {
-        console.error("Map container has no dimensions!");
+        console.error('Map container has no dimensions!');
         return;
       }
 
@@ -70,12 +70,12 @@ export function useMapInitialization(
       const aircraftLayer = new VectorLayer({
         source: aircraftCluster,
         style: (feature) => {
-          const features = feature.get("features");
+          const features = feature.get('features');
 
           if (!features || !Array.isArray(features)) {
             console.warn(
-              "Aircraft features is undefined or not an array:",
-              features
+              'Aircraft features is undefined or not an array:',
+              features,
             );
             return new Style(); // Return empty style
           }
@@ -87,22 +87,22 @@ export function useMapInitialization(
             return new Style({
               image: new CircleStyle({
                 radius: Math.min(15 + size * 2, 30),
-                fill: new Fill({ color: "rgba(59, 130, 246, 0.8)" }),
-                stroke: new Stroke({ color: "white", width: 2 }),
+                fill: new Fill({ color: 'rgba(59, 130, 246, 0.8)' }),
+                stroke: new Stroke({ color: 'white', width: 2 }),
               }),
               text: new Text({
                 text: size.toString(),
-                fill: new Fill({ color: "white" }),
-                font: "bold 12px sans-serif",
+                fill: new Fill({ color: 'white' }),
+                font: 'bold 12px sans-serif',
               }),
             });
           }
 
           // Single aircraft style
-          const aircraft = features[0].get("aircraft");
+          const aircraft = features[0].get('aircraft');
           return new Style({
             image: new Icon({
-              src: "/aircraft-icon.svg",
+              src: '/aircraft-icon.svg',
               scale: 0.8,
               rotation: aircraft?.lastPosition?.heading
                 ? (aircraft.lastPosition.heading * Math.PI) / 180
@@ -121,12 +121,12 @@ export function useMapInitialization(
       const vesselLayer = new VectorLayer({
         source: vesselCluster,
         style: (feature) => {
-          const features = feature.get("features");
+          const features = feature.get('features');
 
           if (!features || !Array.isArray(features)) {
             console.warn(
-              "Vessel features is undefined or not an array:",
-              features
+              'Vessel features is undefined or not an array:',
+              features,
             );
             return new Style(); // Return empty style
           }
@@ -138,22 +138,22 @@ export function useMapInitialization(
             return new Style({
               image: new CircleStyle({
                 radius: Math.min(15 + size * 2, 30),
-                fill: new Fill({ color: "rgba(34, 197, 94, 0.8)" }),
-                stroke: new Stroke({ color: "white", width: 2 }),
+                fill: new Fill({ color: 'rgba(34, 197, 94, 0.8)' }),
+                stroke: new Stroke({ color: 'white', width: 2 }),
               }),
               text: new Text({
                 text: size.toString(),
-                fill: new Fill({ color: "white" }),
-                font: "bold 12px sans-serif",
+                fill: new Fill({ color: 'white' }),
+                font: 'bold 12px sans-serif',
               }),
             });
           }
 
           // Single vessel style
-          const vessel = features[0].get("vessel");
+          const vessel = features[0].get('vessel');
           return new Style({
             image: new Icon({
-              src: "/vessel-icon.svg",
+              src: '/vessel-icon.svg',
               scale: 0.8,
               rotation: vessel?.lastPosition?.heading
                 ? (vessel.lastPosition.heading * Math.PI) / 180
@@ -169,11 +169,11 @@ export function useMapInitialization(
         source: regionSource,
         style: new Style({
           stroke: new Stroke({
-            color: "rgba(255, 0, 0, 0.8)",
+            color: 'rgba(255, 0, 0, 0.8)',
             width: 2,
           }),
           fill: new Fill({
-            color: "rgba(255, 0, 0, 0.1)",
+            color: 'rgba(255, 0, 0, 0.1)',
           }),
         }),
       });
@@ -206,19 +206,19 @@ export function useMapInitialization(
       if (vesselLayerRef) vesselLayerRef.current = vesselLayer;
       if (regionLayerRef) regionLayerRef.current = regionLayer;
 
-      console.log("Map initialized successfully:", map);
-      console.log("Map target set to:", map.getTarget());
-      console.log("Map size:", map.getSize());
+      console.log('Map initialized successfully:', map);
+      console.log('Map target set to:', map.getTarget());
+      console.log('Map size:', map.getSize());
 
       // Force map to update its size with multiple attempts
       const updateMapSize = () => {
         map.updateSize();
         const size = map.getSize();
-        console.log("Map size after updateSize():", size);
+        console.log('Map size after updateSize():', size);
 
         if (!size && map.getTarget()) {
           // If size is still undefined, try again
-          console.log("Map size undefined, trying again...");
+          console.log('Map size undefined, trying again...');
           setTimeout(updateMapSize, 50);
         }
       };

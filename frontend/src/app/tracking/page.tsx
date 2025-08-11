@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import React, { useEffect } from "react";
-import { useTrackingStore } from "@/stores/trackingStore";
-import { Plane, Ship, Clock, Trash2, Edit3 } from "lucide-react";
-import Header from "@/components/Header";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import RegionManager from "@/components/RegionManager";
-import RegionAlerts from "@/components/RegionAlerts";
+import React, { useEffect } from 'react';
+import { useTrackingStore } from '@/stores/trackingStore';
+import { Plane, Ship, Clock, Trash2, Edit3 } from 'lucide-react';
+import Header from '@/components/Header';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import RegionManager from '@/components/RegionManager';
+import RegionAlerts from '@/components/RegionAlerts';
 
 export default function TrackingPage() {
   const {
@@ -24,20 +24,20 @@ export default function TrackingPage() {
     fetchTrackedItems();
   }, [fetchTrackedItems]);
 
-  const handleUntrack = async (type: "aircraft" | "vessel", id: number) => {
-    if (confirm("Bạn có chắc chắn muốn bỏ theo dõi mục này?")) {
+  const handleUntrack = async (type: 'aircraft' | 'vessel', id: number) => {
+    if (confirm('Bạn có chắc chắn muốn bỏ theo dõi mục này?')) {
       try {
         await untrackItem(type, id);
       } catch (error) {
-        console.error("Failed to untrack item:", error);
+        console.error('Failed to untrack item:', error);
       }
     }
   };
 
   const formatDateTime = (date: Date) => {
-    return new Intl.DateTimeFormat("vi-VN", {
-      dateStyle: "short",
-      timeStyle: "medium",
+    return new Intl.DateTimeFormat('vi-VN', {
+      dateStyle: 'short',
+      timeStyle: 'medium',
     }).format(date);
   };
 
@@ -63,21 +63,19 @@ export default function TrackingPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen">
         <Header />
-        <main className="container mx-auto px-4 py-8">
+        <main className="section">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Danh sách theo dõi
-            </h1>
-            <p className="text-gray-600">
+            <h1 className="page-title mb-2">Danh sách theo dõi</h1>
+            <p className="page-subtitle">
               Quản lý các máy bay và tàu thuyền bạn đang theo dõi
             </p>
           </div>
 
           {/* Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <div className="flex items-center">
                 <div className="p-3 rounded-full bg-blue-100 text-blue-600">
                   <Plane className="h-6 w-6" />
@@ -91,7 +89,7 @@ export default function TrackingPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <div className="flex items-center">
                 <div className="p-3 rounded-full bg-green-100 text-green-600">
                   <Ship className="h-6 w-6" />
@@ -107,7 +105,7 @@ export default function TrackingPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <div className="flex items-center">
                 <div className="p-3 rounded-full bg-purple-100 text-purple-600">
                   <Clock className="h-6 w-6" />
@@ -123,14 +121,14 @@ export default function TrackingPage() {
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
-              <p className="text-red-600">{error}</p>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40 rounded-md p-4 mb-6">
+              <p className="text-red-700 dark:text-red-300">{error}</p>
             </div>
           )}
 
           {/* Tracked Items List */}
           {trackedItems.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
+            <div className="card p-8 text-center">
               <div className="text-gray-400 mb-4">
                 <Clock className="h-16 w-16 mx-auto" />
               </div>
@@ -143,7 +141,7 @@ export default function TrackingPage() {
               </p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="card overflow-hidden">
               <div className="divide-y divide-gray-200">
                 {trackedItems.map((item) => (
                   <div
@@ -154,12 +152,12 @@ export default function TrackingPage() {
                       <div className="flex items-center space-x-4">
                         <div
                           className={`p-2 rounded-full ${
-                            item.type === "aircraft"
-                              ? "bg-blue-100 text-blue-600"
-                              : "bg-green-100 text-green-600"
+                            item.type === 'aircraft'
+                              ? 'bg-blue-100 text-blue-600'
+                              : 'bg-green-100 text-green-600'
                           }`}
                         >
-                          {item.type === "aircraft" ? (
+                          {item.type === 'aircraft' ? (
                             <Plane className="h-5 w-5" />
                           ) : (
                             <Ship className="h-5 w-5" />
@@ -169,21 +167,21 @@ export default function TrackingPage() {
                         <div className="flex-1">
                           <h3 className="text-lg font-medium text-gray-900">
                             {item.alias ||
-                              (item.type === "aircraft"
+                              (item.type === 'aircraft'
                                 ? item.data.callSign || item.data.flightId
                                 : item.data.vesselName || item.data.mmsi)}
                           </h3>
 
                           <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
                             <span>
-                              {item.type === "aircraft"
-                                ? "Máy bay"
-                                : "Tàu thuyền"}
+                              {item.type === 'aircraft'
+                                ? 'Máy bay'
+                                : 'Tàu thuyền'}
                             </span>
                             <span>•</span>
                             <span>
-                              ID:{" "}
-                              {item.type === "aircraft"
+                              ID:{' '}
+                              {item.type === 'aircraft'
                                 ? item.data.flightId
                                 : item.data.mmsi}
                             </span>
@@ -191,9 +189,9 @@ export default function TrackingPage() {
                               <>
                                 <span>•</span>
                                 <span>
-                                  Cập nhật:{" "}
+                                  Cập nhật:{' '}
                                   {formatDateTime(
-                                    new Date(item.data.lastPosition.timestamp)
+                                    new Date(item.data.lastPosition.timestamp),
                                   )}
                                 </span>
                               </>
@@ -212,7 +210,7 @@ export default function TrackingPage() {
                         <button
                           onClick={() => {
                             const path =
-                              item.type === "aircraft"
+                              item.type === 'aircraft'
                                 ? `/aircraft/${item.data.id}`
                                 : `/vessels/${item.data.id}`;
                             window.location.href = path;

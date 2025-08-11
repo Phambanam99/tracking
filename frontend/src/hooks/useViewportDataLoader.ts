@@ -5,7 +5,9 @@ import api from '@/services/apiClient';
 import { useAircraftStore } from '@/stores/aircraftStore';
 import { useVesselStore } from '@/stores/vesselStore';
 
-export function useViewportDataLoader(params: { mapInstanceRef: React.RefObject<Map | null> }) {
+export function useViewportDataLoader(params: {
+  mapInstanceRef: React.RefObject<Map | null>;
+}) {
   const { mapInstanceRef } = params;
   const { setAircrafts } = useAircraftStore();
   const { setVessels } = useVesselStore();
@@ -22,7 +24,12 @@ export function useViewportDataLoader(params: { mapInstanceRef: React.RefObject<
       const extent = map.getView().calculateExtent(size);
       const bl = toLonLat([extent[0], extent[1]]);
       const tr = toLonLat([extent[2], extent[3]]);
-      const bbox: [number, number, number, number] = [bl[0], bl[1], tr[0], tr[1]];
+      const bbox: [number, number, number, number] = [
+        bl[0],
+        bl[1],
+        tr[0],
+        tr[1],
+      ];
       const bboxStr = bbox.join(',');
       if (bboxStr === lastBboxRef.current) return;
       lastBboxRef.current = bboxStr;
@@ -65,5 +72,3 @@ export function useViewportDataLoader(params: { mapInstanceRef: React.RefObject<
     };
   }, [mapInstanceRef, setAircrafts, setVessels]);
 }
-
-

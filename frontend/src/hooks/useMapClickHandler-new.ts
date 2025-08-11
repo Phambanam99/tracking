@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import Map from "ol/Map";
-import { useMapStore } from "../stores/mapStore";
-import { useRegionStore } from "../stores/regionStore";
+import { useEffect } from 'react';
+import Map from 'ol/Map';
+import { useMapStore } from '../stores/mapStore';
+import { useRegionStore } from '../stores/regionStore';
 
 interface UseMapClickHandlerProps {
   mapInstanceRef: React.RefObject<Map | null>;
@@ -21,13 +21,13 @@ export function useMapClickHandler({
 
     // Small delay to ensure map is fully initialized
     const timer = setTimeout(() => {
-      console.log("Setting up map click handler, map:", mapInstance);
+      console.log('Setting up map click handler, map:', mapInstance);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const clickHandler = (event: any) => {
-        console.log("Map clicked!", event.pixel);
+        console.log('Map clicked!', event.pixel);
         const features = mapInstance.getFeaturesAtPixel(event.pixel);
-        console.log("Features at pixel:", features);
+        console.log('Features at pixel:', features);
 
         if (features.length > 0) {
           // Look for region features first
@@ -35,7 +35,7 @@ export function useMapClickHandler({
           let region = null;
 
           for (const feature of features) {
-            const featureRegion = feature.get("region");
+            const featureRegion = feature.get('region');
             if (featureRegion) {
               regionFeature = feature;
               region = featureRegion;
@@ -54,11 +54,11 @@ export function useMapClickHandler({
           // If no region feature found, handle aircraft/vessel clusters
           if (!regionFeature) {
             const clickedFeature = features[0];
-            console.log("Clicked feature:", clickedFeature);
+            console.log('Clicked feature:', clickedFeature);
 
             // Handle aircraft/vessel clusters
-            const clusteredFeatures = clickedFeature.get("features");
-            console.log("Clustered features:", clusteredFeatures);
+            const clusteredFeatures = clickedFeature.get('features');
+            console.log('Clustered features:', clusteredFeatures);
 
             if (
               clusteredFeatures &&
@@ -66,12 +66,12 @@ export function useMapClickHandler({
               clusteredFeatures.length === 1
             ) {
               // Single feature clicked
-              console.log("Single feature clicked");
+              console.log('Single feature clicked');
               const feature = clusteredFeatures[0];
-              const aircraft = feature.get("aircraft");
-              const vessel = feature.get("vessel");
+              const aircraft = feature.get('aircraft');
+              const vessel = feature.get('vessel');
 
-              console.log("Feature data:", { aircraft, vessel });
+              console.log('Feature data:', { aircraft, vessel });
 
               const featureData = aircraft ? { aircraft } : { vessel };
 
@@ -81,7 +81,7 @@ export function useMapClickHandler({
                 const mapRect = mapElement.getBoundingClientRect();
                 const viewportX = mapRect.left + event.pixel[0];
                 const viewportY = mapRect.top + event.pixel[1];
-                console.log("Showing popup at:", [viewportX, viewportY]);
+                console.log('Showing popup at:', [viewportX, viewportY]);
                 showPopup(featureData, [viewportX, viewportY]);
               }
             } else if (
@@ -91,8 +91,8 @@ export function useMapClickHandler({
             ) {
               // Cluster clicked - zoom in
               console.log(
-                "Cluster clicked, features:",
-                clusteredFeatures.length
+                'Cluster clicked, features:',
+                clusteredFeatures.length,
               );
               const extent = clickedFeature.getGeometry()?.getExtent();
               if (extent) {
@@ -108,8 +108,8 @@ export function useMapClickHandler({
         }
       };
 
-      console.log("Adding singleclick event listener to map");
-      mapInstance.on("singleclick", clickHandler);
+      console.log('Adding singleclick event listener to map');
+      mapInstance.on('singleclick', clickHandler);
     }, 100); // 100ms delay
 
     return () => {

@@ -1,12 +1,12 @@
-import { useEffect } from "react";
-import VectorLayer from "ol/layer/Vector";
-import VectorSource from "ol/source/Vector";
-import Feature from "ol/Feature";
-import Polygon from "ol/geom/Polygon";
-import Circle from "ol/geom/Circle";
-import { fromLonLat } from "ol/proj";
-import { useRegionStore } from "../stores/regionStore";
-import { useMapStore } from "../stores/mapStore";
+import { useEffect } from 'react';
+import VectorLayer from 'ol/layer/Vector';
+import VectorSource from 'ol/source/Vector';
+import Feature from 'ol/Feature';
+import Polygon from 'ol/geom/Polygon';
+import Circle from 'ol/geom/Circle';
+import { fromLonLat } from 'ol/proj';
+import { useRegionStore } from '../stores/regionStore';
+import { useMapStore } from '../stores/mapStore';
 
 // Type definitions for boundary data
 interface PolygonBoundary {
@@ -30,7 +30,7 @@ export function useRegionsRendering({
 
   // Load and display regions
   useEffect(() => {
-    console.log("Fetching regions...");
+    console.log('Fetching regions...');
     fetchRegions();
   }, [fetchRegions]);
 
@@ -42,40 +42,40 @@ export function useRegionsRendering({
 
     // Clear existing regions (but keep drawn regions)
     const features = regionSource.getFeatures();
-    const drawnFeatures = features.filter((f) => !f.get("isStoredRegion"));
+    const drawnFeatures = features.filter((f) => !f.get('isStoredRegion'));
     regionSource.clear();
     regionSource.addFeatures(drawnFeatures);
 
     // Only add stored regions if regionsVisible is true
     if (regionsVisible && regions && regions.length > 0) {
-      console.log("Loading regions:", regions.length, "regions");
+      console.log('Loading regions:', regions.length, 'regions');
       // Add stored regions - filter out any null/undefined values
       const validRegions = regions.filter(Boolean);
-      console.log("Valid regions after filtering:", validRegions.length);
+      console.log('Valid regions after filtering:', validRegions.length);
 
       validRegions.forEach((region) => {
         if (region && region.boundary) {
           let feature;
 
           if (
-            region.regionType === "POLYGON" &&
-            "coordinates" in region.boundary
+            region.regionType === 'POLYGON' &&
+            'coordinates' in region.boundary
           ) {
             const boundaryData = region.boundary as PolygonBoundary;
             const coordinates = boundaryData.coordinates[0].map(
-              (coord: number[]) => fromLonLat(coord)
+              (coord: number[]) => fromLonLat(coord),
             );
             feature = new Feature({
               geometry: new Polygon([coordinates]),
               isStoredRegion: true,
               region,
             });
-            console.log("Created polygon region feature:", region.name);
-          } else if (region.regionType === "CIRCLE") {
+            console.log('Created polygon region feature:', region.name);
+          } else if (region.regionType === 'CIRCLE') {
             let center, radius;
 
             // Try to get circle data from boundary first (for new regions)
-            if ("center" in region.boundary && "radius" in region.boundary) {
+            if ('center' in region.boundary && 'radius' in region.boundary) {
               const boundaryData = region.boundary as CircleBoundary;
               center = fromLonLat(boundaryData.center);
               radius = boundaryData.radius;
@@ -92,19 +92,19 @@ export function useRegionsRendering({
                 isStoredRegion: true,
                 region,
               });
-              console.log("Created circle region feature:", region.name);
+              console.log('Created circle region feature:', region.name);
             }
           }
 
           if (feature) {
             regionSource.addFeature(feature);
-            console.log("Added region feature to source:", region.name);
+            console.log('Added region feature to source:', region.name);
           }
         }
       });
       console.log(
-        "Total features in region source:",
-        regionSource.getFeatures().length
+        'Total features in region source:',
+        regionSource.getFeatures().length,
       );
     }
   }, [regions, regionsVisible, regionLayerRef]);

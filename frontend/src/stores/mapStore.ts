@@ -201,7 +201,8 @@ export const useMapStore = create<MapState>()(
       isLoadingHistory: false,
       historyError: null,
       setHistoryPath: (path: HistoryPath | null) => set({ historyPath: path }),
-      setHistoryLoading: (loading: boolean) => set({ isLoadingHistory: loading }),
+      setHistoryLoading: (loading: boolean) =>
+        set({ isLoadingHistory: loading }),
       setHistoryError: (error: string | null) => set({ historyError: error }),
       clearHistory: () => set({ historyPath: null, historyError: null }),
 

@@ -1,11 +1,11 @@
-import { useEffect } from "react";
-import { websocketService } from "../services/websocket";
-import { useAircraftStore, Aircraft } from "../stores/aircraftStore";
-import { useVesselStore, Vessel } from "../stores/vesselStore";
-import { useRegionStore } from "../stores/regionStore";
-import { useMapStore } from "../stores/mapStore";
-import Map from "ol/Map";
-import { toLonLat } from "ol/proj";
+import { useEffect } from 'react';
+import { websocketService } from '../services/websocket';
+import { useAircraftStore, Aircraft } from '../stores/aircraftStore';
+import { useVesselStore, Vessel } from '../stores/vesselStore';
+import { useRegionStore } from '../stores/regionStore';
+import { useMapStore } from '../stores/mapStore';
+import Map from 'ol/Map';
+import { toLonLat } from 'ol/proj';
 
 interface RegionAlert {
   id: number;
@@ -18,7 +18,7 @@ export function useWebSocketHandler() {
   const { updateAircraft } = useAircraftStore();
   const { updateVessel } = useVesselStore();
   const { fetchRegions } = useRegionStore();
-  const { } = useMapStore();
+  const {} = useMapStore();
 
   // Connect WebSocket
   useEffect(() => {
@@ -28,23 +28,23 @@ export function useWebSocketHandler() {
 
   // WebSocket event listeners
   useEffect(() => {
-    console.log("Setting up WebSocket listeners...");
+    console.log('Setting up WebSocket listeners...');
 
     // Aircraft position updates
     const handleAircraftUpdate = (aircraft: Aircraft) => {
-      console.log("Received aircraft update:", aircraft);
+      console.log('Received aircraft update:', aircraft);
       updateAircraft(aircraft);
     };
 
     // Vessel position updates
     const handleVesselUpdate = (vessel: Vessel) => {
-      console.log("Received vessel update:", vessel);
+      console.log('Received vessel update:', vessel);
       updateVessel(vessel);
     };
 
     // Region alerts (refresh regions when alerts change)
     const handleRegionAlert = (alert: RegionAlert) => {
-      console.log("Received region alert:", alert);
+      console.log('Received region alert:', alert);
       // Refresh regions to get updated alert counts
       fetchRegions();
     };

@@ -134,7 +134,7 @@ export default function MapFiltersRedesigned({
       <div className="bg-white rounded-lg shadow-lg border border-gray-200">
         <button
           onClick={() => setIsOpen(!isOpen)}
-           className="flex items-center justify-center w-10 h-10 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-colors"
+          className="flex items-center justify-center w-10 h-10 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-colors"
         >
           <Filter className="w-5 h-5 text-gray-600" />
         </button>

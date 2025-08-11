@@ -1,8 +1,17 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --card: #ffffff;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --ring: #2563eb;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
 }
 
 @theme inline {
@@ -14,13 +23,123 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0b0f14;
+    --foreground: #e5e7eb;
+    --card: #0f172a;
+    --muted: #94a3b8;
+    --border: #1f2937;
+    --ring: #60a5fa;
+    --primary: #60a5fa;
+    --primary-foreground: #0b0f14;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #f87171;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    var(--font-geist-sans),
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Helvetica,
+    Arial,
+    'Apple Color Emoji',
+    'Segoe UI Emoji';
+}
+
+/* Design tokens as utility classes */
+.container-app {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+.page-title {
+  @apply text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100;
+}
+
+.page-subtitle {
+  @apply mt-2 text-gray-600 dark:text-gray-300;
+}
+
+.card {
+  @apply bg-white dark:bg-[color:var(--card)] border border-[color:var(--border)] rounded-xl shadow-sm;
+}
+
+.card-header {
+  @apply px-6 py-4 border-b border-[color:var(--border)] text-sm font-medium text-gray-700 dark:text-gray-200;
+}
+
+.card-body {
+  @apply px-6 py-5;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.btn-primary {
+  @apply btn bg-[color:var(--primary)] text-[color:var(--primary-foreground)] hover:bg-blue-600 focus:ring-[color:var(--ring)];
+}
+
+.btn-secondary {
+  @apply btn bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600 focus:ring-gray-400;
+}
+
+.btn-ghost {
+  @apply btn bg-transparent text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800 focus:ring-gray-300;
+}
+
+.btn-outline {
+  @apply btn border border-[color:var(--border)] text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800;
+}
+
+.btn-danger {
+  @apply btn bg-[color:var(--danger)] text-white hover:bg-red-600 focus:ring-red-400;
+}
+
+.input {
+  @apply w-full rounded-lg border border-[color:var(--border)] bg-white dark:bg-[color:var(--card)] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[color:var(--ring)] focus:border-transparent;
+}
+
+.select {
+  @apply input pr-8;
+}
+
+.label {
+  @apply block text-sm text-gray-600 dark:text-gray-300 mb-1;
+}
+
+.badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border border-[color:var(--border)];
+}
+
+.badge-muted {
+  @apply bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300;
+}
+.badge-success {
+  @apply bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300;
+}
+.badge-warning {
+  @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300;
+}
+.badge-danger {
+  @apply bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300;
+}
+
+.glass {
+  @apply bg-white/80 dark:bg-slate-900/60 backdrop-blur supports-[backdrop-filter]:bg-white/60 supports-[backdrop-filter]:dark:bg-slate-900/50;
+}
+
+.section {
+  @apply container-app py-6;
+}
+
+/* Header height token */
+.app-header {
+  height: 64px;
 }

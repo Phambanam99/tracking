@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import api from "../services/apiClient";
+import { create } from 'zustand';
+import api from '../services/apiClient';
 
 export interface Vessel {
   id: number;
@@ -43,7 +43,7 @@ export const useVesselStore = create<VesselStore>((set) => ({
   updateVessel: (updatedVessel) =>
     set((state) => ({
       vessels: state.vessels.map((vessel) =>
-        vessel.id === updatedVessel.id ? updatedVessel : vessel
+        vessel.id === updatedVessel.id ? updatedVessel : vessel,
       ),
     })),
   setLoading: (loading) => set({ loading }),
@@ -51,12 +51,12 @@ export const useVesselStore = create<VesselStore>((set) => ({
   fetchVessels: async () => {
     set({ loading: true, error: null });
     try {
-      const vessels = await api.get("/vessels/initial");
+      const vessels = await api.get('/vessels/initial');
       set({ vessels, loading: false });
     } catch (error) {
       set({
         error:
-          error instanceof Error ? error.message : "Failed to fetch vessels",
+          error instanceof Error ? error.message : 'Failed to fetch vessels',
         loading: false,
       });
     }

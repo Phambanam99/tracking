@@ -98,7 +98,12 @@ export default function MapComponentClustered() {
       const bl = toLonLatAny([extent[0], extent[1]]);
       const tr = toLonLatAny([extent[2], extent[3]]);
       if (bl && tr) {
-        const bbox: [number, number, number, number] = [bl[0], bl[1], tr[0], tr[1]];
+        const bbox: [number, number, number, number] = [
+          bl[0],
+          bl[1],
+          tr[0],
+          tr[1],
+        ];
         import('../services/websocket').then(({ websocketService }) => {
           if (websocketService.socket) {
             websocketService.updateViewport(bbox);
@@ -197,7 +202,9 @@ export default function MapComponentClustered() {
       if (!historyPath || historyPath.positions.length < 2) return;
 
       const positions = historyPath.positions;
-      const projected = positions.map((p) => fromLonLat([p.longitude, p.latitude]));
+      const projected = positions.map((p) =>
+        fromLonLat([p.longitude, p.latitude]),
+      );
       const line = new LineString(projected);
       lineSource.addFeature(new Feature({ geometry: line }));
 
@@ -216,17 +223,39 @@ export default function MapComponentClustered() {
       const startFeature = new Feature({ geometry: new Point(projected[0]) });
       startFeature.setStyle(
         new Style({
-          image: new CircleStyle({ radius: 5, fill: new Fill({ color: '#3b82f6' }), stroke: new Stroke({ color: '#1e40af', width: 1 }) }),
-          text: new Text({ text: `Bắt đầu ${formatTime(startTime)}`, offsetY: -14, font: '12px sans-serif', fill: new Fill({ color: '#1f2937' }), stroke: new Stroke({ color: 'white', width: 3 }) }),
+          image: new CircleStyle({
+            radius: 5,
+            fill: new Fill({ color: '#3b82f6' }),
+            stroke: new Stroke({ color: '#1e40af', width: 1 }),
+          }),
+          text: new Text({
+            text: `Bắt đầu ${formatTime(startTime)}`,
+            offsetY: -14,
+            font: '12px sans-serif',
+            fill: new Fill({ color: '#1f2937' }),
+            stroke: new Stroke({ color: 'white', width: 3 }),
+          }),
         }),
       );
       pointsSource.addFeature(startFeature);
 
-      const endFeature = new Feature({ geometry: new Point(projected[projected.length - 1]) });
+      const endFeature = new Feature({
+        geometry: new Point(projected[projected.length - 1]),
+      });
       endFeature.setStyle(
         new Style({
-          image: new CircleStyle({ radius: 5, fill: new Fill({ color: '#ef4444' }), stroke: new Stroke({ color: '#991b1b', width: 1 }) }),
-          text: new Text({ text: `Kết thúc ${formatTime(endTime)}`, offsetY: -14, font: '12px sans-serif', fill: new Fill({ color: '#1f2937' }), stroke: new Stroke({ color: 'white', width: 3 }) }),
+          image: new CircleStyle({
+            radius: 5,
+            fill: new Fill({ color: '#ef4444' }),
+            stroke: new Stroke({ color: '#991b1b', width: 1 }),
+          }),
+          text: new Text({
+            text: `Kết thúc ${formatTime(endTime)}`,
+            offsetY: -14,
+            font: '12px sans-serif',
+            fill: new Fill({ color: '#1f2937' }),
+            stroke: new Stroke({ color: 'white', width: 3 }),
+          }),
         }),
       );
       pointsSource.addFeature(endFeature);
@@ -258,7 +287,11 @@ export default function MapComponentClustered() {
         feature.set('timeLabel', formatTime(t));
         feature.setStyle(
           new Style({
-            image: new CircleStyle({ radius: 3, fill: new Fill({ color: '#10b981' }), stroke: new Stroke({ color: '#047857', width: 1 }) }),
+            image: new CircleStyle({
+              radius: 3,
+              fill: new Fill({ color: '#10b981' }),
+              stroke: new Stroke({ color: '#047857', width: 1 }),
+            }),
           }),
         );
         pointsSource.addFeature(feature);
@@ -275,8 +308,18 @@ export default function MapComponentClustered() {
       const label = feature.get('timeLabel');
       if (!label) return undefined;
       return new Style({
-        image: new CircleStyle({ radius: 4, fill: new Fill({ color: '#0ea5e9' }), stroke: new Stroke({ color: '#0369a1', width: 1 }) }),
-        text: new Text({ text: label, offsetY: -12, font: '12px sans-serif', fill: new Fill({ color: '#111827' }), stroke: new Stroke({ color: 'white', width: 3 }) }),
+        image: new CircleStyle({
+          radius: 4,
+          fill: new Fill({ color: '#0ea5e9' }),
+          stroke: new Stroke({ color: '#0369a1', width: 1 }),
+        }),
+        text: new Text({
+          text: label,
+          offsetY: -12,
+          font: '12px sans-serif',
+          fill: new Fill({ color: '#111827' }),
+          stroke: new Stroke({ color: 'white', width: 3 }),
+        }),
       });
     };
 
@@ -302,7 +345,11 @@ export default function MapComponentClustered() {
         // reset previous feature style
         lastHover.setStyle(
           new Style({
-            image: new CircleStyle({ radius: 3, fill: new Fill({ color: '#10b981' }), stroke: new Stroke({ color: '#047857', width: 1 }) }),
+            image: new CircleStyle({
+              radius: 3,
+              fill: new Fill({ color: '#10b981' }),
+              stroke: new Stroke({ color: '#047857', width: 1 }),
+            }),
           }),
         );
       }
