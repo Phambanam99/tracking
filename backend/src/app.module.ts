@@ -14,6 +14,8 @@ import { AuthModule } from './auth/auth.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { RegionModule } from './region/region.module';
 import { AdminModule } from './admin/admin.module';
+import { VesselFusionModule } from './vessel-fusion/vessel-fusion.module';
+import { AircraftFusionModule } from './aircraft-fusion/aircraft-fusion.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { AdminModule } from './admin/admin.module';
     TrackingModule,
     RegionModule,
     AdminModule,
+    VesselFusionModule,
+    AircraftFusionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -13,6 +13,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Multi-source ingestion identifiers
+enum DataSource {
+  MARINE_TRAFFIC
+  VESSEL_FINDER
+  CHINA_PORT
+  SRC4
+  SRC5
+  ADSB_EXCHANGE
+  FLIGHTRADAR24
+}
+
 // User management for authentication and authorization
 model User {
   id        Int      @id @default(autoincrement())
@@ -78,6 +89,9 @@ model Aircraft {
   // Relationship with positions
   positions AircraftPosition[]
 
+  // External refs
+  externalRefs AircraftExternalRef[]
+
   // Personal tracking relationships
   trackedByUsers UserTrackedAircraft[]
 
@@ -94,19 +108,38 @@ model AircraftPosition {
   speed      Int? // Speed in knots
   heading    Int? // Heading in degrees (0-360)
   timestamp  DateTime @default(now()) // When this position was recorded
+  source     DataSource
+  ingestedAt DateTime  @default(now())
 
   // Relationship with aircraft
   aircraft Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
 
   @@index([aircraftId])
   @@index([timestamp])
+  @@unique([aircraftId, source, timestamp])
   @@map("aircraft_positions")
+}
+
+model AircraftExternalRef {
+  id         Int        @id @default(autoincrement())
+  aircraftId Int
+  source     DataSource
+  externalId String
+  confidence Float      @default(0.9)
+  lastSeenAt DateTime   @default(now())
+
+  aircraft Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+
+  @@unique([source, externalId])
+  @@index([aircraftId])
+  @@map("aircraft_external_refs")
 }
 
 // Vessel model for tracking ship/boat data
 model Vessel {
   id         Int      @id @default(autoincrement())
   mmsi       String   @unique // Maritime Mobile Service Identity
+  imo        String?  @unique
   vesselName String? // Name of the vessel
   vesselType String? // Type of vessel (cargo, passenger, etc.)
   flag       String? // Flag state/country
@@ -121,6 +154,9 @@ model Vessel {
 
   // Personal tracking relationships
   trackedByUsers UserTrackedVessel[]
+
+  // External refs
+  externalRefs VesselExternalRef[]
 
   @@map("vessels")
 }
@@ -167,13 +203,31 @@ model VesselPosition {
   heading   Int? // True heading in degrees (0-360)
   status    String? // Navigation status (anchored, underway, etc.)
   timestamp DateTime @default(now()) // When this position was recorded
+  source    DataSource
+  ingestedAt DateTime @default(now())
 
   // Relationship with vessel
   vessel Vessel @relation(fields: [vesselId], references: [id], onDelete: Cascade)
 
   @@index([vesselId])
   @@index([timestamp])
+  @@unique([vesselId, source, timestamp])
   @@map("vessel_positions")
+}
+
+model VesselExternalRef {
+  id         Int        @id @default(autoincrement())
+  vesselId   Int
+  source     DataSource
+  externalId String
+  confidence Float      @default(0.9)
+  lastSeenAt DateTime   @default(now())
+
+  vessel Vessel @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+
+  @@unique([source, externalId])
+  @@index([vesselId])
+  @@map("vessel_external_refs")
 }
 
 // Region/Area of Interest models for geographic zones
