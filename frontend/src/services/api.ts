@@ -45,20 +45,44 @@ export interface Vessel {
 }
 
 export const apiService = {
-  async fetchAircrafts(): Promise<Aircraft[]> {
-    const response = await fetch(`${API_BASE_URL}/aircrafts/initial`, {
-      headers: { 'X-API-Version': API_VERSION },
-    });
+  async fetchAircrafts(
+    bbox?: string,
+    zoom?: number,
+    limit?: number,
+  ): Promise<Aircraft[]> {
+    const params = new URLSearchParams();
+    if (bbox) params.set('bbox', bbox);
+    if (typeof zoom === 'number') params.set('zoom', String(zoom));
+    if (typeof limit === 'number') params.set('limit', String(limit));
+    const qs = params.toString();
+    const response = await fetch(
+      `${API_BASE_URL}/aircrafts/initial${qs ? `?${qs}` : ''}`,
+      {
+        headers: { 'X-API-Version': API_VERSION },
+      },
+    );
     if (!response.ok) {
       throw new Error('Failed to fetch aircrafts');
     }
     return response.json();
   },
 
-  async fetchVessels(): Promise<Vessel[]> {
-    const response = await fetch(`${API_BASE_URL}/vessels/initial`, {
-      headers: { 'X-API-Version': API_VERSION },
-    });
+  async fetchVessels(
+    bbox?: string,
+    zoom?: number,
+    limit?: number,
+  ): Promise<Vessel[]> {
+    const params = new URLSearchParams();
+    if (bbox) params.set('bbox', bbox);
+    if (typeof zoom === 'number') params.set('zoom', String(zoom));
+    if (typeof limit === 'number') params.set('limit', String(limit));
+    const qs = params.toString();
+    const response = await fetch(
+      `${API_BASE_URL}/vessels/initial${qs ? `?${qs}` : ''}`,
+      {
+        headers: { 'X-API-Version': API_VERSION },
+      },
+    );
     if (!response.ok) {
       throw new Error('Failed to fetch vessels');
     }

@@ -26,17 +26,23 @@ export interface Vessel {
 
 interface VesselStore {
   vessels: Vessel[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
   loading: boolean;
   error: string | null;
   setVessels: (vessels: Vessel[]) => void;
   updateVessel: (vessel: Vessel) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  fetchVessels: () => Promise<void>;
+  fetchVessels: (page?: number, pageSize?: number, q?: string) => Promise<void>;
 }
 
 export const useVesselStore = create<VesselStore>((set) => ({
   vessels: [],
+  total: 0,
+  page: 1,
+  pageSize: 20,
   loading: false,
   error: null,
   setVessels: (vessels) => set({ vessels }),
@@ -48,11 +54,27 @@ export const useVesselStore = create<VesselStore>((set) => ({
     })),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
-  fetchVessels: async () => {
+  fetchVessels: async (page = 1, pageSize = 20, q?: string) => {
     set({ loading: true, error: null });
     try {
-      const vessels = await api.get('/vessels/initial');
-      set({ vessels, loading: false });
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+      });
+      if (q && q.trim()) params.set('q', q.trim());
+      const resp = await api.get(`/vessels?${params.toString()}`);
+      const data = resp?.data || resp;
+      set({
+        vessels: Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data)
+          ? data
+          : [],
+        total: data?.total ?? 0,
+        page: data?.page ?? page,
+        pageSize: data?.pageSize ?? pageSize,
+        loading: false,
+      });
     } catch (error) {
       set({
         error:

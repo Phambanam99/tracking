@@ -11,15 +11,30 @@ export class VesselService {
   ) {}
 
   /**
-   * Find all vessels with their last known position
+   * Find all vessels with their last known position (legacy method)
    */
-  async findAllWithLastPosition(bbox?: [number, number, number, number]) {
+  async findAllWithLastPosition(
+    bbox?: [number, number, number, number],
+    zoom?: number,
+    limit?: number,
+  ) {
     const positionWhere = bbox
       ? {
           longitude: { gte: bbox[0], lte: bbox[2] },
           latitude: { gte: bbox[1], lte: bbox[3] },
         }
       : {};
+    const derivedLimit =
+      typeof limit === 'number' && limit > 0
+        ? limit
+        : zoom == null
+          ? 500000 // Increased from 5000 to 50000
+          : zoom <= 4
+            ? 100000 // Increased from 1500 to 10000 for low zoom
+            : zoom <= 6
+              ? 250000 // Increased from 3000 to 25000 for medium zoom
+              : 500000; // Increased from 6000 to 50000 for high zoom
+
     const vessels = await this.prisma.vessel.findMany({
       include: {
         positions: {
@@ -28,6 +43,7 @@ export class VesselService {
           take: 1,
         },
       },
+      take: derivedLimit,
     });
 
     return vessels.map((vessel) => ({
@@ -43,6 +59,101 @@ export class VesselService {
       updatedAt: vessel.updatedAt,
       lastPosition: vessel.positions[0] || null,
     }));
+  }
+
+  /**
+   * Find all vessels with their last known position (paginated)
+   */
+  async findAllWithLastPositionPaginated(
+    bbox?: [number, number, number, number],
+    zoom?: number,
+    limit?: number,
+    page: number = 1,
+    pageSize: number = 1000,
+    q?: string,
+  ) {
+    const skip = (page - 1) * pageSize;
+
+    // First, count total matching vessels
+    const where: any = bbox
+      ? {
+          positions: {
+            some: {
+              longitude: { gte: bbox[0], lte: bbox[2] },
+              latitude: { gte: bbox[1], lte: bbox[3] },
+            },
+          },
+        }
+      : {};
+    if (q && q.trim()) {
+      const term = q.trim();
+      where.OR = [
+        { mmsi: { contains: term, mode: 'insensitive' } },
+        { vesselName: { contains: term, mode: 'insensitive' } },
+        { vesselType: { contains: term, mode: 'insensitive' } },
+        { flag: { contains: term, mode: 'insensitive' } },
+        { operator: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+
+    const total = await this.prisma.vessel.count({ where });
+
+    // Apply limit if specified
+    const finalLimit = limit ? Math.min(limit, total) : total;
+    const effectivePageSize = Math.min(pageSize, finalLimit - skip);
+
+    if (effectivePageSize <= 0) {
+      return {
+        data: [],
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
+      };
+    }
+
+    const positionWhere = bbox
+      ? {
+          longitude: { gte: bbox[0], lte: bbox[2] },
+          latitude: { gte: bbox[1], lte: bbox[3] },
+        }
+      : {};
+
+    const vessels = await this.prisma.vessel.findMany({
+      where,
+      include: {
+        positions: {
+          where: positionWhere,
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { id: 'asc' }, // Consistent ordering for pagination
+      skip,
+      take: effectivePageSize,
+    });
+
+    const data = vessels.map((vessel) => ({
+      id: vessel.id,
+      mmsi: vessel.mmsi,
+      vesselName: vessel.vesselName,
+      vesselType: vessel.vesselType,
+      flag: vessel.flag,
+      operator: vessel.operator,
+      length: vessel.length,
+      width: vessel.width,
+      createdAt: vessel.createdAt,
+      updatedAt: vessel.updatedAt,
+      lastPosition: vessel.positions[0] || null,
+    }));
+
+    return {
+      data,
+      total: finalLimit,
+      page,
+      pageSize,
+      totalPages: Math.ceil(finalLimit / pageSize),
+    };
   }
 
   /**

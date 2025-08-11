@@ -12,6 +12,7 @@ export function useViewportDataLoader(params: {
   const { setAircrafts } = useAircraftStore();
   const { setVessels } = useVesselStore();
   const lastBboxRef = useRef<string>('');
+  const lastZoomRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -31,8 +32,12 @@ export function useViewportDataLoader(params: {
         tr[1],
       ];
       const bboxStr = bbox.join(',');
-      if (bboxStr === lastBboxRef.current) return;
+      const zoom = map.getView().getZoom() ?? 0;
+      // Skip if bbox changed rất nhỏ và zoom không đổi (hạn chế spam pan rất ngắn)
+      if (bboxStr === lastBboxRef.current && zoom === lastZoomRef.current)
+        return;
       lastBboxRef.current = bboxStr;
+      lastZoomRef.current = zoom;
 
       // Update server viewport for realtime filtering
       const { websocketService } = await import('@/services/websocket');
@@ -43,15 +48,24 @@ export function useViewportDataLoader(params: {
         setTimeout(() => websocketService.subscribeViewport(bbox), 200);
       }
 
-      // Fetch initial data limited to viewport
-      const qs = `?bbox=${encodeURIComponent(bboxStr)}`;
+      // Fetch initial data limited to viewport (no pagination for initial)
+      // Truyền thêm zoom để backend có thể decimate theo zoom
+      const qs = `?bbox=${encodeURIComponent(bboxStr)}&zoom=${zoom}`;
       try {
-        const [aircrafts, vessels] = await Promise.all([
+        const [aircraftResponse, vesselResponse] = await Promise.all([
           api.get(`/aircrafts/initial${qs}`),
           api.get(`/vessels/initial${qs}`),
         ]);
+        // initial returns array directly
+        const aircrafts = aircraftResponse;
+        const vessels = vesselResponse;
+
         if (Array.isArray(aircrafts)) setAircrafts(aircrafts);
         if (Array.isArray(vessels)) setVessels(vessels);
+
+        // Log counts
+        console.log(`Loaded initial aircrafts: ${aircrafts.length}`);
+        console.log(`Loaded initial vessels: ${vessels.length}`);
       } catch (e) {
         // Swallow errors to avoid spamming
         // console.error('Viewport data load failed', e);
@@ -60,7 +74,7 @@ export function useViewportDataLoader(params: {
 
     const debounced = () => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
-      timerRef.current = window.setTimeout(send, 250);
+      timerRef.current = window.setTimeout(send, 300);
     };
 
     // Initial load

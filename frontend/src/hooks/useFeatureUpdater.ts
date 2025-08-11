@@ -35,7 +35,7 @@ export function useFeatureUpdater({
     const aircraftSource = clusterSource.getSource();
     if (!aircraftSource) return;
 
-    // Clear existing features
+    // Clear existing features then batch add
     aircraftSource.clear();
 
     // Only add aircraft if visible
@@ -114,22 +114,22 @@ export function useFeatureUpdater({
         'aircraft (post-filter)',
       );
 
-      filteredAircrafts.forEach((aircraft) => {
-        if (aircraft.lastPosition) {
-          const coordinates = fromLonLat([
-            aircraft.lastPosition.longitude,
-            aircraft.lastPosition.latitude,
-          ]);
-
-          const feature = new Feature({
+      const features: Feature<Point>[] = [];
+      for (const aircraft of filteredAircrafts) {
+        if (!aircraft.lastPosition) continue;
+        const coordinates = fromLonLat([
+          aircraft.lastPosition.longitude,
+          aircraft.lastPosition.latitude,
+        ]);
+        features.push(
+          new Feature({
             geometry: new Point(coordinates),
             type: 'aircraft',
             aircraft,
-          });
-
-          aircraftSource.addFeature(feature);
-        }
-      });
+          }),
+        );
+      }
+      if (features.length > 0) aircraftSource.addFeatures(features);
 
       console.log(
         'Aircraft features updated, total:',
@@ -156,7 +156,7 @@ export function useFeatureUpdater({
     const vesselSource = clusterSource.getSource();
     if (!vesselSource) return;
 
-    // Clear existing features
+    // Clear existing features then batch add
     vesselSource.clear();
 
     // Only add vessels if visible
@@ -229,22 +229,22 @@ export function useFeatureUpdater({
         'vessels (post-filter)',
       );
 
-      filteredVessels.forEach((vessel) => {
-        if (vessel.lastPosition) {
-          const coordinates = fromLonLat([
-            vessel.lastPosition.longitude,
-            vessel.lastPosition.latitude,
-          ]);
-
-          const feature = new Feature({
+      const features: Feature<Point>[] = [];
+      for (const vessel of filteredVessels) {
+        if (!vessel.lastPosition) continue;
+        const coordinates = fromLonLat([
+          vessel.lastPosition.longitude,
+          vessel.lastPosition.latitude,
+        ]);
+        features.push(
+          new Feature({
             geometry: new Point(coordinates),
             type: 'vessel',
             vessel,
-          });
-
-          vesselSource.addFeature(feature);
-        }
-      });
+          }),
+        );
+      }
+      if (features.length > 0) vesselSource.addFeatures(features);
 
       console.log(
         'Vessel features updated, total:',

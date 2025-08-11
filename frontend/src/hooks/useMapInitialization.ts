@@ -3,9 +3,11 @@ import Map from 'ol/Map';
 import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
 import VectorLayer from 'ol/layer/Vector';
+
 import VectorSource from 'ol/source/Vector';
 import OSM from 'ol/source/OSM';
-import { Cluster } from 'ol/source';
+import Cluster from 'ol/source/Cluster'; // ✅ default import
+import { defaults as defaultControls, Attribution } from 'ol/control';
 import {
   Style,
   Text,
@@ -15,6 +17,11 @@ import {
   Icon,
 } from 'ol/style';
 import { fromLonLat } from 'ol/proj';
+import {
+  getZoomFromResolution,
+  getClusterDistance,
+  shouldSimplifyIcons,
+} from '../utils/mapUtils';
 
 interface UseMapInitializationProps {
   mapRef: React.RefObject<HTMLDivElement | null>;
@@ -37,21 +44,11 @@ export function useMapInitialization(
     vesselLayerRef,
     regionLayerRef,
   } = props;
+
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    // Delay initialization to ensure DOM is fully ready
     const timer = setTimeout(() => {
-      console.log('Initializing map...');
-      console.log('Map container element:', mapRef.current);
-      console.log('Container dimensions:', {
-        width: mapRef.current?.offsetWidth,
-        height: mapRef.current?.offsetHeight,
-        clientWidth: mapRef.current?.clientWidth,
-        clientHeight: mapRef.current?.clientHeight,
-      });
-
-      // Check if container has actual dimensions
       if (
         !mapRef.current ||
         mapRef.current.offsetWidth === 0 ||
@@ -61,170 +58,193 @@ export function useMapInitialization(
         return;
       }
 
-      // Create aircraft source and cluster
+      // Sources
       const aircraftSource = new VectorSource();
+      const vesselSource = new VectorSource();
+      const regionSource = new VectorSource();
+
+      // Optimized clusters for large datasets
       const aircraftCluster = new Cluster({
         source: aircraftSource,
-        distance: 50, // pixels
+        distance: 60,
+        minDistance: 20,
       });
-      const aircraftLayer = new VectorLayer({
-        source: aircraftCluster,
-        style: (feature) => {
-          const features = feature.get('features');
-
-          if (!features || !Array.isArray(features)) {
-            console.warn(
-              'Aircraft features is undefined or not an array:',
-              features,
-            );
-            return new Style(); // Return empty style
-          }
-
-          const size = features.length;
-
-          if (size > 1) {
-            // Cluster style
-            return new Style({
-              image: new CircleStyle({
-                radius: Math.min(15 + size * 2, 30),
-                fill: new Fill({ color: 'rgba(59, 130, 246, 0.8)' }),
-                stroke: new Stroke({ color: 'white', width: 2 }),
-              }),
-              text: new Text({
-                text: size.toString(),
-                fill: new Fill({ color: 'white' }),
-                font: 'bold 12px sans-serif',
-              }),
-            });
-          }
-
-          // Single aircraft style
-          const aircraft = features[0].get('aircraft');
-          return new Style({
-            image: new Icon({
-              src: '/aircraft-icon.svg',
-              scale: 0.8,
-              rotation: aircraft?.lastPosition?.heading
-                ? (aircraft.lastPosition.heading * Math.PI) / 180
-                : 0,
-            }),
-          });
-        },
-      });
-
-      // Create vessel source and cluster
-      const vesselSource = new VectorSource();
       const vesselCluster = new Cluster({
         source: vesselSource,
-        distance: 50, // pixels
+        distance: 60,
+        minDistance: 20,
       });
-      const vesselLayer = new VectorLayer({
-        source: vesselCluster,
-        style: (feature) => {
-          const features = feature.get('features');
 
-          if (!features || !Array.isArray(features)) {
-            console.warn(
-              'Vessel features is undefined or not an array:',
-              features,
-            );
-            return new Style(); // Return empty style
-          }
+      // Style function nên dùng resolution (không truy cập map ở đây)
+      const aircraftVectorStyle: import('ol/style/Style').StyleFunction = (
+        feature,
+        resolution,
+      ) => {
+        const features = feature.get('features') as any[] | undefined;
+        if (!features || !Array.isArray(features)) return new Style();
 
-          const size = features.length;
+        const zoom = getZoomFromResolution(resolution);
 
-          if (size > 1) {
-            // Cluster style
-            return new Style({
-              image: new CircleStyle({
-                radius: Math.min(15 + size * 2, 30),
-                fill: new Fill({ color: 'rgba(34, 197, 94, 0.8)' }),
-                stroke: new Stroke({ color: 'white', width: 2 }),
-              }),
-              text: new Text({
-                text: size.toString(),
-                fill: new Fill({ color: 'white' }),
-                font: 'bold 12px sans-serif',
-              }),
-            });
-          }
-
-          // Single vessel style
-          const vessel = features[0].get('vessel');
+        const size = features.length;
+        if (size > 1) {
           return new Style({
-            image: new Icon({
-              src: '/vessel-icon.svg',
-              scale: 0.8,
-              rotation: vessel?.lastPosition?.heading
-                ? (vessel.lastPosition.heading * Math.PI) / 180
-                : 0,
+            image: new CircleStyle({
+              radius: Math.min(15 + size * 2, 30),
+              fill: new Fill({ color: 'rgba(59,130,246,0.8)' }),
+              stroke: new Stroke({ color: 'white', width: 2 }),
+            }),
+            text: new Text({
+              text: String(size),
+              fill: new Fill({ color: 'white' }),
+              font: 'bold 12px sans-serif',
             }),
           });
-        },
+        }
+
+        if (shouldSimplifyIcons(zoom)) {
+          return new Style({
+            image: new CircleStyle({
+              radius: 4,
+              fill: new Fill({ color: 'rgba(59,130,246,0.9)' }),
+              stroke: new Stroke({ color: 'white', width: 1 }),
+            }),
+          });
+        }
+
+        const aircraft = features[0]?.get('aircraft');
+        return new Style({
+          image: new Icon({
+            src: '/aircraft-icon.svg',
+            scale: 0.8,
+            rotation: aircraft?.lastPosition?.heading
+              ? (aircraft.lastPosition.heading * Math.PI) / 180
+              : 0,
+          }),
+        });
+      };
+
+      const vesselVectorStyle: import('ol/style/Style').StyleFunction = (
+        feature,
+        resolution,
+      ) => {
+        const features = feature.get('features') as any[] | undefined;
+        if (!features || !Array.isArray(features)) return new Style();
+
+        const zoom = getZoomFromResolution(resolution);
+
+        const size = features.length;
+        if (size > 1) {
+          return new Style({
+            image: new CircleStyle({
+              radius: Math.min(15 + size * 2, 30),
+              fill: new Fill({ color: 'rgba(34,197,94,0.8)' }),
+              stroke: new Stroke({ color: 'white', width: 2 }),
+            }),
+            text: new Text({
+              text: String(size),
+              fill: new Fill({ color: 'white' }),
+              font: 'bold 12px sans-serif',
+            }),
+          });
+        }
+
+        if (shouldSimplifyIcons(zoom)) {
+          return new Style({
+            image: new CircleStyle({
+              radius: 4,
+              fill: new Fill({ color: 'rgba(34,197,94,0.9)' }),
+              stroke: new Stroke({ color: 'white', width: 1 }),
+            }),
+          });
+        }
+
+        const vessel = features[0]?.get('vessel');
+        return new Style({
+          image: new Icon({
+            src: '/vessel-icon.svg',
+            scale: 0.8,
+            rotation: vessel?.lastPosition?.heading
+              ? (vessel.lastPosition.heading * Math.PI) / 180
+              : 0,
+          }),
+        });
+      };
+
+      const aircraftLayer = new VectorLayer({
+        source: aircraftCluster,
+        style: aircraftVectorStyle,
+
+        updateWhileAnimating: false, // Disable updates during animation
+        updateWhileInteracting: false, // Disable updates during interaction
       });
 
-      // Create region layer
-      const regionSource = new VectorSource();
+      const vesselLayer = new VectorLayer({
+        source: vesselCluster,
+        style: vesselVectorStyle,
+
+        updateWhileAnimating: false,
+        updateWhileInteracting: false,
+      });
+
       const regionLayer = new VectorLayer({
         source: regionSource,
         style: new Style({
-          stroke: new Stroke({
-            color: 'rgba(255, 0, 0, 0.8)',
-            width: 2,
-          }),
-          fill: new Fill({
-            color: 'rgba(255, 0, 0, 0.1)',
-          }),
+          stroke: new Stroke({ color: 'rgba(255,0,0,0.8)', width: 2 }),
+          fill: new Fill({ color: 'rgba(255,0,0,0.1)' }),
         }),
       });
 
-      // Create map
+      // WebGL disabled completely due to persistent renderer issues - using vector layers only
+
+      // Map (giữ Attribution hợp lệ cho OSM)
       const map = new Map({
-        target: mapRef.current,
-        controls: [], // Remove all default controls including attribution
+        target: mapRef.current!,
+        controls: defaultControls({ attribution: true }).extend([
+          new Attribution({ collapsible: true }),
+        ]),
         layers: [
           new TileLayer({
-            source: new OSM({
-              attributions: [], // Remove OSM attribution
-            }),
+            source: new OSM(), // ❗️đừng xoá attribution của OSM
           }),
           aircraftLayer,
           vesselLayer,
           regionLayer,
         ],
         view: new View({
-          center: fromLonLat([108.2194, 16.0544]), // Vietnam center
+          center: fromLonLat([108.2194, 16.0544]), // VN center
           zoom: 6,
         }),
       });
 
-      // Force immediate render
-      map.render();
+      // Zoom-based adjustments (cluster distance + toggle layers)
+      const updateByZoom = () => {
+        const z = map.getView().getZoom() ?? 6;
 
-      mapInstanceRef.current = map;
-      if (aircraftLayerRef) aircraftLayerRef.current = aircraftLayer;
-      if (vesselLayerRef) vesselLayerRef.current = vesselLayer;
-      if (regionLayerRef) regionLayerRef.current = regionLayer;
+        const dist = getClusterDistance(z);
+        aircraftCluster.setDistance(dist);
+        vesselCluster.setDistance(dist);
 
-      console.log('Map initialized successfully:', map);
-      console.log('Map target set to:', map.getTarget());
-      console.log('Map size:', map.getSize());
-
-      // Force map to update its size with multiple attempts
-      const updateMapSize = () => {
-        map.updateSize();
-        const size = map.getSize();
-        console.log('Map size after updateSize():', size);
-
-        if (!size && map.getTarget()) {
-          // If size is still undefined, try again
-          console.log('Map size undefined, trying again...');
-          setTimeout(updateMapSize, 50);
-        }
+        // WebGL disabled - always use vector layers
+        aircraftLayer.setVisible(true);
+        vesselLayer.setVisible(true);
       };
 
+      updateByZoom();
+      map.getView().on('change:resolution', updateByZoom);
+
+      // Lưu ref
+      mapInstanceRef.current = map;
+      if (aircraftLayerRef) aircraftLayerRef.current = aircraftLayer as any;
+      if (vesselLayerRef) vesselLayerRef.current = vesselLayer as any;
+      if (regionLayerRef) regionLayerRef.current = regionLayer as any;
+
+      // ensure size cập nhật sau mount
+      const updateMapSize = () => {
+        map.updateSize();
+        if (!map.getSize()) setTimeout(updateMapSize, 50);
+      };
       setTimeout(updateMapSize, 100);
-    }, 50); // Delay 50ms for DOM to be ready
+    }, 50);
 
     return () => {
       clearTimeout(timer);

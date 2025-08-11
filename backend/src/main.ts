@@ -50,10 +50,8 @@ async function bootstrap() {
     .setDescription('API documentation for Tracking service')
     .setVersion(API_VERSION)
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'bearer')
-    // .addApiKey(
-    //   { type: 'apiKey', in: 'header', name: 'X-API-Version' },
-    //   'api-version',
-    // )
+    .addApiKey({ type: 'apiKey', in: 'header', name: 'X-API-Version' }, 'api-version')
+    .addSecurityRequirements('api-version')
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, swaggerDocument, {

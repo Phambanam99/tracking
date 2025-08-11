@@ -28,8 +28,12 @@ export class VesselController {
    * Get all vessels with their last known positions
    */
   @Get('initial')
-  @ApiOperation({ summary: 'Get all vessels with last position' })
-  async findAllWithLastPosition(@Query('bbox') bbox?: string): Promise<VesselResponseDto[]> {
+  @ApiOperation({ summary: 'Get all vessels with last position (bbox/zoom, no pagination)' })
+  async findAllWithLastPosition(
+    @Query('bbox') bbox?: string,
+    @Query('zoom') zoom?: string,
+    @Query('limit') limit?: string,
+  ): Promise<VesselResponseDto[]> {
     let parsedBbox: [number, number, number, number] | undefined;
     if (bbox) {
       const parts = bbox.split(',').map((p) => parseFloat(p.trim()));
@@ -37,7 +41,37 @@ export class VesselController {
         parsedBbox = [parts[0], parts[1], parts[2], parts[3]];
       }
     }
-    return this.vesselService.findAllWithLastPosition(parsedBbox);
+    const z = zoom ? Number(zoom) : undefined;
+    const lim = limit ? Number(limit) : undefined;
+    return this.vesselService.findAllWithLastPosition(parsedBbox, z, lim);
+  }
+
+  /**
+   * Paginated list endpoint for vessels (for list pages)
+   */
+  @Get()
+  @ApiOperation({ summary: 'Paginated list of vessels with last position' })
+  async list(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('q') q?: string,
+  ): Promise<{
+    data: VesselResponseDto[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> {
+    const p = page ? Math.max(1, Number(page)) : 1;
+    const ps = pageSize ? Math.min(Math.max(1, Number(pageSize)), 5000) : 1000;
+    return this.vesselService.findAllWithLastPositionPaginated(
+      undefined,
+      undefined,
+      undefined,
+      p,
+      ps,
+      q,
+    );
   }
 
   /**

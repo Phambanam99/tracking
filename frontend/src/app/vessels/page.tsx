@@ -12,7 +12,7 @@ export default function VesselsPage() {
   const [filterType, setFilterType] = useState('all');
 
   useEffect(() => {
-    fetchVessels();
+    fetchVessels(1, 50);
   }, [fetchVessels]);
 
   const filteredVessels = vessels.filter((vessel) => {
@@ -71,7 +71,7 @@ export default function VesselsPage() {
               </div>
             </div>
 
-            {/* Vessels List */}
+            {/* Vessels List (paginated basic) */}
             <div className="card overflow-hidden sm:rounded-md">
               {loading ? (
                 <div className="flex justify-center items-center h-32">
@@ -82,7 +82,8 @@ export default function VesselsPage() {
                   <div className="text-red-700 dark:text-red-300">{error}</div>
                 </div>
               ) : (
-                <ul className="divide-y divide-gray-200">
+                <>
+                  <ul className="divide-y divide-gray-200">
                   {filteredVessels.map((vessel) => (
                     <li key={vessel.id}>
                       <Link
@@ -158,7 +159,18 @@ export default function VesselsPage() {
                       Không tìm thấy tàu thuyền nào
                     </li>
                   )}
-                </ul>
+                  </ul>
+
+                  <div className="p-4 flex items-center justify-between text-sm text-gray-600">
+                    <button
+                      className="btn"
+                      onClick={() => fetchVessels(1, 50, searchTerm)}
+                    >
+                      Làm mới
+                    </button>
+                    <div>Hiển thị {filteredVessels.length} mục</div>
+                  </div>
+                </>
               )}
             </div>
           </div>

@@ -12,7 +12,7 @@ export default function AircraftPage() {
   const [filterType, setFilterType] = useState('all');
 
   useEffect(() => {
-    fetchAircrafts();
+    fetchAircrafts(1, 50);
   }, [fetchAircrafts]);
 
   const filteredAircrafts = aircrafts.filter((aircraft) => {
@@ -72,7 +72,7 @@ export default function AircraftPage() {
               </div>
             </div>
 
-            {/* Aircraft List */}
+            {/* Aircraft List (paginated basic) */}
             <div className="card overflow-hidden sm:rounded-md">
               {loading ? (
                 <div className="flex justify-center items-center h-32">
@@ -83,7 +83,8 @@ export default function AircraftPage() {
                   <div className="text-red-700 dark:text-red-300">{error}</div>
                 </div>
               ) : (
-                <ul className="divide-y divide-gray-200">
+                <>
+                  <ul className="divide-y divide-gray-200">
                   {filteredAircrafts.map((aircraft) => (
                     <li key={aircraft.id}>
                       <Link
@@ -156,7 +157,18 @@ export default function AircraftPage() {
                       Không tìm thấy máy bay nào
                     </li>
                   )}
-                </ul>
+                  </ul>
+                  {/* Simple pager */}
+                  <div className="p-4 flex items-center justify-between text-sm text-gray-600">
+                    <button
+                      className="btn"
+                      onClick={() => fetchAircrafts(1, 50, searchTerm)}
+                    >
+                      Làm mới
+                    </button>
+                    <div>Hiển thị {filteredAircrafts.length} mục</div>
+                  </div>
+                </>
               )}
             </div>
           </div>

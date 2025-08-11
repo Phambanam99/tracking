@@ -199,6 +199,108 @@ async function main() {
       console.warn('Failed to parse prisma/track.json; skipping track seed.', err);
     }
   }
+
+  // Massive synthetic dataset for performance testing
+  // Controlled via env; defaults to 200k each as requested
+  const targetAircraft = Number(process.env.SEED_AIRCRAFT_COUNT || 200_000);
+  const targetVessels = Number(process.env.SEED_VESSEL_COUNT || 200_000);
+  const doHeavySeed = (process.env.SEED_HEAVY || 'true').toLowerCase() !== 'false';
+
+  if (doHeavySeed) {
+    const batchSize = 5_000;
+
+    // Helpers
+    const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+    const pad = (num: number, len: number) => num.toString().padStart(len, '0');
+
+    // Aircrafts
+    const existingAircraft = await prisma.aircraft.count();
+    const needAircraft = Math.max(0, targetAircraft - existingAircraft);
+    if (needAircraft > 0) {
+      console.log(`Seeding aircrafts: need ${needAircraft} (existing=${existingAircraft})`);
+      for (let offset = 0; offset < needAircraft; offset += batchSize) {
+        const size = Math.min(batchSize, needAircraft - offset);
+        const startIndex = existingAircraft + offset + 1;
+        const data = Array.from({ length: size }, (_, i) => {
+          const n = startIndex + i;
+          return {
+            flightId: `FL${pad(n, 7)}`,
+            callSign: `CS${pad(n, 6)}`,
+            registration: `REG-${pad(n % 999999, 6)}`,
+            aircraftType: ['A320', 'A321', 'B737', 'B787', 'A350'][n % 5],
+            operator: ['Vietnam Airlines', 'Bamboo', 'VietJet', 'Jetstar', 'AirAsia'][n % 5],
+          } as const;
+        });
+        await prisma.aircraft.createMany({ data, skipDuplicates: true });
+
+        // Insert one current position for each (for map rendering)
+        const ids = await prisma.aircraft.findMany({
+          where: { flightId: { in: data.map((d) => d.flightId) } },
+          select: { id: true, flightId: true },
+        });
+        const idMap = new Map(ids.map((x) => [x.flightId, x.id] as const));
+        const posBatch = data.map((d) => ({
+          aircraftId: idMap.get(d.flightId)!,
+          latitude: randomInRange(-70, 70),
+          longitude: randomInRange(-179, 179),
+          altitude: Math.round(randomInRange(0, 40000)),
+          speed: Math.round(randomInRange(200, 520)),
+          heading: Math.round(randomInRange(0, 359)),
+          timestamp: new Date(),
+        }));
+        await prisma.aircraftPosition.createMany({ data: posBatch });
+        console.log(`  Inserted aircraft batch ${offset + size}/${needAircraft}`);
+      }
+    } else {
+      console.log('Aircraft dataset already satisfies target; skipping aircraft seed.');
+    }
+
+    // Vessels
+    const existingVessel = await prisma.vessel.count();
+    const needVessel = Math.max(0, targetVessels - existingVessel);
+    if (needVessel > 0) {
+      console.log(`Seeding vessels: need ${needVessel} (existing=${existingVessel})`);
+      for (let offset = 0; offset < needVessel; offset += batchSize) {
+        const size = Math.min(batchSize, needVessel - offset);
+        const startIndex = existingVessel + offset + 1;
+        const data = Array.from({ length: size }, (_, i) => {
+          const n = startIndex + i;
+          const mmsi = (100_000_000 + (n % 900_000_000)).toString();
+          return {
+            mmsi,
+            vesselName: `Vessel-${pad(n, 7)}`,
+            vesselType: ['Cargo', 'Tanker', 'Passenger', 'Fishing', 'Tug'][n % 5],
+            flag: ['VN', 'SG', 'MY', 'TH', 'PH'][n % 5],
+            operator: ['OpA', 'OpB', 'OpC', 'OpD', 'OpE'][n % 5],
+            length: Math.round(randomInRange(60, 320)),
+            width: Math.round(randomInRange(10, 50)),
+          } as const;
+        });
+        await prisma.vessel.createMany({ data, skipDuplicates: true });
+
+        // Positions
+        const ids = await prisma.vessel.findMany({
+          where: { mmsi: { in: data.map((d) => d.mmsi) } },
+          select: { id: true, mmsi: true },
+        });
+        const idMap = new Map(ids.map((x) => [x.mmsi, x.id] as const));
+        const posBatch = data.map((d) => ({
+          vesselId: idMap.get(d.mmsi)!,
+          latitude: randomInRange(-70, 70),
+          longitude: randomInRange(-179, 179),
+          speed: Math.round(randomInRange(0, 25)),
+          course: Math.round(randomInRange(0, 359)),
+          heading: Math.round(randomInRange(0, 359)),
+          status: 'Under way using engine',
+          timestamp: new Date(),
+        }));
+        await prisma.vesselPosition.createMany({ data: posBatch });
+        console.log(`  Inserted vessel batch ${offset + size}/${needVessel}`);
+      }
+    } else {
+      console.log('Vessel dataset already satisfies target; skipping vessel seed.');
+    }
+  }
 }
 
 main()

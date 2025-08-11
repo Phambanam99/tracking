@@ -380,7 +380,14 @@ export default function MapComponentClustered() {
       });
     };
 
-    map.on('pointermove', onPointerMove);
+    // Disable hit detection on low zoom to reduce readbacks
+    const updatePointerListener = () => {
+      const z = map.getView().getZoom() ?? 8;
+      map.un('pointermove', onPointerMove as any);
+      if (z >= 8) map.on('pointermove', onPointerMove);
+    };
+    updatePointerListener();
+    map.getView().on('change:resolution', updatePointerListener);
 
     // Rebuild on zoom/pan to adapt sampling density
     const onMoveEnd = () => {
