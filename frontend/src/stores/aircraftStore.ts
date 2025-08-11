@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import api from "../services/apiClient";
+import { create } from 'zustand';
+import api from '../services/apiClient';
 
 export interface Aircraft {
   id: number;
@@ -11,7 +11,7 @@ export interface Aircraft {
   createdAt: Date;
   updatedAt: Date;
   lastPosition?: {
-    id: number;
+    id?: number;
     latitude: number;
     longitude: number;
     altitude?: number;
@@ -37,23 +37,27 @@ export const useAircraftStore = create<AircraftStore>((set) => ({
   loading: false,
   error: null,
   setAircrafts: (aircrafts) => set({ aircrafts }),
-  updateAircraft: (updatedAircraft) =>
-    set((state) => ({
-      aircrafts: state.aircrafts.map((aircraft) =>
-        aircraft.id === updatedAircraft.id ? updatedAircraft : aircraft
-      ),
-    })),
+  updateAircraft: (incoming) =>
+    set((state) => {
+      const idx = state.aircrafts.findIndex((a) => a.id === incoming.id);
+      if (idx === -1) {
+        return { aircrafts: [...state.aircrafts, incoming] };
+      }
+      const next = [...state.aircrafts];
+      next[idx] = { ...next[idx], ...incoming };
+      return { aircrafts: next };
+    }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   fetchAircrafts: async () => {
     set({ loading: true, error: null });
     try {
-      const aircrafts = await api.get("/aircrafts/initial");
+      const aircrafts = await api.get('/aircrafts/initial');
       set({ aircrafts, loading: false });
     } catch (error) {
       set({
         error:
-          error instanceof Error ? error.message : "Failed to fetch aircrafts",
+          error instanceof Error ? error.message : 'Failed to fetch aircrafts',
         loading: false,
       });
     }

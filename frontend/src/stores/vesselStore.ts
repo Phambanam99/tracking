@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import api from "../services/apiClient";
+import { create } from 'zustand';
+import api from '../services/apiClient';
 
 export interface Vessel {
   id: number;
@@ -13,7 +13,7 @@ export interface Vessel {
   createdAt: Date;
   updatedAt: Date;
   lastPosition?: {
-    id: number;
+    id?: number;
     latitude: number;
     longitude: number;
     speed?: number;
@@ -40,23 +40,27 @@ export const useVesselStore = create<VesselStore>((set) => ({
   loading: false,
   error: null,
   setVessels: (vessels) => set({ vessels }),
-  updateVessel: (updatedVessel) =>
-    set((state) => ({
-      vessels: state.vessels.map((vessel) =>
-        vessel.id === updatedVessel.id ? updatedVessel : vessel
-      ),
-    })),
+  updateVessel: (incoming) =>
+    set((state) => {
+      const idx = state.vessels.findIndex((v) => v.id === incoming.id);
+      if (idx === -1) {
+        return { vessels: [...state.vessels, incoming] };
+      }
+      const next = [...state.vessels];
+      next[idx] = { ...next[idx], ...incoming };
+      return { vessels: next };
+    }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   fetchVessels: async () => {
     set({ loading: true, error: null });
     try {
-      const vessels = await api.get("/vessels/initial");
+      const vessels = await api.get('/vessels/initial');
       set({ vessels, loading: false });
     } catch (error) {
       set({
         error:
-          error instanceof Error ? error.message : "Failed to fetch vessels",
+          error instanceof Error ? error.message : 'Failed to fetch vessels',
         loading: false,
       });
     }
