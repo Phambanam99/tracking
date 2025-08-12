@@ -11,7 +11,7 @@ export interface Aircraft {
   createdAt: Date;
   updatedAt: Date;
   lastPosition?: {
-    id: number;
+    id?: number;
     latitude: number;
     longitude: number;
     altitude?: number;
@@ -47,35 +47,24 @@ export const useAircraftStore = create<AircraftStore>((set) => ({
   loading: false,
   error: null,
   setAircrafts: (aircrafts) => set({ aircrafts }),
-  updateAircraft: (updatedAircraft) =>
-    set((state) => ({
-      aircrafts: state.aircrafts.map((aircraft) =>
-        aircraft.id === updatedAircraft.id ? updatedAircraft : aircraft,
-      ),
-    })),
+  updateAircraft: (incoming) =>
+    set((state) => {
+      const idx = state.aircrafts.findIndex((a) => a.id === incoming.id);
+      if (idx === -1) {
+        return { aircrafts: [...state.aircrafts, incoming] };
+      }
+      const next = [...state.aircrafts];
+      next[idx] = { ...next[idx], ...incoming };
+      return { aircrafts: next };
+    }),
+
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   fetchAircrafts: async (page = 1, pageSize = 20, q?: string) => {
     set({ loading: true, error: null });
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(pageSize),
-      });
-      if (q && q.trim()) params.set('q', q.trim());
-      const resp = await api.get(`/aircrafts?${params.toString()}`);
-      const data = resp?.data || resp;
-      set({
-        aircrafts: Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data)
-          ? data
-          : [],
-        total: data?.total ?? 0,
-        page: data?.page ?? page,
-        pageSize: data?.pageSize ?? pageSize,
-        loading: false,
-      });
+      const aircrafts = await api.get('/aircrafts/initial');
+      set({ aircrafts, loading: false });
     } catch (error) {
       set({
         error:

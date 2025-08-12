@@ -13,7 +13,7 @@ export interface Vessel {
   createdAt: Date;
   updatedAt: Date;
   lastPosition?: {
-    id: number;
+    id?: number;
     latitude: number;
     longitude: number;
     speed?: number;
@@ -46,35 +46,25 @@ export const useVesselStore = create<VesselStore>((set) => ({
   loading: false,
   error: null,
   setVessels: (vessels) => set({ vessels }),
-  updateVessel: (updatedVessel) =>
-    set((state) => ({
-      vessels: state.vessels.map((vessel) =>
-        vessel.id === updatedVessel.id ? updatedVessel : vessel,
-      ),
-    })),
+  updateVessel: (incoming) =>
+    set((state) => {
+      const idx = state.vessels.findIndex((v) => v.id === incoming.id);
+      if (idx === -1) {
+        return { vessels: [...state.vessels, incoming] };
+      }
+      const next = [...state.vessels];
+      next[idx] = { ...next[idx], ...incoming };
+      return { vessels: next };
+    }),
+
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   fetchVessels: async (page = 1, pageSize = 20, q?: string) => {
     set({ loading: true, error: null });
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(pageSize),
-      });
-      if (q && q.trim()) params.set('q', q.trim());
-      const resp = await api.get(`/vessels?${params.toString()}`);
-      const data = resp?.data || resp;
-      set({
-        vessels: Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data)
-          ? data
-          : [],
-        total: data?.total ?? 0,
-        page: data?.page ?? page,
-        pageSize: data?.pageSize ?? pageSize,
-        loading: false,
-      });
+      const vessels = await api.get('/vessels/initial');
+      set({ vessels, loading: false });
+
     } catch (error) {
       set({
         error:

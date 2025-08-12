@@ -4,10 +4,17 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AircraftModule } from '../aircraft/aircraft.module';
 import { VesselModule } from '../vessel/vessel.module';
 import { RedisModule } from '../redis/redis.module';
+import { FusionModule } from '../fusion/fusion.module';
 
 @Module({
-  // ScheduleModule.forRoot() is initialized in AppModule; do not call forRoot here
-  imports: [PrismaModule, AircraftModule, VesselModule, RedisModule],
+  imports: [
+    ScheduleModule.forRoot(),
+    PrismaModule,
+    AircraftModule,
+    VesselModule,
+    RedisModule,
+    FusionModule,
+  ],
   providers: [DataFetcherService],
   exports: [DataFetcherService],
 })
