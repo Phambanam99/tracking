@@ -1,7 +1,11 @@
 // Enhanced API service for handling HTTP requests with authentication
-import { useAuthStore } from "../stores/authStore";
+import { useAuthStore } from '../stores/authStore';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+// Prefer same-origin proxy via Next.js to backend
+// Default base path is '/api' which next.config.ts rewrites to backend '/api'
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL?.trim() || 'http://localhost:3000/api';
+const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || '1.0.0';
 
 class ApiService {
   private getAuthToken(): string | null {
@@ -12,14 +16,15 @@ class ApiService {
 
   private async request(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<Response> {
     const token = this.getAuthToken();
 
     const config: RequestInit = {
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
+        'X-API-Version': API_VERSION,
         ...options.headers,
       },
       ...options,
@@ -27,24 +32,43 @@ class ApiService {
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
 
+    // Try to parse JSON body for both success and error
+    const payload = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-      const errorData = await response
-        .json()
-        .catch(() => ({ message: "Network error" }));
-      throw new Error(errorData.message || `HTTP ${response.status}`);
+      // Standardized error envelope: { success: false, error: { message } }
+      const errorMessage =
+        (payload && (payload.error?.message || payload.message)) ||
+        `HTTP ${response.status}`;
+      // Attach status for downstream handling
+      const error = new Error(errorMessage) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
     }
 
-    return response;
+    // Standardized success envelope: { success: true, data }
+    if (payload && typeof payload === 'object' && 'success' in payload) {
+      return new Response(JSON.stringify(payload.data), {
+        status: response.status,
+        headers: response.headers,
+      });
+    }
+
+    // Fallback: return original payload
+    return new Response(JSON.stringify(payload), {
+      status: response.status,
+      headers: response.headers,
+    });
   }
 
   async get(endpoint: string): Promise<any> {
-    const response = await this.request(endpoint, { method: "GET" });
+    const response = await this.request(endpoint, { method: 'GET' });
     return response.json();
   }
 
   async post(endpoint: string, data?: any): Promise<any> {
     const response = await this.request(endpoint, {
-      method: "POST",
+      method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
     });
     return response.json();
@@ -52,14 +76,22 @@ class ApiService {
 
   async put(endpoint: string, data?: any): Promise<any> {
     const response = await this.request(endpoint, {
-      method: "PUT",
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    return response.json();
+  }
+
+  async patch(endpoint: string, data?: any): Promise<any> {
+    const response = await this.request(endpoint, {
+      method: 'PATCH',
       body: data ? JSON.stringify(data) : undefined,
     });
     return response.json();
   }
 
   async delete(endpoint: string): Promise<any> {
-    const response = await this.request(endpoint, { method: "DELETE" });
+    const response = await this.request(endpoint, { method: 'DELETE' });
     return response.json();
   }
 }

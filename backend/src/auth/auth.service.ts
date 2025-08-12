@@ -24,13 +24,9 @@ export class AuthService {
       return null;
     }
 
-    const isPasswordValid = await this.userService.validatePassword(
-      password,
-      user.password,
-    );
+    const isPasswordValid = await this.userService.validatePassword(password, user.password);
 
     if (isPasswordValid) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password: _, ...result } = user;
       return result;
     }
@@ -56,12 +52,7 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1); // 1 hour
 
-    await this.userService.createSession(
-      user.id,
-      accessToken,
-      refreshToken,
-      expiresAt,
-    );
+    await this.userService.createSession(user.id, accessToken, refreshToken, expiresAt);
 
     return {
       access_token: accessToken,
@@ -89,16 +80,12 @@ export class AuthService {
     lastName?: string;
   }) {
     // Check if user already exists
-    const existingUserByEmail = await this.userService.findByEmail(
-      userData.email,
-    );
+    const existingUserByEmail = await this.userService.findByEmail(userData.email);
     if (existingUserByEmail) {
       throw new Error('User with this email already exists');
     }
 
-    const existingUserByUsername = await this.userService.findByUsername(
-      userData.username,
-    );
+    const existingUserByUsername = await this.userService.findByUsername(userData.username);
     if (existingUserByUsername) {
       throw new Error('User with this username already exists');
     }
@@ -141,12 +128,7 @@ export class AuthService {
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 1);
 
-      await this.userService.createSession(
-        user.id,
-        newAccessToken,
-        newRefreshToken,
-        expiresAt,
-      );
+      await this.userService.createSession(user.id, newAccessToken, newRefreshToken, expiresAt);
 
       return {
         access_token: newAccessToken,
@@ -176,8 +158,7 @@ export class AuthService {
    */
   async validateToken(accessToken: string) {
     try {
-      const session =
-        await this.userService.findSessionByAccessToken(accessToken);
+      const session = await this.userService.findSessionByAccessToken(accessToken);
 
       if (!session) {
         return null;

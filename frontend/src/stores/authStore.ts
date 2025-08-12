@@ -1,5 +1,6 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import api from '../services/apiClient';
 
 interface User {
   id: number;
@@ -35,21 +36,7 @@ export const useAuthStore = create<AuthState>()(
         console.log(username + password);
         username = username.trim();
         try {
-          const response = await fetch("http://localhost:3000/auth/login", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ username, password }),
-          });
-          console.log(response);
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || "Login failed");
-          }
-
-          const data = await response.json();
+          const data = await api.post('/auth/login', { username, password });
 
           set({
             user: data.user,
@@ -60,7 +47,7 @@ export const useAuthStore = create<AuthState>()(
           });
         } catch (error) {
           set({
-            error: error instanceof Error ? error.message : "Login failed",
+            error: error instanceof Error ? error.message : 'Login failed',
             isLoading: false,
           });
         }
@@ -81,10 +68,10 @@ export const useAuthStore = create<AuthState>()(
 
       validateToken: async () => {
         const state = useAuthStore.getState();
-        console.log("🔍 validateToken called, token exists:", !!state.token);
+        console.log('🔍 validateToken called, token exists:', !!state.token);
 
         if (!state.token) {
-          console.log("❌ No token found, clearing auth state");
+          console.log('❌ No token found, clearing auth state');
           set({
             user: null,
             token: null,
@@ -95,38 +82,20 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           console.log(
-            "📞 Making request to /users/profile with token:",
-            state.token.substring(0, 20) + "..."
+            '📞 Making request to /users/profile with token:',
+            state.token.substring(0, 20) + '...',
           );
-          const response = await fetch("http://localhost:3000/users/profile", {
-            headers: {
-              Authorization: `Bearer ${state.token}`,
-            },
-          });
-
-          console.log("📥 Profile response status:", response.status);
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.log(
-              "❌ Profile request failed:",
-              response.status,
-              errorText
-            );
-            throw new Error("Token validation failed");
-          }
-
-          const userData = await response.json();
-          console.log("✅ Profile data received:", userData);
-          console.log("🔧 Setting auth state: isAuthenticated = true");
+          const userData = await api.get('/users/profile');
+          console.log('✅ Profile data received:', userData);
+          console.log('🔧 Setting auth state: isAuthenticated = true');
           set({
             user: userData,
             isAuthenticated: true,
           });
-          console.log("✅ Auth state updated successfully");
+          console.log('✅ Auth state updated successfully');
         } catch (error) {
-          console.log("💥 validateToken error:", error);
-          console.log("🔧 Clearing auth state due to error");
+          console.log('💥 validateToken error:', error);
+          console.log('🔧 Clearing auth state due to error');
           set({
             user: null,
             token: null,
@@ -157,12 +126,12 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: "auth-storage",
+      name: 'auth-storage',
       partialize: (state) => ({
         user: state.user,
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
-    }
-  )
+    },
+  ),
 );

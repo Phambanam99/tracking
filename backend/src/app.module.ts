@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -12,9 +13,11 @@ import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { RegionModule } from './region/region.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     PrismaModule,
     AircraftModule,
@@ -26,6 +29,7 @@ import { RegionModule } from './region/region.module';
     AuthModule,
     TrackingModule,
     RegionModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

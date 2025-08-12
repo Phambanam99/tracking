@@ -37,6 +37,9 @@ model User {
   regions      Region[]
   regionAlerts RegionAlert[]
 
+  // User filters relationship
+  userFilters  UserFilters[]
+
   @@map("users")
 }
 
@@ -260,4 +263,36 @@ model RegionObjectHistory {
   @@unique([regionId, objectType, objectId])
   @@index([regionId])
   @@map("region_object_history")
+}
+
+model UserFilters {
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  activeFilterTab  String   // 'aircraft' | 'vessel'
+  aircraftViewMode String   // 'all' | 'tracked'
+  vesselViewMode   String   // 'all' | 'tracked'
+  aircraft         Json     // AircraftFilters object
+  vessel           Json     // VesselFilters object
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+  @@unique([userId, name])
+  @@map("user_filters")
+}
+
+// System-wide settings (singleton). Stores admin-configured map/visual settings
+model SystemSettings {
+  id                     Int      @id @default(1)
+  clusterEnabled         Boolean  @default(true)
+  minZoom                Int      @default(4)
+  maxZoom                Int      @default(16)
+  signalStaleMinutes     Int      @default(10)
+  vesselFlagColors       Json     @default("{}")
+  aircraftOperatorColors Json     @default("{}")
+  updatedAt              DateTime @updatedAt
+
+  @@map("system_settings")
 }

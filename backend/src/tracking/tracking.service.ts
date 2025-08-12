@@ -22,12 +22,7 @@ export class TrackingService {
   ) {}
 
   // Aircraft tracking methods
-  async trackAircraft(
-    userId: number,
-    aircraftId: number,
-    alias?: string,
-    notes?: string,
-  ) {
+  async trackAircraft(userId: number, aircraftId: number, alias?: string, notes?: string) {
     // First check if aircraft exists
     const aircraft = await this.prisma.aircraft.findUnique({
       where: { id: aircraftId },
@@ -115,12 +110,7 @@ export class TrackingService {
   }
 
   // Vessel tracking methods
-  async trackVessel(
-    userId: number,
-    vesselId: number,
-    alias?: string,
-    notes?: string,
-  ) {
+  async trackVessel(userId: number, vesselId: number, alias?: string, notes?: string) {
     return this.prisma.userTrackedVessel.create({
       data: {
         userId,
@@ -186,16 +176,10 @@ export class TrackingService {
       this.getTrackedVessels(userId),
     ]);
 
-    return [...aircrafts, ...vessels].sort(
-      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-    );
+    return [...aircrafts, ...vessels].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  async isTracking(
-    userId: number,
-    type: 'aircraft' | 'vessel',
-    itemId: number,
-  ): Promise<boolean> {
+  async isTracking(userId: number, type: 'aircraft' | 'vessel', itemId: number): Promise<boolean> {
     if (type === 'aircraft') {
       const tracked = await this.prisma.userTrackedAircraft.findFirst({
         where: { userId, aircraftId: itemId },
@@ -223,11 +207,7 @@ export class TrackingService {
   }
 
   // Method to process position updates and trigger region alerts
-  async processAircraftPositionUpdate(
-    aircraftId: number,
-    latitude: number,
-    longitude: number,
-  ) {
+  async processAircraftPositionUpdate(aircraftId: number, latitude: number, longitude: number) {
     await this.regionService.processPositionUpdate(
       ObjectType.AIRCRAFT,
       aircraftId,
@@ -236,11 +216,7 @@ export class TrackingService {
     );
   }
 
-  async processVesselPositionUpdate(
-    vesselId: number,
-    latitude: number,
-    longitude: number,
-  ) {
+  async processVesselPositionUpdate(vesselId: number, latitude: number, longitude: number) {
     await this.regionService.processPositionUpdate(
       ObjectType.VESSEL,
       vesselId,

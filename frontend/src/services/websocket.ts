@@ -1,27 +1,34 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+// Explicit WS endpoint; do NOT rely on Next.js rewrites for WebSocket
+const WS_URL =
+  process.env.NEXT_PUBLIC_WS_URL?.trim() || 'http://localhost:3000/tracking';
 
 export const websocketService = {
   socket: null as any,
 
   connect() {
-    if (typeof window === "undefined") return; // SSR protection
+    if (typeof window === 'undefined') return; // SSR protection
+    if (this.socket && (this.socket.connected || this.socket.connecting)) {
+      return;
+    }
 
     // Dynamically import socket.io-client only on client side
-    import("socket.io-client").then(({ io }) => {
-      this.socket = io(API_BASE_URL, {
-        transports: ["websocket", "polling"],
+    import('socket.io-client').then(({ io }) => {
+      this.socket = io(WS_URL, {
+        transports: ['websocket', 'polling'],
+        withCredentials: true,
+        // path defaults to '/socket.io' which matches server
       });
 
-      this.socket.on("connect", () => {
-        console.log("Connected to WebSocket server");
+      this.socket.on('connect', () => {
+        console.log('Connected to WebSocket server');
       });
 
-      this.socket.on("disconnect", () => {
-        console.log("Disconnected from WebSocket server");
+      this.socket.on('disconnect', () => {
+        console.log('Disconnected from WebSocket server');
       });
 
-      this.socket.on("error", (error: any) => {
-        console.error("WebSocket error:", error);
+      this.socket.on('error', (error: any) => {
+        console.error('WebSocket error:', error);
       });
     });
   },
@@ -35,37 +42,59 @@ export const websocketService = {
 
   onAircraftUpdate(callback: (data: any) => void) {
     if (this.socket) {
-      this.socket.on("aircraft-update", callback);
+      this.socket.on('aircraftPositionUpdate', callback);
     }
   },
 
   onVesselUpdate(callback: (data: any) => void) {
     if (this.socket) {
-      this.socket.on("vessel-update", callback);
+      this.socket.on('vesselPositionUpdate', callback);
     }
   },
 
   offAircraftUpdate(callback: (data: any) => void) {
     if (this.socket) {
-      this.socket.off("aircraft-update", callback);
+      this.socket.off('aircraftPositionUpdate', callback);
     }
   },
 
   offVesselUpdate(callback: (data: any) => void) {
     if (this.socket) {
-      this.socket.off("vessel-update", callback);
+      this.socket.off('vesselPositionUpdate', callback);
     }
+  },
+
+  subscribeViewport(bbox: [number, number, number, number]) {
+    if (!this.socket) return;
+    this.socket.emit('subscribeViewport', { bbox });
+  },
+
+  updateViewport(bbox: [number, number, number, number]) {
+    if (!this.socket) return;
+    this.socket.emit('updateViewport', { bbox });
   },
 
   onRegionAlert(callback: (data: any) => void) {
     if (this.socket) {
-      this.socket.on("regionAlert", callback);
+      this.socket.on('regionAlert', callback);
+    }
+  },
+
+  onConfigUpdate(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('configUpdate', callback);
+    }
+  },
+
+  offConfigUpdate(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.off('configUpdate', callback);
     }
   },
 
   offRegionAlert(callback: (data: any) => void) {
     if (this.socket) {
-      this.socket.off("regionAlert", callback);
+      this.socket.off('regionAlert', callback);
     }
   },
 };

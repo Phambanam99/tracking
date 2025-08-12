@@ -1,4 +1,5 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim() || '/api';
+const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || '1.0.0';
 
 export interface Aircraft {
   id: number;
@@ -44,44 +45,74 @@ export interface Vessel {
 }
 
 export const apiService = {
-  async fetchAircrafts(): Promise<Aircraft[]> {
-    const response = await fetch(`${API_BASE_URL}/aircrafts/initial`);
+  async fetchAircrafts(
+    bbox?: string,
+    zoom?: number,
+    limit?: number,
+  ): Promise<Aircraft[]> {
+    const params = new URLSearchParams();
+    if (bbox) params.set('bbox', bbox);
+    if (typeof zoom === 'number') params.set('zoom', String(zoom));
+    if (typeof limit === 'number') params.set('limit', String(limit));
+    const qs = params.toString();
+    const response = await fetch(
+      `${API_BASE_URL}/aircrafts/initial${qs ? `?${qs}` : ''}`,
+      {
+        headers: { 'X-API-Version': API_VERSION },
+      },
+    );
     if (!response.ok) {
-      throw new Error("Failed to fetch aircrafts");
+      throw new Error('Failed to fetch aircrafts');
     }
     return response.json();
   },
 
-  async fetchVessels(): Promise<Vessel[]> {
-    const response = await fetch(`${API_BASE_URL}/vessels/initial`);
+  async fetchVessels(
+    bbox?: string,
+    zoom?: number,
+    limit?: number,
+  ): Promise<Vessel[]> {
+    const params = new URLSearchParams();
+    if (bbox) params.set('bbox', bbox);
+    if (typeof zoom === 'number') params.set('zoom', String(zoom));
+    if (typeof limit === 'number') params.set('limit', String(limit));
+    const qs = params.toString();
+    const response = await fetch(
+      `${API_BASE_URL}/vessels/initial${qs ? `?${qs}` : ''}`,
+      {
+        headers: { 'X-API-Version': API_VERSION },
+      },
+    );
     if (!response.ok) {
-      throw new Error("Failed to fetch vessels");
+      throw new Error('Failed to fetch vessels');
     }
     return response.json();
   },
 
   async fetchAircraftHistory(id: number, from?: string): Promise<Aircraft> {
     const params = new URLSearchParams();
-    if (from) params.append("from", from);
+    if (from) params.append('from', from);
 
     const response = await fetch(
-      `${API_BASE_URL}/aircrafts/${id}/history?${params}`
+      `${API_BASE_URL}/aircrafts/${id}/history?${params}`,
+      { headers: { 'X-API-Version': API_VERSION } },
     );
     if (!response.ok) {
-      throw new Error("Failed to fetch aircraft history");
+      throw new Error('Failed to fetch aircraft history');
     }
     return response.json();
   },
 
   async fetchVesselHistory(id: number, from?: string): Promise<Vessel> {
     const params = new URLSearchParams();
-    if (from) params.append("from", from);
+    if (from) params.append('from', from);
 
     const response = await fetch(
-      `${API_BASE_URL}/vessels/${id}/history?${params}`
+      `${API_BASE_URL}/vessels/${id}/history?${params}`,
+      { headers: { 'X-API-Version': API_VERSION } },
     );
     if (!response.ok) {
-      throw new Error("Failed to fetch vessel history");
+      throw new Error('Failed to fetch vessel history');
     }
     return response.json();
   },
