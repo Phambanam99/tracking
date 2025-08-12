@@ -13,6 +13,7 @@ import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { RegionModule } from './region/region.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { RegionModule } from './region/region.module';
     AuthModule,
     TrackingModule,
     RegionModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

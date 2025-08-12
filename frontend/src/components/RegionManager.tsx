@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useRegionStore, Region } from "../stores/regionStore";
+import React, { useState, useEffect } from 'react';
+import { useRegionStore, Region } from '../stores/regionStore';
 import {
   Plus,
   MapPin,
@@ -8,7 +8,7 @@ import {
   Eye,
   EyeOff,
   AlertTriangle,
-} from "lucide-react";
+} from 'lucide-react';
 
 const RegionManager: React.FC = () => {
   const {
@@ -30,18 +30,18 @@ const RegionManager: React.FC = () => {
   }, [fetchRegions]);
 
   const handleDeleteRegion = async (regionId: number) => {
-    if (window.confirm("Bạn có chắc muốn xóa vùng này?")) {
+    if (window.confirm('Bạn có chắc muốn xóa vùng này?')) {
       try {
         await deleteRegion(regionId);
       } catch (error) {
-        console.error("Error deleting region:", error);
+        console.error('Error deleting region:', error);
       }
     }
   };
 
   const handleToggleActive = async (region: Region) => {
     // Will implement update functionality
-    console.log("Toggle active for region:", region.id);
+    console.log('Toggle active for region:', region.id);
   };
 
   if (isLoading) {
@@ -92,8 +92,8 @@ const RegionManager: React.FC = () => {
               key={region.id}
               className={`border rounded-lg p-4 hover:shadow-md transition-shadow ${
                 selectedRegion?.id === region.id
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-gray-200"
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-200'
               }`}
             >
               <div className="flex items-center justify-between">
@@ -103,18 +103,18 @@ const RegionManager: React.FC = () => {
                     <span
                       className={`px-2 py-1 text-xs rounded-full ${
                         region.isActive
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-700"
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-700'
                       }`}
                     >
-                      {region.isActive ? "Hoạt động" : "Tạm dừng"}
+                      {region.isActive ? 'Hoạt động' : 'Tạm dừng'}
                     </span>
-                    {region.regionType === "CIRCLE" && (
+                    {region.regionType === 'CIRCLE' && (
                       <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
                         Hình tròn
                       </span>
                     )}
-                    {region.regionType === "POLYGON" && (
+                    {region.regionType === 'POLYGON' && (
                       <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded-full">
                         Đa giác
                       </span>
@@ -128,11 +128,11 @@ const RegionManager: React.FC = () => {
                   <div className="flex items-center gap-4 text-xs text-gray-500">
                     <span className="flex items-center gap-1">
                       <AlertTriangle className="h-3 w-3" />
-                      Vào: {region.alertOnEntry ? "Bật" : "Tắt"}
+                      Vào: {region.alertOnEntry ? 'Bật' : 'Tắt'}
                     </span>
                     <span className="flex items-center gap-1">
                       <AlertTriangle className="h-3 w-3" />
-                      Ra: {region.alertOnExit ? "Bật" : "Tắt"}
+                      Ra: {region.alertOnExit ? 'Bật' : 'Tắt'}
                     </span>
                   </div>
                 </div>
@@ -148,10 +148,10 @@ const RegionManager: React.FC = () => {
                     onClick={() => handleToggleActive(region)}
                     className={`p-2 rounded ${
                       region.isActive
-                        ? "text-orange-500 hover:bg-orange-50"
-                        : "text-green-500 hover:bg-green-50"
+                        ? 'text-orange-500 hover:bg-orange-50'
+                        : 'text-green-500 hover:bg-green-50'
                     }`}
-                    title={region.isActive ? "Tạm dừng" : "Kích hoạt"}
+                    title={region.isActive ? 'Tạm dừng' : 'Kích hoạt'}
                   >
                     {region.isActive ? (
                       <EyeOff className="h-4 w-4" />
@@ -160,7 +160,7 @@ const RegionManager: React.FC = () => {
                     )}
                   </button>
                   <button
-                    onClick={() => console.log("Edit region:", region.id)}
+                    onClick={() => console.log('Edit region:', region.id)}
                     className="p-2 text-gray-500 hover:bg-gray-50 rounded"
                     title="Chỉnh sửa"
                   >

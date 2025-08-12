@@ -1,10 +1,10 @@
-import { create } from "zustand";
-import { useAuthStore } from "./authStore";
-import api from "../services/apiClient";
+import { create } from 'zustand';
+import { useAuthStore } from './authStore';
+import api from '../services/apiClient';
 
 export interface TrackedItem {
   id: number;
-  type: "aircraft" | "vessel";
+  type: 'aircraft' | 'vessel';
   alias?: string | null;
   notes?: string | null;
   createdAt: Date;
@@ -13,7 +13,7 @@ export interface TrackedItem {
 
 export interface TrackingItem {
   id: number;
-  type: "aircraft" | "vessel";
+  type: 'aircraft' | 'vessel';
   alias?: string | null;
   notes?: string | null;
   createdAt: Date;
@@ -28,13 +28,13 @@ interface TrackingState {
   // Actions
   fetchTrackedItems: () => Promise<void>;
   trackItem: (
-    type: "aircraft" | "vessel",
+    type: 'aircraft' | 'vessel',
     id: number,
     alias?: string,
-    notes?: string
+    notes?: string,
   ) => Promise<void>;
-  untrackItem: (type: "aircraft" | "vessel", id: number) => Promise<void>;
-  isTracking: (type: "aircraft" | "vessel", id: number) => boolean;
+  untrackItem: (type: 'aircraft' | 'vessel', id: number) => Promise<void>;
+  isTracking: (type: 'aircraft' | 'vessel', id: number) => boolean;
   getTrackingStats: () => {
     total: number;
     aircraftCount: number;
@@ -52,10 +52,10 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
     try {
       const authState = useAuthStore.getState();
       if (!authState.token) {
-        throw new Error("No authentication token found");
+        throw new Error('No authentication token found');
       }
 
-      const data = await api.get("/tracking");
+      const data = await api.get('/tracking');
       set({
         trackedItems: data.map((item: any) => ({
           ...item,
@@ -68,25 +68,25 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
         error:
           error instanceof Error
             ? error.message
-            : "Failed to fetch tracked items",
+            : 'Failed to fetch tracked items',
         loading: false,
       });
     }
   },
 
   trackItem: async (
-    type: "aircraft" | "vessel",
+    type: 'aircraft' | 'vessel',
     id: number,
     alias?: string,
-    notes?: string
+    notes?: string,
   ) => {
     try {
       const authState = useAuthStore.getState();
       if (!authState.token) {
-        throw new Error("No authentication token found");
+        throw new Error('No authentication token found');
       }
 
-      const endpoint = type === "aircraft" ? `aircraft/${id}` : `vessel/${id}`;
+      const endpoint = type === 'aircraft' ? `aircraft/${id}` : `vessel/${id}`;
       await api.post(`/tracking/${endpoint}`, { alias, notes });
 
       // Refresh the tracked items list
@@ -100,20 +100,20 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
     }
   },
 
-  untrackItem: async (type: "aircraft" | "vessel", id: number) => {
+  untrackItem: async (type: 'aircraft' | 'vessel', id: number) => {
     try {
       const authState = useAuthStore.getState();
       if (!authState.token) {
-        throw new Error("No authentication token found");
+        throw new Error('No authentication token found');
       }
 
-      const endpoint = type === "aircraft" ? `aircraft/${id}` : `vessel/${id}`;
+      const endpoint = type === 'aircraft' ? `aircraft/${id}` : `vessel/${id}`;
       await api.delete(`/tracking/${endpoint}`);
 
       // Remove from local state
       set((state) => ({
         trackedItems: state.trackedItems.filter(
-          (item) => !(item.type === type && item.data.id === id)
+          (item) => !(item.type === type && item.data.id === id),
         ),
       }));
     } catch (error) {
@@ -125,20 +125,20 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
     }
   },
 
-  isTracking: (type: "aircraft" | "vessel", id: number) => {
+  isTracking: (type: 'aircraft' | 'vessel', id: number) => {
     const { trackedItems } = get();
     return trackedItems.some(
-      (item) => item.type === type && item.data.id === id
+      (item) => item.type === type && item.data.id === id,
     );
   },
 
   getTrackingStats: () => {
     const { trackedItems } = get();
     const aircraftCount = trackedItems.filter(
-      (item) => item.type === "aircraft"
+      (item) => item.type === 'aircraft',
     ).length;
     const vesselCount = trackedItems.filter(
-      (item) => item.type === "vessel"
+      (item) => item.type === 'vessel',
     ).length;
 
     return {

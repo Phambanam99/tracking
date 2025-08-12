@@ -1,6 +1,6 @@
-import React, { useEffect } from "react";
-import { useRegionStore, RegionAlert } from "../stores/regionStore";
-import { Bell, X, MapPin, Plane, Ship, LogIn, LogOut } from "lucide-react";
+import React, { useEffect } from 'react';
+import { useRegionStore, RegionAlert } from '../stores/regionStore';
+import { Bell, X, MapPin, Plane, Ship, LogIn, LogOut } from 'lucide-react';
 
 const RegionAlerts: React.FC = () => {
   const {
@@ -25,37 +25,37 @@ const RegionAlerts: React.FC = () => {
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+    return date.toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
-  const getAlertIcon = (objectType: "AIRCRAFT" | "VESSEL") => {
-    return objectType === "AIRCRAFT" ? (
+  const getAlertIcon = (objectType: 'AIRCRAFT' | 'VESSEL') => {
+    return objectType === 'AIRCRAFT' ? (
       <Plane className="h-4 w-4 text-blue-500" />
     ) : (
       <Ship className="h-4 w-4 text-green-500" />
     );
   };
 
-  const getAlertTypeIcon = (alertType: "ENTRY" | "EXIT") => {
-    return alertType === "ENTRY" ? (
+  const getAlertTypeIcon = (alertType: 'ENTRY' | 'EXIT') => {
+    return alertType === 'ENTRY' ? (
       <LogIn className="h-4 w-4 text-green-600" />
     ) : (
       <LogOut className="h-4 w-4 text-orange-600" />
     );
   };
 
-  const getAlertTypeText = (alertType: "ENTRY" | "EXIT") => {
-    return alertType === "ENTRY" ? "đi vào" : "rời khỏi";
+  const getAlertTypeText = (alertType: 'ENTRY' | 'EXIT') => {
+    return alertType === 'ENTRY' ? 'đi vào' : 'rời khỏi';
   };
 
-  const getObjectTypeText = (objectType: "AIRCRAFT" | "VESSEL") => {
-    return objectType === "AIRCRAFT" ? "Máy bay" : "Tàu thuyền";
+  const getObjectTypeText = (objectType: 'AIRCRAFT' | 'VESSEL') => {
+    return objectType === 'AIRCRAFT' ? 'Máy bay' : 'Tàu thuyền';
   };
 
   const handleMarkAsRead = async (alertId: number, event: React.MouseEvent) => {
@@ -141,8 +141,8 @@ const RegionAlerts: React.FC = () => {
             key={alert.id}
             className={`p-3 rounded-lg border transition-colors ${
               alert.isRead
-                ? "border-gray-200 bg-gray-50"
-                : "border-blue-200 bg-blue-50"
+                ? 'border-gray-200 bg-gray-50'
+                : 'border-blue-200 bg-blue-50'
             }`}
           >
             <div className="flex items-start justify-between">
@@ -151,7 +151,7 @@ const RegionAlerts: React.FC = () => {
                   {getAlertIcon(alert.objectType)}
                   {getAlertTypeIcon(alert.alertType)}
                   <span className="font-medium text-sm">
-                    {getObjectTypeText(alert.objectType)}{" "}
+                    {getObjectTypeText(alert.objectType)}{' '}
                     {getAlertTypeText(alert.alertType)} vùng
                   </span>
                 </div>
@@ -165,7 +165,7 @@ const RegionAlerts: React.FC = () => {
                   {formatTime(alert.createdAt)}
                 </div>
                 <div className="text-xs text-gray-400 mt-1">
-                  Vị trí: {alert.latitude.toFixed(4)},{" "}
+                  Vị trí: {alert.latitude.toFixed(4)},{' '}
                   {alert.longitude.toFixed(4)}
                 </div>
               </div>

@@ -6,6 +6,7 @@
     "dev": "next dev -p 4000",
     "build": "next build",
     "start": "next start -p 4000",
+    "start:standalone": "set PORT=4000 && node .next/standalone/server.js",
     "lint": "next lint",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit"

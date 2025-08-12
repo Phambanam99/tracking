@@ -7,6 +7,9 @@ export const websocketService = {
 
   connect() {
     if (typeof window === 'undefined') return; // SSR protection
+    if (this.socket && (this.socket.connected || this.socket.connecting)) {
+      return;
+    }
 
     // Dynamically import socket.io-client only on client side
     import('socket.io-client').then(({ io }) => {
@@ -74,6 +77,18 @@ export const websocketService = {
   onRegionAlert(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.on('regionAlert', callback);
+    }
+  },
+
+  onConfigUpdate(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('configUpdate', callback);
+    }
+  },
+
+  offConfigUpdate(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.off('configUpdate', callback);
     }
   },
 

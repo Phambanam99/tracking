@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import Map from "ol/Map";
-import { useMapStore } from "../stores/mapStore";
-import { useRegionStore } from "../stores/regionStore";
+import { useEffect } from 'react';
+import Map from 'ol/Map';
+import { useMapStore } from '../stores/mapStore';
+import { useRegionStore } from '../stores/regionStore';
 
 interface UseMapClickHandlerProps {
   mapInstanceRef: React.RefObject<Map | null>;
@@ -19,8 +19,7 @@ export function useMapClickHandler({
     let retryTimer: number | null = null;
     let attached = false;
     let attachedMap: Map | null = null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let clickHandler: ((event: any) => void) | null = null;
+    let clickHandler: ((event: unknown) => void) | null = null;
 
     const tryAttach = () => {
       const mapInstance = mapInstanceRef.current;
@@ -30,9 +29,9 @@ export function useMapClickHandler({
         return;
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      clickHandler = (event: any) => {
-        const features = mapInstance.getFeaturesAtPixel(event.pixel, {
+      clickHandler = (evt: unknown) => {
+        const event = evt as { pixel: [number, number] };
+        const features = mapInstance.getFeaturesAtPixel(event.pixel as any, {
           hitTolerance: 8,
         });
 
@@ -42,7 +41,7 @@ export function useMapClickHandler({
           let region = null;
 
           for (const feature of features) {
-            const featureRegion = feature.get("region");
+            const featureRegion = feature.get('region');
             if (featureRegion) {
               regionFeature = feature;
               region = featureRegion;
@@ -61,8 +60,8 @@ export function useMapClickHandler({
             const clickedFeature = features[0];
 
             // Check for non-clustered single feature
-            const directAircraft = clickedFeature.get("aircraft");
-            const directVessel = clickedFeature.get("vessel");
+            const directAircraft = clickedFeature.get('aircraft');
+            const directVessel = clickedFeature.get('vessel');
             if (directAircraft || directVessel) {
               const featureData = directAircraft
                 ? { aircraft: directAircraft }
@@ -78,15 +77,15 @@ export function useMapClickHandler({
             }
 
             // Handle clustered features
-            const clusteredFeatures = clickedFeature.get("features");
+            const clusteredFeatures = clickedFeature.get('features');
             if (
               clusteredFeatures &&
               Array.isArray(clusteredFeatures) &&
               clusteredFeatures.length === 1
             ) {
               const feature = clusteredFeatures[0];
-              const aircraft = feature.get("aircraft");
-              const vessel = feature.get("vessel");
+              const aircraft = feature.get('aircraft');
+              const vessel = feature.get('vessel');
               const featureData = aircraft ? { aircraft } : { vessel };
               const mapElement = mapRef.current;
               if (mapElement) {
@@ -100,12 +99,13 @@ export function useMapClickHandler({
               Array.isArray(clusteredFeatures) &&
               clusteredFeatures.length > 1
             ) {
-              const extent = clickedFeature.getGeometry()?.getExtent();
-              if (extent) {
-                mapInstance.getView().fit(extent, {
-                  duration: 300,
-                  padding: [50, 50, 50, 50],
-                });
+              const geom = clickedFeature.getGeometry() as any;
+              if (geom && typeof geom.getCoordinates === 'function') {
+                const coord = geom.getCoordinates();
+                const view = mapInstance.getView();
+                const current = view.getZoom() ?? 6;
+                const target = Math.min(current + 2, 14);
+                view.animate({ center: coord, zoom: target, duration: 300 });
               }
             }
           }
@@ -114,7 +114,7 @@ export function useMapClickHandler({
         }
       };
 
-      mapInstance.on("singleclick", clickHandler);
+      mapInstance.on('singleclick', clickHandler);
       attached = true;
       attachedMap = mapInstance;
     };
@@ -127,8 +127,7 @@ export function useMapClickHandler({
         clearTimeout(retryTimer);
       }
       if (attached && attachedMap && clickHandler) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (attachedMap as any).un("singleclick", clickHandler);
+        (attachedMap as unknown as any).un('singleclick', clickHandler);
       }
     };
   }, [

@@ -6,6 +6,8 @@ import Header from '@/components/Header';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAircraftStore } from '@/stores/aircraftStore';
 import { useMapStore } from '@/stores/mapStore';
+import { useTrackingStore } from '@/stores/trackingStore';
+import api from '@/services/apiClient';
 import HistoryTable from './HistoryTable';
 
 interface Aircraft {
@@ -33,8 +35,14 @@ export default function AircraftDetailPage() {
   const router = useRouter();
   const { aircrafts, fetchAircrafts } = useAircraftStore();
   const { setFocusTarget } = useMapStore();
+  const { isTracking, trackItem, untrackItem, fetchTrackedItems } = useTrackingStore();
   const [aircraft, setAircraft] = useState<Aircraft | null>(null);
   const [loading, setLoading] = useState(true);
+  const [trackingBusy, setTrackingBusy] = useState(false);
+
+  const SIGNAL_STALE_MINUTES = Number(
+    process.env.NEXT_PUBLIC_SIGNAL_STALE_MINUTES || 10,
+  );
 
   useEffect(() => {
     const loadAircraft = async () => {
@@ -47,12 +55,24 @@ export default function AircraftDetailPage() {
 
       if (foundAircraft) {
         setAircraft(foundAircraft);
+      } else {
+        // Fallback: fetch detail by ID from backend
+        try {
+          const detail = await api.get(`/aircrafts/${aircraftId}`);
+          if (detail && !detail.error) setAircraft(detail);
+        } catch {
+          // ignore
+        }
       }
       setLoading(false);
     };
 
     loadAircraft();
   }, [params.id, aircrafts, fetchAircrafts]);
+
+  useEffect(() => {
+    fetchTrackedItems().catch(() => undefined);
+  }, [fetchTrackedItems]);
 
   if (loading) {
     return (
@@ -109,6 +129,31 @@ export default function AircraftDetailPage() {
                 <p className="mt-2 text-gray-600">Chi tiết thông tin máy bay</p>
               </div>
               <div className="flex space-x-3">
+                {aircraft && (
+                  <button
+                    onClick={async () => {
+                      if (!aircraft) return;
+                      try {
+                        setTrackingBusy(true);
+                        if (isTracking('aircraft', aircraft.id)) {
+                          await untrackItem('aircraft', aircraft.id);
+                        } else {
+                          await trackItem('aircraft', aircraft.id);
+                        }
+                      } finally {
+                        setTrackingBusy(false);
+                      }
+                    }}
+                    disabled={trackingBusy}
+                    className={`inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md shadow-sm ${
+                      isTracking('aircraft', aircraft.id)
+                        ? 'text-white bg-red-600 hover:bg-red-700 border-transparent'
+                        : 'text-white bg-green-600 hover:bg-green-700 border-transparent'
+                    } ${trackingBusy ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  >
+                    {isTracking('aircraft', aircraft.id) ? 'Hủy theo dõi' : 'Theo dõi'}
+                  </button>
+                )}
                 <button
                   onClick={() => router.push('/aircraft')}
                   className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
@@ -306,17 +351,25 @@ export default function AircraftDetailPage() {
                         <span className="text-sm font-medium text-gray-500">
                           Tín hiệu
                         </span>
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            aircraft.lastPosition
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}
-                        >
-                          {aircraft.lastPosition
-                            ? 'Có tín hiệu'
-                            : 'Mất tín hiệu'}
-                        </span>
+                        {(() => {
+                          const ts = aircraft.lastPosition?.timestamp
+                            ? new Date(aircraft.lastPosition.timestamp).getTime()
+                            : null;
+                          const now = Date.now();
+                          const hasSignal =
+                            ts !== null && now - ts <= SIGNAL_STALE_MINUTES * 60 * 1000;
+                          return (
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                hasSignal
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}
+                            >
+                              {hasSignal ? 'Có tín hiệu' : 'Mất tín hiệu'}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       {aircraft.lastPosition && (
@@ -357,14 +410,18 @@ export default function AircraftDetailPage() {
                       <button
                         className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
                         onClick={() => {
-                          if (aircraft) {
-                            setFocusTarget({
-                              type: 'aircraft',
-                              id: aircraft.id,
-                            });
-                            // Điều hướng tới trang map (trang chủ)
-                            router.push('/');
-                          }
+                      if (aircraft) {
+                        const lon = aircraft.lastPosition?.longitude;
+                        const lat = aircraft.lastPosition?.latitude;
+                        setFocusTarget({
+                          type: 'aircraft',
+                          id: aircraft.id,
+                          longitude: lon,
+                          latitude: lat,
+                          zoom: 9,
+                        });
+                        router.push('/');
+                      }
                         }}
                       >
                         📍 Xem trên bản đồ

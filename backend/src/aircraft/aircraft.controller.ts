@@ -28,13 +28,19 @@ export class AircraftController {
    * Get all aircraft with their last known positions
    */
   @Get('initial')
-  @ApiOperation({ summary: 'Get all aircrafts with last position' })
+  @ApiOperation({
+    summary: 'Get all aircrafts with last position (bbox/zoom, no pagination)',
+  })
   @ApiResponse({
     status: 200,
-    description: 'List of all aircrafts with their last positions',
+    description: 'List of aircrafts with last positions filtered by bbox/zoom',
     type: [AircraftResponseDto],
   })
-  async findAllWithLastPosition(@Query('bbox') bbox?: string): Promise<AircraftResponseDto[]> {
+  async findAllWithLastPosition(
+    @Query('bbox') bbox?: string,
+    @Query('zoom') zoom?: string,
+    @Query('limit') limit?: string,
+  ): Promise<AircraftResponseDto[]> {
     // bbox is "minLon,minLat,maxLon,maxLat"
     let parsedBbox: [number, number, number, number] | undefined;
     if (bbox) {
@@ -43,7 +49,55 @@ export class AircraftController {
         parsedBbox = [parts[0], parts[1], parts[2], parts[3]];
       }
     }
-    return this.aircraftService.findAllWithLastPosition(parsedBbox);
+    const z = zoom ? Number(zoom) : undefined;
+    const lim = limit ? Number(limit) : undefined;
+    return this.aircraftService.findAllWithLastPosition(parsedBbox, z, lim);
+  }
+
+  /**
+   * Paginated list endpoint for aircrafts (for list pages)
+   */
+  @Get()
+  @ApiOperation({ summary: 'Paginated list of aircrafts with last position' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (1-based)',
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    type: Number,
+    description: 'Items per page (max 5000)',
+  })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    type: String,
+    description: 'Search query',
+  })
+  async list(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('q') q?: string,
+  ): Promise<{
+    data: AircraftResponseDto[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> {
+    const p = page ? Math.max(1, Number(page)) : 1;
+    const ps = pageSize ? Math.min(Math.max(1, Number(pageSize)), 5000) : 1000;
+    return this.aircraftService.findAllWithLastPositionPaginated(
+      undefined,
+      undefined,
+      undefined,
+      p,
+      ps,
+      q,
+    );
   }
 
   /**
@@ -87,6 +141,20 @@ export class AircraftController {
       return { error: 'Aircraft not found' };
     }
 
+    return aircraft;
+  }
+
+  /**
+   * Get aircraft detail with last known position
+   */
+  @Get(':id')
+  @ApiOperation({ summary: 'Get aircraft detail with last position' })
+  @ApiParam({ name: 'id', description: 'Aircraft ID', type: 'number' })
+  async findById(@Param('id', ParseIntPipe) id: number) {
+    const aircraft = await this.aircraftService.findByIdWithLastPosition(id);
+    if (!aircraft) {
+      return { error: 'Aircraft not found' };
+    }
     return aircraft;
   }
 

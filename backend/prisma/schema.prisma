@@ -282,3 +282,17 @@ model UserFilters {
   @@unique([userId, name])
   @@map("user_filters")
 }
+
+// System-wide settings (singleton). Stores admin-configured map/visual settings
+model SystemSettings {
+  id                     Int      @id @default(1)
+  clusterEnabled         Boolean  @default(true)
+  minZoom                Int      @default(4)
+  maxZoom                Int      @default(16)
+  signalStaleMinutes     Int      @default(10)
+  vesselFlagColors       Json     @default("{}")
+  aircraftOperatorColors Json     @default("{}")
+  updatedAt              DateTime @updatedAt
+
+  @@map("system_settings")
+}
