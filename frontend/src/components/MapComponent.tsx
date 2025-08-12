@@ -22,7 +22,6 @@ import MapFiltersRedesigned from './MapFilters';
 import { useTrackingStore } from '../stores/trackingStore';
 import MapControls from './MapControls';
 import {
-  useDataLoader,
   useMapInitialization,
   useMapClickHandler,
   useDrawingMode,
@@ -40,6 +39,7 @@ export default function MapComponentClustered() {
   const regionLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const historyLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const historyPointsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const focusHighlightLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const lastDrawnFeatureRef = useRef<Feature | null>(null);
 
   const { aircrafts } = useAircraftStore();
@@ -47,6 +47,7 @@ export default function MapComponentClustered() {
   const { trackedItems } = useTrackingStore();
   const {
     filters,
+    appliedFilters,
     selectedFeature,
     popupPosition,
     isPopupVisible,
@@ -57,6 +58,7 @@ export default function MapComponentClustered() {
     aircraftViewMode,
     vesselViewMode,
     activeFilterTab,
+    showPopup,
     hidePopup,
     hideDrawingActionPopup,
     setActiveFilterTab,
@@ -70,9 +72,8 @@ export default function MapComponentClustered() {
   const [showMapControls, setShowMapControls] = useState(false);
 
   // Use custom hooks for all functionality
-  useDataLoader();
   useWebSocketHandler();
-  useViewportDataLoader({ mapInstanceRef });
+  // Initialize map first so mapInstanceRef is ready
   useMapInitialization({
     mapRef,
     mapInstanceRef,
@@ -80,72 +81,180 @@ export default function MapComponentClustered() {
     vesselLayerRef,
     regionLayerRef,
   });
+  // Then attach viewport loader (fetch + WS bbox)
+  useViewportDataLoader({ mapInstanceRef });
   useMapClickHandler({ mapInstanceRef, mapRef });
   useDrawingMode({ mapInstanceRef, regionLayerRef });
   useRegionsRendering({ regionLayerRef });
   useFeatureUpdater({ aircraftLayerRef, vesselLayerRef });
 
-  // Push viewport bbox to server for realtime filtering
-  useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    const map = mapInstanceRef.current;
-    const toLonLatAny = (window as any)?.ol?.proj?.toLonLat;
-    const sendBbox = () => {
-      const size = map.getSize();
-      if (!size) return;
-      const extent = map.getView().calculateExtent(size);
-      if (!toLonLatAny) return;
-      const bl = toLonLatAny([extent[0], extent[1]]);
-      const tr = toLonLatAny([extent[2], extent[3]]);
-      if (bl && tr) {
-        const bbox: [number, number, number, number] = [bl[0], bl[1], tr[0], tr[1]];
-        import('../services/websocket').then(({ websocketService }) => {
-          if (websocketService.socket) {
-            websocketService.updateViewport(bbox);
-          } else {
-            websocketService.connect();
-            setTimeout(() => websocketService.subscribeViewport(bbox), 200);
-          }
-        });
-      }
-    };
-    // initial send
-    setTimeout(sendBbox, 200);
-    // update on moveend
-    map.on('moveend', sendBbox);
-    return () => {
-      (map as any).un('moveend', sendBbox);
-    };
-  }, [mapInstanceRef]);
+  // Viewport bbox updates are handled inside useViewportDataLoader
 
   // Respond to focusTarget by centering map and switching the tab/layer visibility
   useEffect(() => {
     if (!focusTarget || !mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
 
+    const ensureHighlightLayer = () => {
+      if (!focusHighlightLayerRef.current) {
+        focusHighlightLayerRef.current = new VectorLayer({
+          source: new VectorSource(),
+          zIndex: 2002,
+        });
+        map.addLayer(focusHighlightLayerRef.current);
+      }
+      return focusHighlightLayerRef.current;
+    };
+
+    const animateFocus = (lon: number, lat: number) => {
+      const layer = ensureHighlightLayer();
+      const src = layer.getSource();
+      if (!src) return;
+      const feature = new Feature({
+        geometry: new Point(fromLonLat([lon, lat])),
+      });
+      src.addFeature(feature);
+
+      const totalCycles = 3;
+      const cycleMs = 1000;
+      const baseRadius = 10;
+      const growRadius = 16;
+      const startTs = performance.now();
+      let raf = 0;
+
+      const tick = () => {
+        const now = performance.now();
+        const elapsed = now - startTs;
+        const progressAll = elapsed / (totalCycles * cycleMs);
+        const cycleT = (elapsed % cycleMs) / cycleMs; // 0..1
+        const radius = baseRadius + growRadius * cycleT;
+        const opacity = 1 - cycleT; // fade out during cycle
+
+        feature.setStyle(
+          new Style({
+            image: new CircleStyle({
+              radius,
+              fill: new Fill({ color: `rgba(220,38,38,${0.18 * opacity})` }),
+              stroke: new Stroke({
+                color: `rgba(220,38,38,${0.9 * Math.max(opacity, 0.25)})`,
+                width: 2,
+              }),
+            }),
+          }),
+        );
+
+        // Force re-render for smooth animation
+        map.render();
+
+        if (progressAll < 1) {
+          raf = requestAnimationFrame(tick);
+        } else {
+          src.removeFeature(feature);
+          if (raf) cancelAnimationFrame(raf);
+        }
+      };
+      raf = requestAnimationFrame(tick);
+    };
+
+    const tryOpenPopupForTarget = (attemptsLeft: number) => {
+      if (!mapRef.current || !mapInstanceRef.current) return;
+      const mapEl = mapRef.current;
+      const instance = mapInstanceRef.current;
+
+      const openFor = (
+        layerRef: React.RefObject<any>,
+        attrKey: 'aircraft' | 'vessel',
+      ) => {
+        const layer = layerRef.current;
+        if (!layer) return false;
+        const src: any = layer.getSource();
+        if (!src) return false;
+
+        // Helper to open popup at coordinate
+        const openAt = (coord: [number, number], featureData: any) => {
+          const pixel = instance.getPixelFromCoordinate(coord);
+          const rect = mapEl.getBoundingClientRect();
+          const viewportX = rect.left + pixel[0];
+          const viewportY = rect.top + pixel[1];
+          showPopup(featureData, [viewportX, viewportY]);
+          return true;
+        };
+
+        // Clustered source
+        if (typeof src.getSource === 'function') {
+          const clusterFeatures = src.getFeatures() as any[];
+          for (const c of clusterFeatures) {
+            const members = c.get('features') as any[] | undefined;
+            if (!members || !Array.isArray(members)) continue;
+            for (const m of members) {
+              const data = m.get(attrKey);
+              if (data && data.id === focusTarget.id) {
+                const geom = c.getGeometry();
+                if (!geom) continue;
+                const coord = geom.getCoordinates();
+                const featureData = attrKey === 'aircraft' ? { aircraft: data } : { vessel: data };
+                return openAt(coord, featureData);
+              }
+            }
+          }
+          return false;
+        }
+
+        // Non-cluster vector source
+        const features = src.getFeatures() as any[];
+        for (const f of features) {
+          const data = f.get(attrKey);
+          if (data && data.id === focusTarget.id) {
+            const geom = f.getGeometry();
+            if (!geom) continue;
+            const coord = geom.getCoordinates();
+            const featureData = attrKey === 'aircraft' ? { aircraft: data } : { vessel: data };
+            return openAt(coord, featureData);
+          }
+        }
+        return false;
+      };
+
+      const ok =
+        (focusTarget.type === 'aircraft'
+          ? openFor(aircraftLayerRef as any, 'aircraft')
+          : openFor(vesselLayerRef as any, 'vessel')) || false;
+
+      if (!ok && attemptsLeft > 0) {
+        // Retry shortly; features may not be ready yet
+        setTimeout(() => tryOpenPopupForTarget(attemptsLeft - 1), 200);
+      }
+    };
+
     if (focusTarget.type === 'vessel') {
       if (activeFilterTab !== 'vessel') setActiveFilterTab('vessel');
       const vessel = vessels.find((v) => v.id === focusTarget.id);
-      if (vessel?.lastPosition) {
-        const { longitude, latitude } = vessel.lastPosition;
+      const lon = focusTarget.longitude ?? vessel?.lastPosition?.longitude;
+      const lat = focusTarget.latitude ?? vessel?.lastPosition?.latitude;
+      if (lon != null && lat != null) {
+        animateFocus(lon, lat);
         const view = map.getView();
         view.animate({
-          center: fromLonLat([longitude, latitude]),
-          zoom: 9,
+          center: fromLonLat([lon, lat]),
+          zoom: focusTarget.zoom ?? 9,
           duration: 400,
         });
+        setTimeout(() => tryOpenPopupForTarget(8), 420);
       }
     } else if (focusTarget.type === 'aircraft') {
       if (activeFilterTab !== 'aircraft') setActiveFilterTab('aircraft');
       const aircraft = aircrafts.find((a) => a.id === focusTarget.id);
-      if (aircraft?.lastPosition) {
-        const { longitude, latitude } = aircraft.lastPosition;
+      const lon = focusTarget.longitude ?? aircraft?.lastPosition?.longitude;
+      const lat = focusTarget.latitude ?? aircraft?.lastPosition?.latitude;
+      if (lon != null && lat != null) {
+        animateFocus(lon, lat);
         const view = map.getView();
         view.animate({
-          center: fromLonLat([longitude, latitude]),
-          zoom: 9,
+          center: fromLonLat([lon, lat]),
+          zoom: focusTarget.zoom ?? 9,
           duration: 400,
         });
+        setTimeout(() => tryOpenPopupForTarget(8), 420);
       }
     }
 
@@ -159,6 +268,7 @@ export default function MapComponentClustered() {
     activeFilterTab,
     setActiveFilterTab,
     setFocusTarget,
+    showPopup,
   ]);
 
   // History path rendering
@@ -197,7 +307,9 @@ export default function MapComponentClustered() {
       if (!historyPath || historyPath.positions.length < 2) return;
 
       const positions = historyPath.positions;
-      const projected = positions.map((p) => fromLonLat([p.longitude, p.latitude]));
+      const projected = positions.map((p) =>
+        fromLonLat([p.longitude, p.latitude]),
+      );
       const line = new LineString(projected);
       lineSource.addFeature(new Feature({ geometry: line }));
 
@@ -216,17 +328,39 @@ export default function MapComponentClustered() {
       const startFeature = new Feature({ geometry: new Point(projected[0]) });
       startFeature.setStyle(
         new Style({
-          image: new CircleStyle({ radius: 5, fill: new Fill({ color: '#3b82f6' }), stroke: new Stroke({ color: '#1e40af', width: 1 }) }),
-          text: new Text({ text: `Bắt đầu ${formatTime(startTime)}`, offsetY: -14, font: '12px sans-serif', fill: new Fill({ color: '#1f2937' }), stroke: new Stroke({ color: 'white', width: 3 }) }),
+          image: new CircleStyle({
+            radius: 5,
+            fill: new Fill({ color: '#3b82f6' }),
+            stroke: new Stroke({ color: '#1e40af', width: 1 }),
+          }),
+          text: new Text({
+            text: `Bắt đầu ${formatTime(startTime)}`,
+            offsetY: -14,
+            font: '12px sans-serif',
+            fill: new Fill({ color: '#1f2937' }),
+            stroke: new Stroke({ color: 'white', width: 3 }),
+          }),
         }),
       );
       pointsSource.addFeature(startFeature);
 
-      const endFeature = new Feature({ geometry: new Point(projected[projected.length - 1]) });
+      const endFeature = new Feature({
+        geometry: new Point(projected[projected.length - 1]),
+      });
       endFeature.setStyle(
         new Style({
-          image: new CircleStyle({ radius: 5, fill: new Fill({ color: '#ef4444' }), stroke: new Stroke({ color: '#991b1b', width: 1 }) }),
-          text: new Text({ text: `Kết thúc ${formatTime(endTime)}`, offsetY: -14, font: '12px sans-serif', fill: new Fill({ color: '#1f2937' }), stroke: new Stroke({ color: 'white', width: 3 }) }),
+          image: new CircleStyle({
+            radius: 5,
+            fill: new Fill({ color: '#ef4444' }),
+            stroke: new Stroke({ color: '#991b1b', width: 1 }),
+          }),
+          text: new Text({
+            text: `Kết thúc ${formatTime(endTime)}`,
+            offsetY: -14,
+            font: '12px sans-serif',
+            fill: new Fill({ color: '#1f2937' }),
+            stroke: new Stroke({ color: 'white', width: 3 }),
+          }),
         }),
       );
       pointsSource.addFeature(endFeature);
@@ -258,7 +392,11 @@ export default function MapComponentClustered() {
         feature.set('timeLabel', formatTime(t));
         feature.setStyle(
           new Style({
-            image: new CircleStyle({ radius: 3, fill: new Fill({ color: '#10b981' }), stroke: new Stroke({ color: '#047857', width: 1 }) }),
+            image: new CircleStyle({
+              radius: 3,
+              fill: new Fill({ color: '#10b981' }),
+              stroke: new Stroke({ color: '#047857', width: 1 }),
+            }),
           }),
         );
         pointsSource.addFeature(feature);
@@ -270,20 +408,36 @@ export default function MapComponentClustered() {
     // Initial build
     rebuild();
 
-    // Hover interaction to show time labels on demand
+    // Hover interaction to show time labels on demand (throttled)
     const hoverOverlayStyle = (feature: FeatureLike) => {
       const label = feature.get('timeLabel');
       if (!label) return undefined;
       return new Style({
-        image: new CircleStyle({ radius: 4, fill: new Fill({ color: '#0ea5e9' }), stroke: new Stroke({ color: '#0369a1', width: 1 }) }),
-        text: new Text({ text: label, offsetY: -12, font: '12px sans-serif', fill: new Fill({ color: '#111827' }), stroke: new Stroke({ color: 'white', width: 3 }) }),
+        image: new CircleStyle({
+          radius: 4,
+          fill: new Fill({ color: '#0ea5e9' }),
+          stroke: new Stroke({ color: '#0369a1', width: 1 }),
+        }),
+        text: new Text({
+          text: label,
+          offsetY: -12,
+          font: '12px sans-serif',
+          fill: new Fill({ color: '#111827' }),
+          stroke: new Stroke({ color: 'white', width: 3 }),
+        }),
       });
     };
 
     let lastHover: Feature | null = null;
-    const onPointerMove = (evt: any) => {
+    let hoverRaf = 0;
+    let pendingEvt: any = null;
+    const processHover = (evt: any) => {
       if (!historyPointsLayerRef.current) return;
       const layer = historyPointsLayerRef.current;
+      // Skip expensive hit detection if layer empty
+      const src = layer.getSource();
+      if (!src || src.getFeatures().length === 0) return;
+
       const pixel = evt.pixel;
       let hovered: Feature | null = null;
       map.forEachFeatureAtPixel(
@@ -295,14 +449,18 @@ export default function MapComponentClustered() {
           }
           return undefined;
         },
-        { hitTolerance: 6 },
+        { hitTolerance: 10 },
       );
 
       if (lastHover && lastHover !== hovered) {
         // reset previous feature style
         lastHover.setStyle(
           new Style({
-            image: new CircleStyle({ radius: 3, fill: new Fill({ color: '#10b981' }), stroke: new Stroke({ color: '#047857', width: 1 }) }),
+            image: new CircleStyle({
+              radius: 3,
+              fill: new Fill({ color: '#10b981' }),
+              stroke: new Stroke({ color: '#047857', width: 1 }),
+            }),
           }),
         );
       }
@@ -314,7 +472,27 @@ export default function MapComponentClustered() {
       lastHover = hovered;
     };
 
-    map.on('pointermove', onPointerMove);
+    const onPointerMove = (evt: any) => {
+      if (hoverRaf) {
+        pendingEvt = evt;
+        return;
+      }
+      hoverRaf = requestAnimationFrame(() => {
+        const e = pendingEvt || evt;
+        pendingEvt = null;
+        hoverRaf = 0;
+        processHover(e);
+      });
+    };
+
+    // Disable hit detection on low zoom to reduce readbacks
+    const updatePointerListener = () => {
+      const z = map.getView().getZoom() ?? 8;
+      map.un('pointermove', onPointerMove as any);
+      if (z >= 8) map.on('pointermove', onPointerMove);
+    };
+    updatePointerListener();
+    map.getView().on('change:resolution', updatePointerListener);
 
     // Rebuild on zoom/pan to adapt sampling density
     const onMoveEnd = () => {
@@ -329,8 +507,11 @@ export default function MapComponentClustered() {
   }, [historyPath, mapInstanceRef]);
 
   // Filter data based on search query and visibility settings
+  const activeFilters = appliedFilters ?? filters;
+
   const filteredAircrafts = useMemo(() => {
-    if (!filters.showAircraft) return [];
+    const active = activeFilters;
+    if (!active.showAircraft) return [];
 
     let targetAircrafts = aircrafts;
 
@@ -346,18 +527,18 @@ export default function MapComponentClustered() {
 
     const result = targetAircrafts.filter((aircraft) => {
       if (
-        !filters.aircraft.searchQuery &&
-        !filters.aircraft.operator &&
-        !filters.aircraft.aircraftType &&
-        filters.aircraft.minAltitude == null &&
-        filters.aircraft.maxAltitude == null &&
-        filters.aircraft.minSpeed == null &&
-        filters.aircraft.maxSpeed == null
+        !active.aircraft.searchQuery &&
+        !active.aircraft.operator &&
+        !active.aircraft.aircraftType &&
+        active.aircraft.minAltitude == null &&
+        active.aircraft.maxAltitude == null &&
+        active.aircraft.minSpeed == null &&
+        active.aircraft.maxSpeed == null
       ) {
         return true;
       }
 
-      const searchLower = (filters.aircraft.searchQuery || '').toLowerCase();
+      const searchLower = (active.aircraft.searchQuery || '').toLowerCase();
       const matchesSearch =
         !searchLower ||
         aircraft.flightId.toLowerCase().includes(searchLower) ||
@@ -367,30 +548,30 @@ export default function MapComponentClustered() {
         aircraft.aircraftType?.toLowerCase().includes(searchLower);
 
       const matchesOperator =
-        !filters.aircraft.operator ||
+        !active.aircraft.operator ||
         (aircraft.operator || '')
           .toLowerCase()
-          .includes(filters.aircraft.operator.toLowerCase());
+          .includes(active.aircraft.operator.toLowerCase());
       const matchesType =
-        !filters.aircraft.aircraftType ||
+        !active.aircraft.aircraftType ||
         (aircraft.aircraftType || '')
           .toLowerCase()
-          .includes(filters.aircraft.aircraftType.toLowerCase());
+          .includes(active.aircraft.aircraftType.toLowerCase());
 
       const speed = aircraft.lastPosition?.speed ?? null;
       const altitude = aircraft.lastPosition?.altitude ?? null;
       const matchesSpeedMin =
-        filters.aircraft.minSpeed == null ||
-        (speed != null && speed >= filters.aircraft.minSpeed);
+        active.aircraft.minSpeed == null ||
+        (speed != null && speed >= active.aircraft.minSpeed);
       const matchesSpeedMax =
-        filters.aircraft.maxSpeed == null ||
-        (speed != null && speed <= filters.aircraft.maxSpeed);
+        active.aircraft.maxSpeed == null ||
+        (speed != null && speed <= active.aircraft.maxSpeed);
       const matchesAltMin =
-        filters.aircraft.minAltitude == null ||
-        (altitude != null && altitude >= filters.aircraft.minAltitude);
+        active.aircraft.minAltitude == null ||
+        (altitude != null && altitude >= active.aircraft.minAltitude);
       const matchesAltMax =
-        filters.aircraft.maxAltitude == null ||
-        (altitude != null && altitude <= filters.aircraft.maxAltitude);
+        active.aircraft.maxAltitude == null ||
+        (altitude != null && altitude <= active.aircraft.maxAltitude);
 
       return (
         matchesSearch &&
@@ -410,16 +591,11 @@ export default function MapComponentClustered() {
       aircrafts.length,
     );
     return result;
-  }, [
-    aircrafts,
-    filters.showAircraft,
-    filters.aircraft,
-    aircraftViewMode,
-    trackedItems,
-  ]);
+  }, [aircrafts, activeFilters, aircraftViewMode, trackedItems]);
 
   const filteredVessels = useMemo(() => {
-    if (!filters.showVessels) return [];
+    const active = activeFilters;
+    if (!active.showVessels) return [];
 
     let targetVessels = vessels;
 
@@ -435,17 +611,17 @@ export default function MapComponentClustered() {
 
     const result = targetVessels.filter((vessel) => {
       if (
-        !filters.vessel.searchQuery &&
-        !filters.vessel.operator &&
-        !filters.vessel.vesselType &&
-        !filters.vessel.flag &&
-        filters.vessel.minSpeed == null &&
-        filters.vessel.maxSpeed == null
+        !active.vessel.searchQuery &&
+        !active.vessel.operator &&
+        !active.vessel.vesselType &&
+        !active.vessel.flag &&
+        active.vessel.minSpeed == null &&
+        active.vessel.maxSpeed == null
       ) {
         return true;
       }
 
-      const searchLower = (filters.vessel.searchQuery || '').toLowerCase();
+      const searchLower = (active.vessel.searchQuery || '').toLowerCase();
       const matchesSearch =
         !searchLower ||
         vessel.mmsi.toLowerCase().includes(searchLower) ||
@@ -455,28 +631,28 @@ export default function MapComponentClustered() {
         vessel.vesselType?.toLowerCase().includes(searchLower);
 
       const matchesOperator =
-        !filters.vessel.operator ||
+        !active.vessel.operator ||
         (vessel.operator || '')
           .toLowerCase()
-          .includes(filters.vessel.operator.toLowerCase());
+          .includes(active.vessel.operator.toLowerCase());
       const matchesType =
-        !filters.vessel.vesselType ||
+        !active.vessel.vesselType ||
         (vessel.vesselType || '')
           .toLowerCase()
-          .includes(filters.vessel.vesselType.toLowerCase());
+          .includes(active.vessel.vesselType.toLowerCase());
       const matchesFlag =
-        !filters.vessel.flag ||
+        !active.vessel.flag ||
         (vessel.flag || '')
           .toLowerCase()
-          .includes(filters.vessel.flag.toLowerCase());
+          .includes(active.vessel.flag.toLowerCase());
 
       const speed = vessel.lastPosition?.speed ?? null;
       const matchesSpeedMin =
-        filters.vessel.minSpeed == null ||
-        (speed != null && speed >= filters.vessel.minSpeed);
+        active.vessel.minSpeed == null ||
+        (speed != null && speed >= active.vessel.minSpeed);
       const matchesSpeedMax =
-        filters.vessel.maxSpeed == null ||
-        (speed != null && speed <= filters.vessel.maxSpeed);
+        active.vessel.maxSpeed == null ||
+        (speed != null && speed <= active.vessel.maxSpeed);
 
       return (
         matchesSearch &&
@@ -495,13 +671,7 @@ export default function MapComponentClustered() {
       vessels.length,
     );
     return result;
-  }, [
-    vessels,
-    filters.showVessels,
-    filters.vessel,
-    vesselViewMode,
-    trackedItems,
-  ]);
+  }, [vessels, activeFilters, vesselViewMode, trackedItems]);
 
   // Handle creating region with name
   const handleCreateRegion = async (regionName: string) => {

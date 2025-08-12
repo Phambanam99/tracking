@@ -15,16 +15,42 @@ export class AircraftService {
   ) {}
 
   /**
-   * Find all aircraft with their last known position
+   * Find all aircraft with their last known position (legacy method)
    */
-  async findAllWithLastPosition(bbox?: [number, number, number, number]) {
+  async findAllWithLastPosition(
+    bbox?: [number, number, number, number],
+    zoom?: number,
+    limit?: number,
+  ) {
     const positionWhere = bbox
       ? {
           longitude: { gte: bbox[0], lte: bbox[2] },
           latitude: { gte: bbox[1], lte: bbox[3] },
         }
       : {};
+    // Derive default limit based on zoom (more coarse at low zoom)
+    const derivedLimit =
+      typeof limit === 'number' && limit > 0
+        ? limit
+        : zoom == null
+          ? 50000 // Increased from 5000 to 50000
+          : zoom <= 4
+            ? 10000 // Increased from 1500 to 10000 for low zoom
+            : zoom <= 6
+              ? 25000 // Increased from 3000 to 25000 for medium zoom
+              : 50000; // Increased from 6000 to 50000 for high zoom
+
     const aircrafts = await this.prisma.aircraft.findMany({
+      where: bbox
+        ? {
+            positions: {
+              some: {
+                longitude: { gte: bbox[0], lte: bbox[2] },
+                latitude: { gte: bbox[1], lte: bbox[3] },
+              },
+            },
+          }
+        : {},
       include: {
         positions: {
           where: positionWhere,
@@ -32,6 +58,7 @@ export class AircraftService {
           take: 1,
         },
       },
+      take: derivedLimit,
     });
 
     return aircrafts.map((aircraft) => ({
@@ -45,6 +72,128 @@ export class AircraftService {
       updatedAt: aircraft.updatedAt,
       lastPosition: aircraft.positions[0] || null,
     }));
+  }
+
+  /**
+   * Find a single aircraft by ID with its last known position
+   */
+  async findByIdWithLastPosition(id: number) {
+    const aircraft = await this.prisma.aircraft.findUnique({
+      where: { id },
+      include: {
+        positions: {
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (!aircraft) return null;
+
+    return {
+      id: aircraft.id,
+      flightId: aircraft.flightId,
+      callSign: aircraft.callSign,
+      registration: aircraft.registration,
+      aircraftType: aircraft.aircraftType,
+      operator: aircraft.operator,
+      createdAt: aircraft.createdAt,
+      updatedAt: aircraft.updatedAt,
+      lastPosition: aircraft.positions[0] || null,
+    };
+  }
+
+  /**
+   * Find all aircraft with their last known position (paginated)
+   */
+  async findAllWithLastPositionPaginated(
+    bbox?: [number, number, number, number],
+    zoom?: number,
+    limit?: number,
+    page: number = 1,
+    pageSize: number = 1000,
+    q?: string,
+  ) {
+    const skip = (page - 1) * pageSize;
+
+    // First, count total matching aircraft
+    const where: any = bbox
+      ? {
+          positions: {
+            some: {
+              longitude: { gte: bbox[0], lte: bbox[2] },
+              latitude: { gte: bbox[1], lte: bbox[3] },
+            },
+          },
+        }
+      : {};
+    if (q && q.trim()) {
+      const term = q.trim();
+      where.OR = [
+        { flightId: { contains: term, mode: 'insensitive' } },
+        { callSign: { contains: term, mode: 'insensitive' } },
+        { registration: { contains: term, mode: 'insensitive' } },
+        { aircraftType: { contains: term, mode: 'insensitive' } },
+        { operator: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+
+    const total = await this.prisma.aircraft.count({ where });
+
+    // Apply limit if specified
+    const finalLimit = limit ? Math.min(limit, total) : total;
+    const effectivePageSize = Math.min(pageSize, finalLimit - skip);
+
+    if (effectivePageSize <= 0) {
+      return {
+        data: [],
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
+      };
+    }
+
+    const positionWhere = bbox
+      ? {
+          longitude: { gte: bbox[0], lte: bbox[2] },
+          latitude: { gte: bbox[1], lte: bbox[3] },
+        }
+      : {};
+
+    const aircrafts = await this.prisma.aircraft.findMany({
+      where,
+      include: {
+        positions: {
+          where: positionWhere,
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { id: 'asc' }, // Consistent ordering for pagination
+      skip,
+      take: effectivePageSize,
+    });
+
+    const data = aircrafts.map((aircraft) => ({
+      id: aircraft.id,
+      flightId: aircraft.flightId,
+      callSign: aircraft.callSign,
+      registration: aircraft.registration,
+      aircraftType: aircraft.aircraftType,
+      operator: aircraft.operator,
+      createdAt: aircraft.createdAt,
+      updatedAt: aircraft.updatedAt,
+      lastPosition: aircraft.positions[0] || null,
+    }));
+
+    return {
+      data,
+      total: finalLimit,
+      page,
+      pageSize,
+      totalPages: Math.ceil(finalLimit / pageSize),
+    };
   }
 
   /**

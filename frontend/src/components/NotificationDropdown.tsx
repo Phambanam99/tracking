@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRegionStore } from "@/stores/regionStore";
+import { useEffect, useState } from 'react';
+import { useRegionStore } from '@/stores/regionStore';
 
 interface NotificationDropdownProps {
   isOpen: boolean;
@@ -32,34 +32,34 @@ export default function NotificationDropdown({
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString("vi-VN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
+    return new Date(dateString).toLocaleString('vi-VN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
   const getAlertTypeIcon = (type: string) => {
     switch (type) {
-      case "ENTRY":
-        return "🔵";
-      case "EXIT":
-        return "🔴";
+      case 'ENTRY':
+        return '🔵';
+      case 'EXIT':
+        return '🔴';
       default:
-        return "📍";
+        return '📍';
     }
   };
 
   const getAlertTypeText = (type: string) => {
     switch (type) {
-      case "ENTRY":
-        return "Vào vùng";
-      case "EXIT":
-        return "Rời vùng";
+      case 'ENTRY':
+        return 'Vào vùng';
+      case 'EXIT':
+        return 'Rời vùng';
       default:
-        return "Cảnh báo";
+        return 'Cảnh báo';
     }
   };
 
@@ -88,7 +88,7 @@ export default function NotificationDropdown({
               <div
                 key={alert.id}
                 className={`px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
-                  !alert.isRead ? "bg-blue-50" : ""
+                  !alert.isRead ? 'bg-blue-50' : ''
                 }`}
                 onClick={() => handleMarkAsRead(alert.id)}
               >
@@ -106,15 +106,15 @@ export default function NotificationDropdown({
                       )}
                     </div>
                     <p className="text-sm text-gray-600 mt-1">
-                      {alert.objectType === "VESSEL" ? "Tàu thuyền" : "Máy bay"}{" "}
-                      ID {alert.objectId} trong vùng{" "}
+                      {alert.objectType === 'VESSEL' ? 'Tàu thuyền' : 'Máy bay'}{' '}
+                      ID {alert.objectId} trong vùng{' '}
                       <span className="font-medium">{alert.region?.name}</span>
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
                       {formatDate(alert.createdAt)}
                     </p>
                     <p className="text-xs text-gray-600 mt-1">
-                      Vị trí: {alert.latitude.toFixed(4)},{" "}
+                      Vị trí: {alert.latitude.toFixed(4)},{' '}
                       {alert.longitude.toFixed(4)}
                     </p>
                   </div>

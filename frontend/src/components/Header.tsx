@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useAuthStore } from "@/stores/authStore";
-import { useRegionStore } from "@/stores/regionStore";
-import { useState, useEffect } from "react";
-import NotificationDropdown from "./NotificationDropdown";
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuthStore } from '@/stores/authStore';
+import { useRegionStore } from '@/stores/regionStore';
+import { useState, useEffect } from 'react';
+import NotificationDropdown from './NotificationDropdown';
 
 export default function Header() {
   const pathname = usePathname();
@@ -23,27 +23,33 @@ export default function Header() {
   }, [user, fetchAlerts]);
 
   const navigation = [
-    { name: "Dashboard", href: "/dashboard", icon: "📊" },
-    { name: "Bản đồ ", href: "/", icon: "🗺️" },
-    { name: "Máy bay", href: "/aircraft", icon: "✈️" },
-    { name: "Tàu thuyền", href: "/vessels", icon: "🚢" },
-    { name: "Theo dõi", href: "/tracking", icon: "⭐" },
-    { name: "Báo chí", href: "/news", icon: "📰" },
+    { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+    { name: 'Bản đồ ', href: '/', icon: '🗺️' },
+    { name: 'Máy bay', href: '/aircraft', icon: '✈️' },
+    { name: 'Tàu thuyền', href: '/vessels', icon: '🚢' },
+    { name: 'Theo dõi', href: '/tracking', icon: '⭐' },
+    { name: 'Báo chí', href: '/news', icon: '📰' },
   ];
 
   const handleLogout = () => {
     logout();
-    router.push("/login");
+    router.push('/login');
   };
 
   return (
-    <nav className="bg-white shadow-sm border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav className="sticky top-0 z-40 glass border-b border-gray-200 dark:border-gray-700 app-header">
+      <div className="container-app">
         <div className="flex justify-between h-16">
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">
-              <Link href="/" className="text-xl font-bold text-indigo-600">
-                Tracking System
+              <Link
+                href="/"
+                className="text-xl font-semibold text-gray-900 dark:text-gray-100"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500"></span>
+                  Tracking System
+                </span>
               </Link>
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
@@ -53,9 +59,9 @@ export default function Header() {
                   href={item.href}
                   className={`${
                     pathname === item.href
-                      ? "border-indigo-500 text-gray-900"
-                      : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-                  } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                      ? 'border-blue-500 text-gray-900 dark:text-gray-100'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100'
+                  } inline-flex items-center px-2 pt-1 border-b-2 text-sm font-medium rounded-md`}
                 >
                   <span className="mr-2">{item.icon}</span>
                   {item.name}
@@ -69,7 +75,7 @@ export default function Header() {
             <div className="relative">
               <button
                 onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                className="relative p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 rounded-full"
+                className="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-full"
               >
                 <span className="sr-only">View notifications</span>
                 <svg
@@ -87,7 +93,7 @@ export default function Header() {
                 </svg>
                 {unreadAlertCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full">
-                    {unreadAlertCount > 99 ? "99+" : unreadAlertCount}
+                    {unreadAlertCount > 99 ? '99+' : unreadAlertCount}
                   </span>
                 )}
               </button>
@@ -98,11 +104,20 @@ export default function Header() {
               />
             </div>
 
+            {user?.role === 'ADMIN' && (
+              <Link
+                href="/admin/settings"
+                className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 border rounded-md border-[color:var(--border)] hover:border-gray-300"
+              >
+                ⚙️ Cài đặt
+              </Link>
+            )}
+
             {/* User Menu */}
             <div className="relative">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="bg-white flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                className="bg-white dark:bg-slate-900 flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <span className="sr-only">Open user menu</span>
                 <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
@@ -113,18 +128,29 @@ export default function Header() {
               </button>
 
               {isMenuOpen && (
-                <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-[9999]">
+                <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-lg shadow-xl card z-[9999]">
                   <div className="py-1">
-                    <div className="px-4 py-2 text-sm text-gray-700 border-b">
+                    <div className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 border-b border-[color:var(--border)]">
                       <div className="font-medium">{user?.username}</div>
-                      <div className="text-gray-500">{user?.email}</div>
-                      <div className="text-xs text-gray-400">
+                      <div className="text-gray-500 dark:text-gray-400">
+                        {user?.email}
+                      </div>
+                      <div className="text-xs text-gray-400 dark:text-gray-500">
                         Vai trò: {user?.role}
                       </div>
                     </div>
+                   {user?.role === 'ADMIN' && (
+                     <Link
+                       href="/admin/settings"
+                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                       onClick={() => setIsMenuOpen(false)}
+                     >
+                       ⚙️ Cài đặt hệ thống
+                     </Link>
+                   )}
                     <button
                       onClick={handleLogout}
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
                       Đăng xuất
                     </button>
@@ -138,7 +164,7 @@ export default function Header() {
           <div className="sm:hidden flex items-center">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+              className="inline-flex items-center justify-center p-2 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[color:var(--ring)]"
             >
               <span className="sr-only">Open main menu</span>
               <svg
@@ -169,8 +195,8 @@ export default function Header() {
                 href={item.href}
                 className={`${
                   pathname === item.href
-                    ? "bg-indigo-50 border-indigo-500 text-indigo-700"
-                    : "border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700"
+                    ? 'bg-blue-50 border-blue-500 text-blue-700'
+                    : 'border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800'
                 } block pl-3 pr-4 py-2 border-l-4 text-base font-medium`}
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -178,18 +204,33 @@ export default function Header() {
                 {item.name}
               </Link>
             ))}
+                {user?.role === 'ADMIN' && (
+                  <Link
+                    href="/admin/settings"
+                    className={`${
+                      pathname === '/admin/settings'
+                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                        : 'border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800'
+                    } block pl-3 pr-4 py-2 border-l-4 text-base font-medium`}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    ⚙️ Cài đặt hệ thống
+                  </Link>
+                )}
           </div>
           <div className="pt-4 pb-3 border-t border-gray-200">
             <div className="px-4">
-              <div className="text-base font-medium text-gray-800">
+              <div className="text-base font-medium text-gray-800 dark:text-gray-200">
                 {user?.username}
               </div>
-              <div className="text-sm text-gray-500">{user?.email}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                {user?.email}
+              </div>
             </div>
             <div className="mt-3 space-y-1">
               <button
                 onClick={handleLogout}
-                className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 w-full text-left"
+                className="block px-4 py-2 text-base font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-800 w-full text-left"
               >
                 Đăng xuất
               </button>

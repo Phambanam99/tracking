@@ -173,7 +173,7 @@ Frontend (`frontend/package.json`):
 
 ## Đóng góp
 
-1) Fork repo  2) Tạo nhánh `feature/*`  3) Commit  4) Push  5) Tạo Pull Request
+1. Fork repo 2) Tạo nhánh `feature/*` 3) Commit 4) Push 5) Tạo Pull Request
 
 ## License
 

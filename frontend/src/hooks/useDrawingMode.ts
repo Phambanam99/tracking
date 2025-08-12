@@ -1,13 +1,13 @@
-import { useEffect, useRef } from "react";
-import Map from "ol/Map";
-import VectorLayer from "ol/layer/Vector";
-import VectorSource from "ol/source/Vector";
-import Feature from "ol/Feature";
-import { Draw } from "ol/interaction";
-import Polygon from "ol/geom/Polygon";
-import Circle from "ol/geom/Circle";
-import { toLonLat } from "ol/proj";
-import { useMapStore } from "../stores/mapStore";
+import { useEffect, useRef } from 'react';
+import Map from 'ol/Map';
+import VectorLayer from 'ol/layer/Vector';
+import VectorSource from 'ol/source/Vector';
+import Feature from 'ol/Feature';
+import { Draw } from 'ol/interaction';
+import Polygon from 'ol/geom/Polygon';
+import Circle from 'ol/geom/Circle';
+import { toLonLat } from 'ol/proj';
+import { useMapStore } from '../stores/mapStore';
 
 interface UseDrawingModeProps {
   mapInstanceRef: React.RefObject<Map | null>;
@@ -38,15 +38,15 @@ export function useDrawingMode({
     if (isDrawingMode && drawingTool && regionSource) {
       let drawInteraction: Draw;
 
-      if (drawingTool === "polygon") {
+      if (drawingTool === 'polygon') {
         drawInteraction = new Draw({
           source: regionSource,
-          type: "Polygon",
+          type: 'Polygon',
         });
-      } else if (drawingTool === "circle") {
+      } else if (drawingTool === 'circle') {
         drawInteraction = new Draw({
           source: regionSource,
-          type: "Circle",
+          type: 'Circle',
         });
       }
 
@@ -55,7 +55,7 @@ export function useDrawingMode({
         drawInteractionRef.current = drawInteraction;
 
         // Handle draw end event
-        drawInteraction.on("drawend", async (event) => {
+        drawInteraction.on('drawend', async (event) => {
           const feature = event.feature;
           const geometry = feature.getGeometry();
 
@@ -70,7 +70,7 @@ export function useDrawingMode({
                 .getCoordinates()[0]
                 .map((coord) => toLonLat(coord));
               boundary = {
-                type: "Polygon",
+                type: 'Polygon',
                 coordinates: [coordinates],
               };
             } else if (geometry instanceof Circle) {
@@ -79,7 +79,7 @@ export function useDrawingMode({
               const radius = geometry.getRadius();
               const centerCoords = toLonLat(center);
               boundary = {
-                type: "Circle",
+                type: 'Circle',
                 center: centerCoords,
                 radius: radius,
               };

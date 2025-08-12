@@ -23,17 +23,27 @@ export interface Aircraft {
 
 interface AircraftStore {
   aircrafts: Aircraft[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
   loading: boolean;
   error: string | null;
   setAircrafts: (aircrafts: Aircraft[]) => void;
   updateAircraft: (aircraft: Aircraft) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  fetchAircrafts: () => Promise<void>;
+  fetchAircrafts: (
+    page?: number,
+    pageSize?: number,
+    q?: string,
+  ) => Promise<void>;
 }
 
 export const useAircraftStore = create<AircraftStore>((set) => ({
   aircrafts: [],
+  total: 0,
+  page: 1,
+  pageSize: 20,
   loading: false,
   error: null,
   setAircrafts: (aircrafts) => set({ aircrafts }),
@@ -47,9 +57,10 @@ export const useAircraftStore = create<AircraftStore>((set) => ({
       next[idx] = { ...next[idx], ...incoming };
       return { aircrafts: next };
     }),
+
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
-  fetchAircrafts: async () => {
+  fetchAircrafts: async (page = 1, pageSize = 20, q?: string) => {
     set({ loading: true, error: null });
     try {
       const aircrafts = await api.get('/aircrafts/initial');

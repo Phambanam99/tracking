@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useMapStore } from "@/stores/mapStore";
+import { useMapStore } from '@/stores/mapStore';
 
 export default function MapControls() {
   const {
@@ -28,11 +28,11 @@ export default function MapControls() {
             onClick={toggleDrawingMode}
             className={`px-2 py-1 text-xs rounded-md font-medium transition-colors ${
               isDrawingMode
-                ? "bg-red-500 text-white hover:bg-red-600"
-                : "bg-blue-500 text-white hover:bg-blue-600"
+                ? 'bg-red-500 text-white hover:bg-red-600'
+                : 'bg-blue-500 text-white hover:bg-blue-600'
             }`}
           >
-            {isDrawingMode ? "Tắt vẽ" : "Bật vẽ"}
+            {isDrawingMode ? 'Tắt vẽ' : 'Bật vẽ'}
           </button>
         </div>
 
@@ -43,11 +43,11 @@ export default function MapControls() {
             onClick={toggleDeleteMode}
             className={`px-2 py-1 text-xs rounded-md font-medium transition-colors ${
               isDeleteMode
-                ? "bg-red-600 text-white hover:bg-red-700"
-                : "bg-orange-500 text-white hover:bg-orange-600"
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'bg-orange-500 text-white hover:bg-orange-600'
             }`}
           >
-            {isDeleteMode ? "Tắt xóa" : "Bật xóa"}
+            {isDeleteMode ? 'Tắt xóa' : 'Bật xóa'}
           </button>
         </div>
 
@@ -55,30 +55,30 @@ export default function MapControls() {
           <div className="space-y-1">
             <div className="flex gap-1">
               <button
-                onClick={() => setDrawingTool("polygon")}
+                onClick={() => setDrawingTool('polygon')}
                 className={`flex-1 px-2 py-1 text-xs rounded font-medium transition-colors ${
-                  drawingTool === "polygon"
-                    ? "bg-indigo-500 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  drawingTool === 'polygon'
+                    ? 'bg-indigo-500 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 📐 Đa giác
               </button>
               <button
-                onClick={() => setDrawingTool("circle")}
+                onClick={() => setDrawingTool('circle')}
                 className={`flex-1 px-2 py-1 text-xs rounded font-medium transition-colors ${
-                  drawingTool === "circle"
-                    ? "bg-indigo-500 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  drawingTool === 'circle'
+                    ? 'bg-indigo-500 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 ⭕ Hình tròn
               </button>
             </div>
             <p className="text-xs text-gray-500 italic">
-              {drawingTool === "polygon" &&
-                "Click để tạo các điểm, double-click để hoàn thành"}
-              {drawingTool === "circle" && "Click và kéo để tạo hình tròn"}
+              {drawingTool === 'polygon' &&
+                'Click để tạo các điểm, double-click để hoàn thành'}
+              {drawingTool === 'circle' && 'Click và kéo để tạo hình tròn'}
             </p>
           </div>
         )}

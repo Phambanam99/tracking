@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import Header from "@/components/Header";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import { useAircraftStore } from "@/stores/aircraftStore";
-import { useVesselStore } from "@/stores/vesselStore";
-import { useEffect } from "react";
+import Header from '@/components/Header';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { useAircraftStore } from '@/stores/aircraftStore';
+import { useVesselStore } from '@/stores/vesselStore';
+import { useEffect } from 'react';
 
 export default function DashboardPage() {
   const { aircrafts, fetchAircrafts } = useAircraftStore();
@@ -17,41 +17,40 @@ export default function DashboardPage() {
 
   const stats = [
     {
-      name: "Tổng số máy bay",
+      name: 'Tổng số máy bay',
       value: aircrafts.length,
-      icon: "✈️",
-      color: "bg-blue-100 text-blue-800",
+      icon: '✈️',
+      color: 'bg-blue-100 text-blue-800',
     },
     {
-      name: "Tổng số tàu thuyền",
+      name: 'Tổng số tàu thuyền',
       value: vessels.length,
-      icon: "🚢",
-      color: "bg-green-100 text-green-800",
+      icon: '🚢',
+      color: 'bg-green-100 text-green-800',
     },
     {
-      name: "Máy bay đang hoạt động",
+      name: 'Máy bay đang hoạt động',
       value: aircrafts.filter((a) => a.lastPosition).length,
-      icon: "🟢",
-      color: "bg-emerald-100 text-emerald-800",
+      icon: '🟢',
+      color: 'bg-emerald-100 text-emerald-800',
     },
     {
-      name: "Tàu thuyền đang hoạt động",
+      name: 'Tàu thuyền đang hoạt động',
       value: vessels.filter((v) => v.lastPosition).length,
-      icon: "🟢",
-      color: "bg-emerald-100 text-emerald-800",
+      icon: '🟢',
+      color: 'bg-emerald-100 text-emerald-800',
     },
   ];
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen">
         <Header />
-
-        <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="px-4 py-6 sm:px-0">
+        <main className="section">
+          <div className="">
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-              <p className="mt-2 text-gray-600">
+              <h1 className="page-title">Dashboard</h1>
+              <p className="page-subtitle">
                 Tổng quan hệ thống theo dõi máy bay và tàu thuyền
               </p>
             </div>
@@ -59,11 +58,8 @@ export default function DashboardPage() {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
               {stats.map((stat) => (
-                <div
-                  key={stat.name}
-                  className="bg-white overflow-hidden shadow rounded-lg"
-                >
-                  <div className="p-5">
+                <div key={stat.name} className="card">
+                  <div className="card-body">
                     <div className="flex items-center">
                       <div className="flex-shrink-0">
                         <div
@@ -91,8 +87,8 @@ export default function DashboardPage() {
             {/* Recent Activity */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Recent Aircrafts */}
-              <div className="bg-white shadow rounded-lg">
-                <div className="px-4 py-5 sm:p-6">
+              <div className="card">
+                <div className="card-body">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">
                     Máy bay gần đây
                   </h3>
@@ -111,7 +107,7 @@ export default function DashboardPage() {
                               {aircraft.callSign || aircraft.flightId}
                             </p>
                             <p className="text-sm text-gray-500">
-                              {aircraft.aircraftType || "Unknown Type"}
+                              {aircraft.aircraftType || 'Unknown Type'}
                             </p>
                           </div>
                         </div>
@@ -119,13 +115,13 @@ export default function DashboardPage() {
                           <p
                             className={`text-sm font-medium ${
                               aircraft.lastPosition
-                                ? "text-green-600"
-                                : "text-gray-500"
+                                ? 'text-green-600'
+                                : 'text-gray-500'
                             }`}
                           >
                             {aircraft.lastPosition
-                              ? "Có tín hiệu"
-                              : "Mất tín hiệu"}
+                              ? 'Có tín hiệu'
+                              : 'Mất tín hiệu'}
                           </p>
                           <p className="text-xs text-gray-500">
                             {aircraft.lastPosition?.altitude || 0}ft
@@ -138,8 +134,8 @@ export default function DashboardPage() {
               </div>
 
               {/* Recent Vessels */}
-              <div className="bg-white shadow rounded-lg">
-                <div className="px-4 py-5 sm:p-6">
+              <div className="card">
+                <div className="card-body">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">
                     Tàu thuyền gần đây
                   </h3>
@@ -158,7 +154,7 @@ export default function DashboardPage() {
                               {vessel.vesselName || vessel.mmsi}
                             </p>
                             <p className="text-sm text-gray-500">
-                              {vessel.vesselType || "Unknown Type"}
+                              {vessel.vesselType || 'Unknown Type'}
                             </p>
                           </div>
                         </div>
@@ -166,13 +162,13 @@ export default function DashboardPage() {
                           <p
                             className={`text-sm font-medium ${
                               vessel.lastPosition
-                                ? "text-green-600"
-                                : "text-gray-500"
+                                ? 'text-green-600'
+                                : 'text-gray-500'
                             }`}
                           >
                             {vessel.lastPosition
-                              ? "Có tín hiệu"
-                              : "Mất tín hiệu"}
+                              ? 'Có tín hiệu'
+                              : 'Mất tín hiệu'}
                           </p>
                           <p className="text-xs text-gray-500">
                             {vessel.lastPosition?.speed || 0} knots

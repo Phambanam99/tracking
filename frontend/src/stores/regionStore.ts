@@ -1,6 +1,6 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import api from "../services/apiClient";
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import api from '../services/apiClient';
 
 export interface Region {
   id: number;
@@ -10,7 +10,7 @@ export interface Region {
   alertOnEntry: boolean;
   alertOnExit: boolean;
   boundary: object; // GeoJSON polygon
-  regionType: "POLYGON" | "CIRCLE";
+  regionType: 'POLYGON' | 'CIRCLE';
   centerLat?: number;
   centerLng?: number;
   radius?: number;
@@ -21,9 +21,9 @@ export interface Region {
 export interface RegionAlert {
   id: number;
   regionId: number;
-  objectType: "AIRCRAFT" | "VESSEL";
+  objectType: 'AIRCRAFT' | 'VESSEL';
   objectId: number;
-  alertType: "ENTRY" | "EXIT";
+  alertType: 'ENTRY' | 'EXIT';
   latitude: number;
   longitude: number;
   isRead: boolean;
@@ -74,13 +74,13 @@ export const useRegionStore = create<RegionState>()(
       fetchRegions: async () => {
         set({ isLoading: true, error: null });
         try {
-          const regions = await api.get("/regions");
+          const regions = await api.get('/regions');
           set({ regions, isLoading: false });
         } catch (error: any) {
-          console.error("Error fetching regions:", error);
+          console.error('Error fetching regions:', error);
           set({
             error:
-              error.response?.data?.message || "Lỗi khi tải danh sách vùng",
+              error.response?.data?.message || 'Lỗi khi tải danh sách vùng',
             isLoading: false,
           });
         }
@@ -89,8 +89,8 @@ export const useRegionStore = create<RegionState>()(
       createRegion: async (regionData) => {
         set({ isLoading: true, error: null });
         try {
-          const newRegion = await api.post("/regions", regionData);
-          console.log("Created region response:", newRegion);
+          const newRegion = await api.post('/regions', regionData);
+          console.log('Created region response:', newRegion);
 
           if (newRegion && newRegion.id) {
             set((state) => ({
@@ -98,12 +98,12 @@ export const useRegionStore = create<RegionState>()(
               isLoading: false,
             }));
           } else {
-            throw new Error("Invalid region data received from server");
+            throw new Error('Invalid region data received from server');
           }
         } catch (error: any) {
-          console.error("Error creating region:", error);
+          console.error('Error creating region:', error);
           set({
-            error: error.response?.data?.message || "Lỗi khi tạo vùng mới",
+            error: error.response?.data?.message || 'Lỗi khi tạo vùng mới',
             isLoading: false,
           });
           throw error;
@@ -116,7 +116,7 @@ export const useRegionStore = create<RegionState>()(
           const updatedRegion = await api.put(`/regions/${id}`, regionData);
           set((state) => ({
             regions: (state.regions || []).map((r) =>
-              r.id === id ? updatedRegion : r
+              r.id === id ? updatedRegion : r,
             ),
             selectedRegion:
               state.selectedRegion?.id === id
@@ -126,7 +126,7 @@ export const useRegionStore = create<RegionState>()(
           }));
         } catch (error: any) {
           set({
-            error: error.response?.data?.message || "Lỗi khi cập nhật vùng",
+            error: error.response?.data?.message || 'Lỗi khi cập nhật vùng',
             isLoading: false,
           });
           throw error;
@@ -144,9 +144,9 @@ export const useRegionStore = create<RegionState>()(
             isLoading: false,
           }));
         } catch (error: any) {
-          console.error("Error deleting region:", error);
+          console.error('Error deleting region:', error);
           set({
-            error: error.response?.data?.message || "Lỗi khi xóa vùng",
+            error: error.response?.data?.message || 'Lỗi khi xóa vùng',
             isLoading: false,
           });
           throw error;
@@ -164,11 +164,11 @@ export const useRegionStore = create<RegionState>()(
       fetchAlerts: async (unreadOnly = false) => {
         try {
           const alerts = await api.get(
-            `/regions/alerts/list?unread=${unreadOnly}`
+            `/regions/alerts/list?unread=${unreadOnly}`,
           );
-          console.log("Alert ", alerts)
+          console.log('Alert ', alerts);
           const unreadCount = alerts.filter(
-            (alert: RegionAlert) => !alert.isRead
+            (alert: RegionAlert) => !alert.isRead,
           ).length;
 
           set({
@@ -178,7 +178,7 @@ export const useRegionStore = create<RegionState>()(
         } catch (error: any) {
           set({
             error:
-              error.response?.data?.message || "Lỗi khi tải danh sách cảnh báo",
+              error.response?.data?.message || 'Lỗi khi tải danh sách cảnh báo',
           });
         }
       },
@@ -188,20 +188,20 @@ export const useRegionStore = create<RegionState>()(
           await api.put(`/regions/alerts/${alertId}/read`);
           set((state) => ({
             alerts: state.alerts.map((alert) =>
-              alert.id === alertId ? { ...alert, isRead: true } : alert
+              alert.id === alertId ? { ...alert, isRead: true } : alert,
             ),
             unreadAlertCount: Math.max(0, state.unreadAlertCount - 1),
           }));
         } catch (error: any) {
           set({
-            error: error.response?.data?.message || "Lỗi khi đánh dấu đã đọc",
+            error: error.response?.data?.message || 'Lỗi khi đánh dấu đã đọc',
           });
         }
       },
 
       markAllAlertsAsRead: async () => {
         try {
-          await api.put("/regions/alerts/read-all");
+          await api.put('/regions/alerts/read-all');
           set((state) => ({
             alerts: state.alerts.map((alert) => ({ ...alert, isRead: true })),
             unreadAlertCount: 0,
@@ -209,7 +209,7 @@ export const useRegionStore = create<RegionState>()(
         } catch (error: any) {
           set({
             error:
-              error.response?.data?.message || "Lỗi khi đánh dấu tất cả đã đọc",
+              error.response?.data?.message || 'Lỗi khi đánh dấu tất cả đã đọc',
           });
         }
       },
@@ -228,11 +228,11 @@ export const useRegionStore = create<RegionState>()(
       },
     }),
     {
-      name: "region-storage",
+      name: 'region-storage',
       partialize: (state) => ({
         regions: state.regions,
         selectedRegion: state.selectedRegion,
       }),
-    }
-  )
+    },
+  ),
 );
