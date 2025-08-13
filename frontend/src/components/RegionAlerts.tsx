@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useRegionStore, RegionAlert } from '../stores/regionStore';
-import { Bell, X, MapPin, Plane, Ship, LogIn, LogOut } from 'lucide-react';
+import { Bell, X, MapPin, Plane, Ship, LogIn, LogOut,  BellRing } from 'lucide-react';
 
 const RegionAlerts: React.FC = () => {
   const {

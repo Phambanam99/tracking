@@ -4,18 +4,9 @@ import { useState, useEffect } from 'react';
 import { useMapStore } from '@/stores/mapStore';
 import { useTrackingStore } from '@/stores/trackingStore';
 import { useAuthStore } from '@/stores/authStore';
-import {
-  Search,
-  Plane,
-  Ship,
-  RotateCcw,
-  Filter,
-  X,
-  Settings,
-  Eye,
-  Star,
-  Database,
-} from 'lucide-react';
+import { Search, Plane, Ship, RotateCcw, Filter, X, Settings, Eye, Star, Database } from 'lucide-react';
+import { usePortsStore } from '@/stores/portsStore';
+import api from '@/services/apiClient';
 
 interface MapFiltersProps {
   aircraftCount: number;
@@ -31,6 +22,7 @@ export default function MapFiltersRedesigned({
   trackedVesselCount,
 }: MapFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [searchDebounce, setSearchDebounce] = useState('');
 
   const {
@@ -59,6 +51,7 @@ export default function MapFiltersRedesigned({
 
   const { user } = useAuthStore();
   const { fetchTrackedItems } = useTrackingStore();
+  const { showPorts, setShowPorts } = usePortsStore();
 
   // Load tracking data when component mounts
   useEffect(() => {
@@ -155,9 +148,7 @@ export default function MapFiltersRedesigned({
                 >
                   <Plane className="w-4 h-4" />
                   <span>Máy bay</span>
-                  <span className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
-                    {aircraftCount}
-                  </span>
+              
                 </button>
                 <button
                   onClick={() => handleTabSwitch('vessel')}
@@ -169,9 +160,6 @@ export default function MapFiltersRedesigned({
                 >
                   <Ship className="w-4 h-4" />
                   <span>Tàu thuyền</span>
-                  <span className="bg-green-100 text-green-600 px-2 py-0.5 rounded-full text-xs">
-                    {vesselCount}
-                  </span>
                 </button>
               </div>
               <button
@@ -226,14 +214,24 @@ export default function MapFiltersRedesigned({
               </div>
             </div>
 
-            {/* Advanced Filters */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-medium text-gray-700 flex items-center space-x-2">
-                <Settings className="w-4 h-4" />
-                <span>Bộ lọc nâng cao</span>
-              </h4>
+            {/* Advanced Filters toggle */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced((v) => !v)}
+                className="flex items-center justify-between w-full px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg border text-sm"
+              >
+                <span className="flex items-center gap-2 text-gray-700">
+                  <Settings className="w-4 h-4" />
+                  <span>Bộ lọc nâng cao</span>
+                </span>
+                <span className="text-gray-500">{showAdvanced ? 'Ẩn' : 'Hiện'}</span>
+              </button>
+            </div>
 
-              {activeFilterTab === 'aircraft' ? (
+            {showAdvanced && (
+              <div className="space-y-4 mt-2">
+                {activeFilterTab === 'aircraft' ? (
                 <>
                   {/* Aircraft Filters */}
                   <div className="grid grid-cols-2 gap-3">
@@ -312,9 +310,9 @@ export default function MapFiltersRedesigned({
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
-                </>
-              ) : (
-                <>
+                  </>
+                ) : (
+                  <>
                   {/* Vessel Filters */}
                   <div className="grid grid-cols-2 gap-3">
                     <input
@@ -371,10 +369,25 @@ export default function MapFiltersRedesigned({
                       }
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     />
-                  </div>
-                </>
-              )}
-            </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Ports toggle (vessels) */}
+            {activeFilterTab === 'vessel' && (
+              <div className="mb-4 flex items-center justify-between bg-gray-50 p-2 rounded">
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <span>Hiển thị cảng biển</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={showPorts}
+                  onChange={(e) => setShowPorts(e.target.checked)}
+                />
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex space-x-3 pt-4 border-t border-gray-200">
@@ -399,9 +412,22 @@ export default function MapFiltersRedesigned({
               </button>
               <button
                 className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                onClick={() => {
-                  // TODO: Save to database
-                  console.log('Save filters to database');
+                onClick={async () => {
+                  try {
+                    const payload = {
+                      name: 'default',
+                      activeFilterTab,
+                      aircraftViewMode,
+                      vesselViewMode,
+                      aircraft: filters.aircraft,
+                      vessel: filters.vessel,
+                    } as const;
+                    // Upsert default preset (create or update by name)
+                    await api.post('/users/filters', payload);
+                    setIsOpen(false);
+                  } catch (e) {
+                    console.error('Failed to save filters', e);
+                  }
                 }}
               >
                 <Database className="w-4 h-4" />

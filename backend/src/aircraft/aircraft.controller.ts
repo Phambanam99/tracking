@@ -81,6 +81,15 @@ export class AircraftController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('q') q?: string,
+    @Query('hasSignal') hasSignal?: string,
+    @Query('operator') operator?: string,
+    @Query('aircraftType') aircraftType?: string,
+    @Query('registration') registration?: string,
+    @Query('callSign') callSign?: string,
+    @Query('minSpeed') minSpeed?: string,
+    @Query('maxSpeed') maxSpeed?: string,
+    @Query('minAltitude') minAltitude?: string,
+    @Query('maxAltitude') maxAltitude?: string,
   ): Promise<{
     data: AircraftResponseDto[];
     total: number;
@@ -97,6 +106,23 @@ export class AircraftController {
       p,
       ps,
       q,
+      typeof hasSignal === 'string'
+        ? hasSignal === 'true'
+          ? true
+          : hasSignal === 'false'
+            ? false
+            : undefined
+        : undefined,
+      {
+        operator,
+        aircraftType,
+        registration,
+        callSign,
+        minSpeed: minSpeed ? Number(minSpeed) : undefined,
+        maxSpeed: maxSpeed ? Number(maxSpeed) : undefined,
+        minAltitude: minAltitude ? Number(minAltitude) : undefined,
+        maxAltitude: maxAltitude ? Number(maxAltitude) : undefined,
+      },
     );
   }
 

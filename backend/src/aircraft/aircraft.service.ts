@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TrackingService } from '../tracking/tracking.service';
 import {
@@ -113,6 +114,17 @@ export class AircraftService {
     page: number = 1,
     pageSize: number = 1000,
     q?: string,
+    hasSignal?: boolean,
+    adv?: {
+      operator?: string;
+      aircraftType?: string;
+      registration?: string;
+      callSign?: string;
+      minSpeed?: number;
+      maxSpeed?: number;
+      minAltitude?: number;
+      maxAltitude?: number;
+    },
   ) {
     const skip = (page - 1) * pageSize;
 
@@ -136,6 +148,32 @@ export class AircraftService {
         { aircraftType: { contains: term, mode: 'insensitive' } },
         { operator: { contains: term, mode: 'insensitive' } },
       ];
+    }
+
+    // Filter by having at least one position (active) or no positions (inactive)
+    if (typeof hasSignal === 'boolean') {
+      if (hasSignal) {
+        where.positions = {
+          some: bbox
+            ? {
+                longitude: { gte: bbox[0], lte: bbox[2] },
+                latitude: { gte: bbox[1], lte: bbox[3] },
+              }
+            : {},
+        };
+      } else {
+        where.positions = { none: {} };
+      }
+    }
+
+    // Advanced filters
+    if (adv) {
+      if (adv.operator) where.operator = { contains: adv.operator, mode: 'insensitive' };
+      if (adv.aircraftType)
+        where.aircraftType = { contains: adv.aircraftType, mode: 'insensitive' };
+      if (adv.registration)
+        where.registration = { contains: adv.registration, mode: 'insensitive' };
+      if (adv.callSign) where.callSign = { contains: adv.callSign, mode: 'insensitive' };
     }
 
     const total = await this.prisma.aircraft.count({ where });
@@ -175,17 +213,29 @@ export class AircraftService {
       take: effectivePageSize,
     });
 
-    const data = aircrafts.map((aircraft) => ({
-      id: aircraft.id,
-      flightId: aircraft.flightId,
-      callSign: aircraft.callSign,
-      registration: aircraft.registration,
-      aircraftType: aircraft.aircraftType,
-      operator: aircraft.operator,
-      createdAt: aircraft.createdAt,
-      updatedAt: aircraft.updatedAt,
-      lastPosition: aircraft.positions[0] || null,
-    }));
+    // Apply per-position numeric constraints (speed/altitude) server-side on the lastPosition selection
+    const data = aircrafts
+      .map((aircraft) => ({
+        id: aircraft.id,
+        flightId: aircraft.flightId,
+        callSign: aircraft.callSign,
+        registration: aircraft.registration,
+        aircraftType: aircraft.aircraftType,
+        operator: aircraft.operator,
+        createdAt: aircraft.createdAt,
+        updatedAt: aircraft.updatedAt,
+        lastPosition: aircraft.positions[0] || null,
+      }))
+      .filter((a) => {
+        if (!adv || !a.lastPosition) return true;
+        const sp = a.lastPosition.speed as number | undefined;
+        const alt = a.lastPosition.altitude as number | undefined;
+        if (adv.minSpeed != null && !(sp != null && sp >= adv.minSpeed)) return false;
+        if (adv.maxSpeed != null && !(sp != null && sp <= adv.maxSpeed)) return false;
+        if (adv.minAltitude != null && !(alt != null && alt >= adv.minAltitude)) return false;
+        if (adv.maxAltitude != null && !(alt != null && alt <= adv.maxAltitude)) return false;
+        return true;
+      });
 
     return {
       data,
@@ -310,19 +360,38 @@ export class AircraftService {
       speed?: number;
       heading?: number;
       timestamp?: Date;
+      source?: string;
+      score?: number;
     },
   ) {
-    const positionRecord = await this.prisma.aircraftPosition.create({
-      data: {
-        aircraftId,
-        latitude: position.latitude,
-        longitude: position.longitude,
-        altitude: position.altitude,
-        speed: position.speed,
-        heading: position.heading,
-        timestamp: position.timestamp || new Date(),
-      },
-    });
+    let positionRecord;
+    try {
+      positionRecord = await this.prisma.aircraftPosition.create({
+        data: {
+          aircraftId,
+          latitude: position.latitude,
+          longitude: position.longitude,
+          altitude: position.altitude,
+          speed: position.speed,
+          heading: position.heading,
+          timestamp: position.timestamp || new Date(),
+          source: position.source,
+          score: position.score,
+        },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        positionRecord = await this.prisma.aircraftPosition.findFirst({
+          where: {
+            aircraftId,
+            timestamp: position.timestamp || undefined,
+            source: position.source,
+          },
+        });
+      } else {
+        throw e;
+      }
+    }
 
     // Trigger region alert processing
     await this.trackingService.processAircraftPositionUpdate(

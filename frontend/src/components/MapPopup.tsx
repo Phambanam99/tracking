@@ -76,36 +76,51 @@ const MapPopup: React.FC<MapPopupProps> = ({
   const { setHistoryLoading, setHistoryError, setHistoryPath, clearHistory } =
     useMapStore();
 
-  // Update current position when position prop changes - center the popup instead of using click position
+  // Update current position when popup opens or position changes - center it
   useEffect(() => {
-    if (position) {
-      // Always center the popup regardless of click position
+    if (!isVisible) return;
+    let raf = 0;
+    const centerNow = () => {
       const [centerX, centerY] = getMapCenter();
       setCurrentPosition([centerX, centerY]);
       setDragOffset({ x: 0, y: 0 });
-    }
-  }, [position]);
+    };
+    // Wait one frame for DOM to layout sizes
+    raf = requestAnimationFrame(centerNow);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [isVisible, position]);
 
   // Function to get map center coordinates
   const getMapCenter = () => {
-    if (!popupRef.current) return [0, 0];
-
     const popup = popupRef.current;
+    const fallbackCenter = () => {
+      const w = window.innerWidth || 1200;
+      const h = window.innerHeight || 800;
+      const HEADER_HEIGHT = 80;
+      const assumedPopupW = 320;
+      const assumedPopupH = 200;
+      return [
+        Math.max(0, (w - assumedPopupW) / 2),
+        Math.max(HEADER_HEIGHT, (h - assumedPopupH) / 2),
+      ];
+    };
+
+    if (!popup) return fallbackCenter();
     const mapContainer =
-      popup.closest('.relative.w-full.h-full') || popup.closest('main');
-    if (!mapContainer) return [0, 0];
+      popup.closest('.relative.w-full.h-full') || popup.closest('main') || document.body;
 
     const mapRect = mapContainer.getBoundingClientRect();
     const popupRect = popup.getBoundingClientRect();
 
-    // Calculate center position within map container
-    const centerX = (mapRect.width - popupRect.width) / 2;
-    const centerY = (mapRect.height - popupRect.height) / 2;
-
-    // Apply header offset
     const HEADER_HEIGHT = 80;
+    const pW = popupRect.width || 320;
+    const pH = popupRect.height || 200;
+    const centerX = (mapRect.width - pW) / 2;
+    const centerY = (mapRect.height - pH) / 2;
     const adjustedCenterY = Math.max(HEADER_HEIGHT, centerY);
-
+    if (!isFinite(centerX) || !isFinite(adjustedCenterY)) return fallbackCenter();
     return [centerX, adjustedCenterY];
   };
 
@@ -505,6 +520,7 @@ const MapPopup: React.FC<MapPopupProps> = ({
                 : 'Theo dõi'}
           </button>
         </div>
+
 
         {/* History controls */}
         <div className="pt-3 border-t space-y-2">

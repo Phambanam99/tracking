@@ -13,7 +13,7 @@ export interface Vessel {
   createdAt: Date;
   updatedAt: Date;
   lastPosition?: {
-    id: number;
+    id?: number;
     latitude: number;
     longitude: number;
     speed?: number;
@@ -35,7 +35,19 @@ interface VesselStore {
   updateVessel: (vessel: Vessel) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  fetchVessels: (page?: number, pageSize?: number, q?: string) => Promise<void>;
+  fetchVessels: (
+    page?: number,
+    pageSize?: number,
+    q?: string,
+    hasSignal?: boolean,
+    adv?: {
+      operator?: string;
+      vesselType?: string;
+      flag?: string;
+      minSpeed?: number;
+      maxSpeed?: number;
+    },
+  ) => Promise<void>;
 }
 
 export const useVesselStore = create<VesselStore>((set) => ({
@@ -46,33 +58,60 @@ export const useVesselStore = create<VesselStore>((set) => ({
   loading: false,
   error: null,
   setVessels: (vessels) => set({ vessels }),
-  updateVessel: (updatedVessel) =>
-    set((state) => ({
-      vessels: state.vessels.map((vessel) =>
-        vessel.id === updatedVessel.id ? updatedVessel : vessel,
-      ),
-    })),
+  updateVessel: (incoming) =>
+    set((state) => {
+      const idx = state.vessels.findIndex((v) => v.id === incoming.id);
+      if (idx === -1) {
+        return { vessels: [...state.vessels, incoming] };
+      }
+      const next = [...state.vessels];
+      next[idx] = { ...next[idx], ...incoming };
+      return { vessels: next };
+    }),
+
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
-  fetchVessels: async (page = 1, pageSize = 20, q?: string) => {
+  fetchVessels: async (
+    page = 1,
+    pageSize = 20,
+    q?: string,
+    hasSignal?: boolean,
+    adv?: {
+      operator?: string;
+      vesselType?: string;
+      flag?: string;
+      minSpeed?: number;
+      maxSpeed?: number;
+    },
+  ) => {
     set({ loading: true, error: null });
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(pageSize),
-      });
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('pageSize', String(pageSize));
       if (q && q.trim()) params.set('q', q.trim());
-      const resp = await api.get(`/vessels?${params.toString()}`);
-      const data = resp?.data || resp;
+      if (typeof hasSignal === 'boolean')
+        params.set('hasSignal', String(hasSignal));
+      if (adv) {
+        if (adv.operator) params.set('operator', adv.operator);
+        if (adv.vesselType) params.set('vesselType', adv.vesselType);
+        if (adv.flag) params.set('flag', adv.flag);
+        if (adv.minSpeed != null) params.set('minSpeed', String(adv.minSpeed));
+        if (adv.maxSpeed != null) params.set('maxSpeed', String(adv.maxSpeed));
+      }
+      const result = await api.get(`/vessels?${params.toString()}`);
+      const {
+        data,
+        total,
+        page: currentPage,
+        pageSize: currentPageSize,
+      } = result ?? {};
       set({
-        vessels: Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data)
-          ? data
-          : [],
-        total: data?.total ?? 0,
-        page: data?.page ?? page,
-        pageSize: data?.pageSize ?? pageSize,
+        vessels: Array.isArray(data) ? data : [],
+        total: typeof total === 'number' ? total : 0,
+        page: typeof currentPage === 'number' ? currentPage : page,
+        pageSize:
+          typeof currentPageSize === 'number' ? currentPageSize : pageSize,
         loading: false,
       });
     } catch (error) {

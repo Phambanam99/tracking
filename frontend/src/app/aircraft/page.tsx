@@ -1,40 +1,68 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAircraftStore } from '@/stores/aircraftStore';
 
 export default function AircraftPage() {
-  const { aircrafts, loading, error, fetchAircrafts } = useAircraftStore();
+  const { aircrafts, loading, error, fetchAircrafts, total, page: storePage, pageSize: storePageSize } = useAircraftStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [operator, setOperator] = useState('');
+  const [aircraftTypeInput, setAircraftTypeInput] = useState('');
+  const [registration, setRegistration] = useState('');
+  const [callSign, setCallSign] = useState('');
+  const [minSpeed, setMinSpeed] = useState<string>('');
+  const [maxSpeed, setMaxSpeed] = useState<string>('');
+  const [minAltitude, setMinAltitude] = useState<string>('');
+  const [maxAltitude, setMaxAltitude] = useState<string>('');
+
+  const page = storePage ?? 1;
+  const pageSize = storePageSize ?? 50;
+  const totalItems = total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+  const filterHasSignal =
+    filterType === 'active' ? true : filterType === 'inactive' ? false : undefined;
 
   useEffect(() => {
-    fetchAircrafts(1, 50);
-  }, [fetchAircrafts]);
+    fetchAircrafts(page, pageSize, debouncedQuery, filterHasSignal, {
+      operator: operator || undefined,
+      aircraftType: aircraftTypeInput || undefined,
+      registration: registration || undefined,
+      callSign: callSign || undefined,
+      minSpeed: minSpeed !== '' ? Number(minSpeed) : undefined,
+      maxSpeed: maxSpeed !== '' ? Number(maxSpeed) : undefined,
+      minAltitude: minAltitude !== '' ? Number(minAltitude) : undefined,
+      maxAltitude: maxAltitude !== '' ? Number(maxAltitude) : undefined,
+    });
+  }, [
+    fetchAircrafts,
+    page,
+    pageSize,
+    debouncedQuery,
+    filterHasSignal,
+    operator,
+    aircraftTypeInput,
+    registration,
+    callSign,
+    minSpeed,
+    maxSpeed,
+    minAltitude,
+    maxAltitude,
+  ]);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedQuery(searchTerm.trim()), 300);
     return () => clearTimeout(id);
   }, [searchTerm]);
 
-  const filteredAircrafts = useMemo(() => {
-    const q = debouncedQuery.toLowerCase();
-    return aircrafts.filter((aircraft) => {
-      const matchesSearch =
-        aircraft.flightId.toLowerCase().includes(q) ||
-        (aircraft.callSign?.toLowerCase().includes(q) ?? false) ||
-        (aircraft.registration?.toLowerCase().includes(q) ?? false);
-
-      if (filterType === 'all') return matchesSearch;
-      if (filterType === 'active') return matchesSearch && !!aircraft.lastPosition;
-      if (filterType === 'inactive') return matchesSearch && !aircraft.lastPosition;
-      return matchesSearch;
-    });
-  }, [aircrafts, debouncedQuery, filterType]);
+  // Server-side filtering & search are applied; render the fetched page
+  const pageItems = aircrafts;
 
   return (
     <ProtectedRoute>
@@ -73,10 +101,88 @@ export default function AircraftPage() {
                       <option value="inactive">Mất tín hiệu</option>
                     </select>
                   </div>
-                  <Link href="/aircraft/new" className="btn-primary">
-                    ✈️ Thêm máy bay
-                  </Link>
+                  <button
+                    className="btn"
+                    onClick={() => setShowAdvanced((v) => !v)}
+                  >
+                    Bộ lọc nâng cao
+                  </button>
+                  <button
+                    className="btn-primary"
+                    onClick={() =>
+                      fetchAircrafts(1, pageSize, searchTerm.trim(), filterHasSignal, {
+                        operator: operator || undefined,
+                        aircraftType: aircraftTypeInput || undefined,
+                        registration: registration || undefined,
+                        callSign: callSign || undefined,
+                        minSpeed: minSpeed !== '' ? Number(minSpeed) : undefined,
+                        maxSpeed: maxSpeed !== '' ? Number(maxSpeed) : undefined,
+                        minAltitude:
+                          minAltitude !== '' ? Number(minAltitude) : undefined,
+                        maxAltitude:
+                          maxAltitude !== '' ? Number(maxAltitude) : undefined,
+                      })
+                    }
+                  >
+                    Tìm kiếm
+                  </button>
                 </div>
+                {showAdvanced && (
+                  <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <input
+                      className="input"
+                      placeholder="Nhà khai thác"
+                      value={operator}
+                      onChange={(e) => setOperator(e.target.value)}
+                    />
+                    <input
+                      className="input"
+                      placeholder="Loại máy bay"
+                      value={aircraftTypeInput}
+                      onChange={(e) => setAircraftTypeInput(e.target.value)}
+                    />
+                    <input
+                      className="input"
+                      placeholder="Đăng ký"
+                      value={registration}
+                      onChange={(e) => setRegistration(e.target.value)}
+                    />
+                    <input
+                      className="input"
+                      placeholder="Callsign"
+                      value={callSign}
+                      onChange={(e) => setCallSign(e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      className="input"
+                      placeholder="Tốc độ tối thiểu"
+                      value={minSpeed}
+                      onChange={(e) => setMinSpeed(e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      className="input"
+                      placeholder="Tốc độ tối đa"
+                      value={maxSpeed}
+                      onChange={(e) => setMaxSpeed(e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      className="input"
+                      placeholder="Độ cao tối thiểu"
+                      value={minAltitude}
+                      onChange={(e) => setMinAltitude(e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      className="input"
+                      placeholder="Độ cao tối đa"
+                      value={maxAltitude}
+                      onChange={(e) => setMaxAltitude(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -114,7 +220,7 @@ export default function AircraftPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {filteredAircrafts.map((aircraft) => (
+                        {pageItems.map((aircraft) => (
                           <tr key={aircraft.id} className="hover:bg-gray-50">
                             <td className="px-4 py-2 align-middle">
                               <div className="font-medium text-indigo-600">
@@ -146,7 +252,7 @@ export default function AircraftPage() {
                             </td>
                           </tr>
                         ))}
-                        {filteredAircrafts.length === 0 && (
+                        {pageItems.length === 0 && (
                           <tr>
                             <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
                               Không tìm thấy máy bay nào
@@ -156,14 +262,116 @@ export default function AircraftPage() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="p-4 flex items-center justify-between text-sm text-gray-600">
-                    <button
-                      className="btn"
-                      onClick={() => fetchAircrafts(1, 50, debouncedQuery)}
-                    >
-                      Làm mới
-                    </button>
-                    <div>Hiển thị {filteredAircrafts.length} mục</div>
+                  <div className="p-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between text-sm text-gray-600">
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="btn"
+                        disabled={page <= 1}
+                        onClick={() =>
+                          fetchAircrafts(
+                            Math.max(1, page - 1),
+                            pageSize,
+                            debouncedQuery,
+                            filterHasSignal,
+                            {
+                              operator: operator || undefined,
+                              aircraftType: aircraftTypeInput || undefined,
+                              registration: registration || undefined,
+                              callSign: callSign || undefined,
+                              minSpeed: minSpeed !== '' ? Number(minSpeed) : undefined,
+                              maxSpeed: maxSpeed !== '' ? Number(maxSpeed) : undefined,
+                              minAltitude:
+                                minAltitude !== '' ? Number(minAltitude) : undefined,
+                              maxAltitude:
+                                maxAltitude !== '' ? Number(maxAltitude) : undefined,
+                            },
+                          )
+                        }
+                      >
+                        ← Trước
+                      </button>
+                      <span>
+                        Trang {page} / {totalPages}
+                      </span>
+                      <button
+                        className="btn"
+                        disabled={page >= totalPages}
+                        onClick={() =>
+                          fetchAircrafts(
+                            Math.min(totalPages, page + 1),
+                            pageSize,
+                            debouncedQuery,
+                            filterHasSignal,
+                            {
+                              operator: operator || undefined,
+                              aircraftType: aircraftTypeInput || undefined,
+                              registration: registration || undefined,
+                              callSign: callSign || undefined,
+                              minSpeed: minSpeed !== '' ? Number(minSpeed) : undefined,
+                              maxSpeed: maxSpeed !== '' ? Number(maxSpeed) : undefined,
+                              minAltitude:
+                                minAltitude !== '' ? Number(minAltitude) : undefined,
+                              maxAltitude:
+                                maxAltitude !== '' ? Number(maxAltitude) : undefined,
+                            },
+                          )
+                        }
+                      >
+                        Sau →
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label htmlFor="pageSize" className="text-gray-600">Số hàng/trang:</label>
+                      <select
+                        id="pageSize"
+                        className="select"
+                        value={pageSize}
+                        onChange={(e) =>
+                          fetchAircrafts(
+                            1,
+                            Number(e.target.value),
+                            debouncedQuery,
+                            filterHasSignal,
+                            {
+                              operator: operator || undefined,
+                              aircraftType: aircraftTypeInput || undefined,
+                              registration: registration || undefined,
+                              callSign: callSign || undefined,
+                              minSpeed: minSpeed !== '' ? Number(minSpeed) : undefined,
+                              maxSpeed: maxSpeed !== '' ? Number(maxSpeed) : undefined,
+                              minAltitude:
+                                minAltitude !== '' ? Number(minAltitude) : undefined,
+                              maxAltitude:
+                                maxAltitude !== '' ? Number(maxAltitude) : undefined,
+                            },
+                          )
+                        }
+                      >
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                      <button
+                        className="btn"
+                        onClick={() =>
+                          fetchAircrafts(page, pageSize, debouncedQuery, filterHasSignal, {
+                            operator: operator || undefined,
+                            aircraftType: aircraftTypeInput || undefined,
+                            registration: registration || undefined,
+                            callSign: callSign || undefined,
+                            minSpeed: minSpeed !== '' ? Number(minSpeed) : undefined,
+                            maxSpeed: maxSpeed !== '' ? Number(maxSpeed) : undefined,
+                            minAltitude:
+                              minAltitude !== '' ? Number(minAltitude) : undefined,
+                            maxAltitude:
+                              maxAltitude !== '' ? Number(maxAltitude) : undefined,
+                          })
+                        }
+                      >
+                        Làm mới
+                      </button>
+                      <div>Tổng: {totalItems}</div>
+                    </div>
                   </div>
                 </>
               )}

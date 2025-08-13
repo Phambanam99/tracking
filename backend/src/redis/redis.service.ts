@@ -70,11 +70,9 @@ export class RedisService implements OnModuleDestroy {
 
   // Cleanup on module destroy
   async onModuleDestroy() {
-    console.log('🔄 Disconnecting Redis clients...');
     await this.redisClient.quit();
     await this.pubClient.quit();
     await this.subClient.quit();
-    console.log('✅ Redis clients disconnected');
   }
 
   // Health check method

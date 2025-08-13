@@ -1,7 +1,7 @@
 'use client';
 
 import 'ol/ol.css';
-import { useRef, useMemo, useState, useEffect } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import Map from 'ol/Map';
 import { fromLonLat } from 'ol/proj';
 import VectorLayer from 'ol/layer/Vector';
@@ -18,9 +18,10 @@ import { useMapStore } from '../stores/mapStore';
 import { useRegionStore } from '../stores/regionStore';
 import DrawingActionPopup from './DrawingActionPopup';
 import MapPopup from './MapPopup';
-import MapFiltersRedesigned from './MapFilters';
+// import MapFiltersRedesigned from './MapFilters';
 import { useTrackingStore } from '../stores/trackingStore';
-import MapControls from './MapControls';
+// import MapControls from './MapControls';
+import LayersPanel from './LayersPanel';
 import {
   useMapInitialization,
   useMapClickHandler,
@@ -68,8 +69,7 @@ export default function MapComponentClustered() {
 
   const { createRegion } = useRegionStore();
 
-  // State để control việc hiện/ẩn MapControls
-  const [showMapControls, setShowMapControls] = useState(false);
+  // Controls now live inside LayersPanel
 
   // Use custom hooks for all functionality
   useWebSocketHandler();
@@ -85,7 +85,7 @@ export default function MapComponentClustered() {
   useViewportDataLoader({ mapInstanceRef });
   useMapClickHandler({ mapInstanceRef, mapRef });
   useDrawingMode({ mapInstanceRef, regionLayerRef });
-  useRegionsRendering({ regionLayerRef });
+  useRegionsRendering({ regionLayerRef, mapInstanceRef });
   useFeatureUpdater({ aircraftLayerRef, vesselLayerRef });
 
   // Viewport bbox updates are handled inside useViewportDataLoader
@@ -584,12 +584,6 @@ export default function MapComponentClustered() {
       );
     });
 
-    console.log(
-      'Filtered aircrafts:',
-      result.length,
-      'from total:',
-      aircrafts.length,
-    );
     return result;
   }, [aircrafts, activeFilters, aircraftViewMode, trackedItems]);
 
@@ -663,13 +657,6 @@ export default function MapComponentClustered() {
         matchesSpeedMax
       );
     });
-
-    console.log(
-      'Filtered vessels:',
-      result.length,
-      'from total:',
-      vessels.length,
-    );
     return result;
   }, [vessels, activeFilters, vesselViewMode, trackedItems]);
 
@@ -697,7 +684,6 @@ export default function MapComponentClustered() {
 
   // Handle search in region
   const handleSearchInRegion = () => {
-    console.log('Search in region functionality not implemented yet');
     handleCancelDrawing();
   };
 
@@ -728,44 +714,12 @@ export default function MapComponentClustered() {
         }}
       />
 
-      {/* Toggle for Map Controls */}
-      <button
-        onClick={() => setShowMapControls(!showMapControls)}
-        className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-2 hover:bg-gray-50 transition-colors z-[2]"
-        title={showMapControls ? 'Ẩn điều khiển' : 'Hiện điều khiển'}
-      >
-        <svg
-          className="w-5 h-5 text-gray-700"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M4 6h16M4 12h16M4 18h16"
-          />
-        </svg>
-      </button>
-
-      {/* Map Controls - Conditionally rendered */}
-      {showMapControls && (
-        <div className="absolute top-16 right-4 z-[2]">
-          <MapControls />
-        </div>
-      )}
-
-      {/* Map Filters */}
-      <MapFiltersRedesigned
+      {/* Unified Layers Panel (replaces old controls + filters) */}
+      <LayersPanel
         aircraftCount={filteredAircrafts.length}
         vesselCount={filteredVessels.length}
-        trackedAircraftCount={
-          trackedItems.filter((item) => item.type === 'aircraft').length
-        }
-        trackedVesselCount={
-          trackedItems.filter((item) => item.type === 'vessel').length
-        }
+        trackedAircraftCount={trackedItems.filter((item) => item.type === 'aircraft').length}
+        trackedVesselCount={trackedItems.filter((item) => item.type === 'vessel').length}
       />
 
       {/* Feature popup */}

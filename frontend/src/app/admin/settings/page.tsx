@@ -13,6 +13,16 @@ interface FormState {
   signalStaleMinutes: number;
   vesselFlagColors: string;
   aircraftOperatorColors: string;
+  mapProvider: 'osm' | 'maptiler';
+  maptilerApiKey: string;
+  maptilerStyle: string;
+  customMapSources: Array<{
+    id: string;
+    name: string;
+    urlTemplate: string;
+    attribution?: string;
+    maxZoom?: number;
+  }>;
 }
 
 export default function AdminSettingsPage() {
@@ -26,6 +36,10 @@ export default function AdminSettingsPage() {
     signalStaleMinutes: 10,
     vesselFlagColors: '{}',
     aircraftOperatorColors: '{}',
+    mapProvider: 'osm',
+    maptilerApiKey: '',
+    maptilerStyle: 'streets',
+    customMapSources: [],
   });
 
   const vesselExample = `{
@@ -56,6 +70,10 @@ export default function AdminSettingsPage() {
           signalStaleMinutes: s.signalStaleMinutes ?? 10,
           vesselFlagColors: JSON.stringify(s.vesselFlagColors || {}, null, 2),
           aircraftOperatorColors: JSON.stringify(s.aircraftOperatorColors || {}, null, 2),
+          mapProvider: (s.mapProvider as 'osm' | 'maptiler') || 'osm',
+          maptilerApiKey: s.maptilerApiKey || '',
+          maptilerStyle: s.maptilerStyle || 'streets',
+          customMapSources: Array.isArray(s.customMapSources) ? s.customMapSources : [],
         });
       } catch (e) {
         // ignore
@@ -75,6 +93,10 @@ export default function AdminSettingsPage() {
         signalStaleMinutes: Number(form.signalStaleMinutes) || 10,
         vesselFlagColors: JSON.parse(form.vesselFlagColors || '{}'),
         aircraftOperatorColors: JSON.parse(form.aircraftOperatorColors || '{}'),
+        mapProvider: form.mapProvider,
+        maptilerApiKey: form.maptilerApiKey?.trim() || undefined,
+        maptilerStyle: form.maptilerStyle || 'streets',
+        customMapSources: form.customMapSources,
       };
       const updated = await api.put('/admin/settings', payload);
       setSettings(updated);
@@ -96,6 +118,52 @@ export default function AdminSettingsPage() {
             <div>Đang tải...</div>
           ) : (
             <div className="bg-white rounded-lg shadow p-6 space-y-4">
+              {/* Map provider selection */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-1">
+                  <label className="block text-sm text-gray-600">Nhà cung cấp bản đồ</label>
+                  <select
+                    className="mt-1 w-full border rounded px-2 py-1"
+                    value={form.mapProvider}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, mapProvider: e.target.value as 'osm' | 'maptiler' }))
+                    }
+                  >
+                    <option value="osm">OpenStreetMap (miễn phí)</option>
+                    <option value="maptiler">MapTiler</option>
+                  </select>
+                </div>
+                {form.mapProvider === 'maptiler' && (
+                  <>
+                    <div>
+                      <label className="block text-sm text-gray-600">MapTiler API key</label>
+                      <input
+                        type="text"
+                        className="mt-1 w-full border rounded px-2 py-1"
+                        value={form.maptilerApiKey}
+                        onChange={(e) => setForm((f) => ({ ...f, maptilerApiKey: e.target.value }))}
+                        placeholder="pk.****************"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600">Kiểu map</label>
+                      <select
+                        className="mt-1 w-full border rounded px-2 py-1"
+                        value={form.maptilerStyle}
+                        onChange={(e) => setForm((f) => ({ ...f, maptilerStyle: e.target.value }))}
+                      >
+                        <option value="streets">Streets</option>
+                        <option value="outdoor">Outdoor</option>
+                        <option value="satellite">Satellite</option>
+                        <option value="topo">Topographic</option>
+                        <option value="terrain">Terrain</option>
+                        <option value="bright">Bright</option>
+                        <option value="basic">Basic</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+              </div>
               <div className="flex items-center justify-between">
                 <label className="font-medium">Bật clustering</label>
                 <input
@@ -175,6 +243,134 @@ export default function AdminSettingsPage() {
                 />
                 <p className="mt-1 text-xs text-gray-500">Ví dụ key là tên hãng viết hoa: {`{"VIETNAM AIRLINES":"#2563eb"}`}</p>
               </div>
+
+            {/* Custom Map Sources */}
+            <div className="mt-4">
+              <h2 className="text-lg font-semibold mb-2">Custom Map Sources</h2>
+              <p className="text-sm text-gray-600 mb-2">Thêm nguồn nền bản đồ dạng XYZ để người dùng có thể chọn trong Layers panel.</p>
+              <div className="space-y-3">
+                {form.customMapSources.map((src, idx) => (
+                  <div key={src.id || idx} className="border rounded-lg p-3 space-y-2">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-sm text-gray-600">ID</label>
+                        <input
+                          type="text"
+                          className="mt-1 w-full border rounded px-2 py-1"
+                          value={src.id}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setForm((f) => {
+                              const arr = [...f.customMapSources];
+                              arr[idx] = { ...arr[idx], id: v };
+                              return { ...f, customMapSources: arr };
+                            });
+                          }}
+                          placeholder="vd: esri-world"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600">Tên hiển thị</label>
+                        <input
+                          type="text"
+                          className="mt-1 w-full border rounded px-2 py-1"
+                          value={src.name}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setForm((f) => {
+                              const arr = [...f.customMapSources];
+                              arr[idx] = { ...arr[idx], name: v };
+                              return { ...f, customMapSources: arr };
+                            });
+                          }}
+                          placeholder="vd: Esri World"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600">Max Zoom</label>
+                        <input
+                          type="number"
+                          className="mt-1 w-full border rounded px-2 py-1"
+                          value={src.maxZoom ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value === '' ? undefined : Number(e.target.value);
+                            setForm((f) => {
+                              const arr = [...f.customMapSources];
+                              arr[idx] = { ...arr[idx], maxZoom: v };
+                              return { ...f, customMapSources: arr };
+                            });
+                          }}
+                          placeholder="vd: 18"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600">URL Template</label>
+                      <input
+                        type="text"
+                        className="mt-1 w-full border rounded px-2 py-1 font-mono"
+                        value={src.urlTemplate}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setForm((f) => {
+                            const arr = [...f.customMapSources];
+                            arr[idx] = { ...arr[idx], urlTemplate: v };
+                            return { ...f, customMapSources: arr };
+                          });
+                        }}
+                        placeholder="https://{s}.example.com/tiles/{z}/{x}/{y}.png"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600">Attribution</label>
+                      <input
+                        type="text"
+                        className="mt-1 w-full border rounded px-2 py-1"
+                        value={src.attribution || ''}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setForm((f) => {
+                            const arr = [...f.customMapSources];
+                            arr[idx] = { ...arr[idx], attribution: v };
+                            return { ...f, customMapSources: arr };
+                          });
+                        }}
+                        placeholder="Map data © ..."
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        className="text-sm text-red-600 hover:text-red-800"
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            customMapSources: f.customMapSources.filter((_, i) => i !== idx),
+                          }))
+                        }
+                      >
+                        Xóa nguồn
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="px-3 py-2 bg-gray-100 rounded hover:bg-gray-200 text-sm"
+                  onClick={() =>
+                    setForm((f) => ({
+                      ...f,
+                      customMapSources: [
+                        ...f.customMapSources,
+                        { id: '', name: '', urlTemplate: '', attribution: '', maxZoom: undefined },
+                      ],
+                    }))
+                  }
+                >
+                  Thêm nguồn
+                </button>
+              </div>
+            </div>
 
               <div className="pt-2">
                 <button

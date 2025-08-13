@@ -8,6 +8,17 @@ export type SystemSettings = {
   signalStaleMinutes: number;
   vesselFlagColors: Record<string, string>;
   aircraftOperatorColors: Record<string, string>;
+  mapProvider: 'osm' | 'maptiler';
+  maptilerApiKey?: string;
+  maptilerStyle: string;
+  // Optional admin-configured custom XYZ sources
+  customMapSources?: Array<{
+    id: string; // e.g. 'esri-world', 'here-streets'
+    name: string; // label for UI
+    urlTemplate: string; // e.g. 'https://.../{z}/{x}/{y}.png'
+    maxZoom?: number;
+    attribution?: string;
+  }>;
 };
 
 const defaultSettings: SystemSettings = {
@@ -17,6 +28,9 @@ const defaultSettings: SystemSettings = {
   signalStaleMinutes: 10,
   vesselFlagColors: {},
   aircraftOperatorColors: {},
+  mapProvider: 'osm',
+  maptilerStyle: 'streets',
+  customMapSources: [],
 };
 
 interface SystemSettingsState {

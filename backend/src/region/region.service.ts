@@ -12,10 +12,7 @@ export class RegionService {
   ) {}
 
   async createRegion(userId: number, createRegionDto: CreateRegionDto) {
-    console.log('🚀 RegionService.createRegion called');
-    console.log('📝 UserId:', userId);
-    console.log('📝 CreateRegionDto:', JSON.stringify(createRegionDto, null, 2));
-
+  
     try {
       // Prepare the data for creation
       const regionData = { ...createRegionDto, userId };
@@ -31,11 +28,7 @@ export class RegionService {
           regionData.centerLng = boundary.center[0]; // longitude
           regionData.centerLat = boundary.center[1]; // latitude
           regionData.radius = boundary.radius;
-          console.log('📍 Extracted circle data:', {
-            centerLng: regionData.centerLng,
-            centerLat: regionData.centerLat,
-            radius: regionData.radius,
-          });
+         
         }
       }
 
@@ -43,7 +36,6 @@ export class RegionService {
         data: regionData,
       });
 
-      console.log('✅ Region created in DB:', JSON.stringify(region, null, 2));
       return region;
     } catch (error) {
       console.error('❌ Error in RegionService.createRegion:', error);
@@ -302,7 +294,6 @@ export class RegionService {
         // Broadcast alert via Redis/WebSocket
         await this.redisService.publish('region:alert', JSON.stringify(alertData));
 
-        console.log('🚨 Region alert created and broadcasted:', alertData);
       }
     }
   }

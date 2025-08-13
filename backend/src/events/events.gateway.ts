@@ -6,6 +6,7 @@ import {
   OnGatewayDisconnect,
   SubscribeMessage,
   MessageBody,
+  ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
@@ -97,7 +98,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
   @SubscribeMessage('subscribeViewport')
   handleSubscribeViewport(
-    client: Socket,
+    @ConnectedSocket() client: Socket,
     @MessageBody()
     data: { bbox: [number, number, number, number] },
   ) {
@@ -117,7 +118,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
   @SubscribeMessage('updateViewport')
   handleUpdateViewport(
-    client: Socket,
+    @ConnectedSocket() client: Socket,
     @MessageBody() data: { bbox: [number, number, number, number] },
   ) {
     return this.handleSubscribeViewport(client, data);

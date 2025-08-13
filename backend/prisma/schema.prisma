@@ -94,12 +94,15 @@ model AircraftPosition {
   speed      Int? // Speed in knots
   heading    Int? // Heading in degrees (0-360)
   timestamp  DateTime @default(now()) // When this position was recorded
+  source     String?
+  score      Float?
 
   // Relationship with aircraft
   aircraft Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
 
   @@index([aircraftId])
   @@index([timestamp])
+  @@unique([aircraftId, timestamp, source])
   @@map("aircraft_positions")
 }
 
@@ -167,12 +170,15 @@ model VesselPosition {
   heading   Int? // True heading in degrees (0-360)
   status    String? // Navigation status (anchored, underway, etc.)
   timestamp DateTime @default(now()) // When this position was recorded
+  source    String?
+  score     Float?
 
   // Relationship with vessel
   vessel Vessel @relation(fields: [vesselId], references: [id], onDelete: Cascade)
 
   @@index([vesselId])
   @@index([timestamp])
+  @@unique([vesselId, timestamp, source])
   @@map("vessel_positions")
 }
 
@@ -292,7 +298,27 @@ model SystemSettings {
   signalStaleMinutes     Int      @default(10)
   vesselFlagColors       Json     @default("{}")
   aircraftOperatorColors Json     @default("{}")
+  // Base map provider configuration
+  mapProvider            String   @default("osm") // 'osm' | 'maptiler'
+  maptilerApiKey         String?                    // required if mapProvider = 'maptiler'
+  maptilerStyle          String   @default("streets") // e.g., 'streets', 'outdoor', 'satellite'
   updatedAt              DateTime @updatedAt
 
   @@map("system_settings")
+}
+
+// Global list of seaports/harbors for vessel context
+model Port {
+  id        Int      @id @default(autoincrement())
+  city      String
+  state     String?
+  country   String?
+  latitude  Float
+  longitude Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([latitude, longitude])
+  @@unique([city, state, country, latitude, longitude])
+  @@map("ports")
 }

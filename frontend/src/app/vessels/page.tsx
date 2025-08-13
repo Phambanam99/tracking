@@ -1,40 +1,59 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useVesselStore } from '@/stores/vesselStore';
 
 export default function VesselsPage() {
-  const { vessels, loading, error, fetchVessels } = useVesselStore();
+  const { vessels, loading, error, fetchVessels, total, page: storePage, pageSize: storePageSize } = useVesselStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [operator, setOperator] = useState('');
+  const [vesselTypeInput, setVesselTypeInput] = useState('');
+  const [flag, setFlag] = useState('');
+  const [minSpeed, setMinSpeed] = useState<string>('');
+  const [maxSpeed, setMaxSpeed] = useState<string>('');
+
+  const page = storePage ?? 1;
+  const pageSize = storePageSize ?? 50;
+  const totalItems = total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+  const filterHasSignal =
+    filterType === 'active' ? true : filterType === 'inactive' ? false : undefined;
 
   useEffect(() => {
-    fetchVessels(1, 50);
-  }, [fetchVessels]);
+    fetchVessels(page, pageSize, debouncedQuery, filterHasSignal, {
+      operator: operator || undefined,
+      vesselType: vesselTypeInput || undefined,
+      flag: flag || undefined,
+      minSpeed: minSpeed !== '' ? Number(minSpeed) : undefined,
+      maxSpeed: maxSpeed !== '' ? Number(maxSpeed) : undefined,
+    });
+  }, [
+    fetchVessels,
+    page,
+    pageSize,
+    debouncedQuery,
+    filterHasSignal,
+    operator,
+    vesselTypeInput,
+    flag,
+    minSpeed,
+    maxSpeed,
+  ]);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedQuery(searchTerm.trim()), 300);
     return () => clearTimeout(id);
   }, [searchTerm]);
 
-  const filteredVessels = useMemo(() => {
-    const q = debouncedQuery.toLowerCase();
-    return vessels.filter((vessel) => {
-      const matchesSearch =
-        vessel.mmsi.toLowerCase().includes(q) ||
-        (vessel.vesselName?.toLowerCase().includes(q) ?? false) ||
-        (vessel.flag?.toLowerCase().includes(q) ?? false);
-
-      if (filterType === 'all') return matchesSearch;
-      if (filterType === 'active') return matchesSearch && !!vessel.lastPosition;
-      if (filterType === 'inactive') return matchesSearch && !vessel.lastPosition;
-      return matchesSearch;
-    });
-  }, [vessels, debouncedQuery, filterType]);
+  // Server-side filtering & search are applied; render the fetched page
+  const pageItems = vessels;
 
   return (
     <ProtectedRoute>
@@ -73,10 +92,61 @@ export default function VesselsPage() {
                       <option value="inactive">Mất tín hiệu</option>
                     </select>
                   </div>
-                  <Link href="/vessels/new" className="btn-primary">
-                    🚢 Thêm tàu thuyền
-                  </Link>
+                  <button className="btn" onClick={() => setShowAdvanced((v) => !v)}>
+                    Bộ lọc nâng cao
+                  </button>
+                  <button
+                    className="btn-primary"
+                    onClick={() =>
+                      fetchVessels(1, pageSize, debouncedQuery.trim(), filterHasSignal, {
+                        operator: operator || undefined,
+                        vesselType: vesselTypeInput || undefined,
+                        flag: flag || undefined,
+                        minSpeed: minSpeed !== '' ? Number(minSpeed) : undefined,
+                        maxSpeed: maxSpeed !== '' ? Number(maxSpeed) : undefined,
+                      })
+                    }
+                  >
+                    Tìm kiếm
+                  </button>
                 </div>
+                {showAdvanced && (
+                  <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <input
+                      className="input"
+                      placeholder="Nhà khai thác"
+                      value={operator}
+                      onChange={(e) => setOperator(e.target.value)}
+                    />
+                    <input
+                      className="input"
+                      placeholder="Loại tàu"
+                      value={vesselTypeInput}
+                      onChange={(e) => setVesselTypeInput(e.target.value)}
+                    />
+                    <input
+                      className="input"
+                      placeholder="Quốc kỳ"
+                      value={flag}
+                      onChange={(e) => setFlag(e.target.value)}
+                    />
+                    <div></div>
+                    <input
+                      type="number"
+                      className="input"
+                      placeholder="Tốc độ tối thiểu"
+                      value={minSpeed}
+                      onChange={(e) => setMinSpeed(e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      className="input"
+                      placeholder="Tốc độ tối đa"
+                      value={maxSpeed}
+                      onChange={(e) => setMaxSpeed(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -114,7 +184,7 @@ export default function VesselsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {filteredVessels.map((vessel) => (
+                        {pageItems.map((vessel) => (
                           <tr key={vessel.id} className="hover:bg-gray-50">
                             <td className="px-4 py-2 align-middle">
                               <div className="font-medium text-indigo-600">
@@ -146,7 +216,7 @@ export default function VesselsPage() {
                             </td>
                           </tr>
                         ))}
-                        {filteredVessels.length === 0 && (
+                        {pageItems.length === 0 && (
                           <tr>
                             <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
                               Không tìm thấy tàu thuyền nào
@@ -157,14 +227,96 @@ export default function VesselsPage() {
                     </table>
                   </div>
 
-                  <div className="p-4 flex items-center justify-between text-sm text-gray-600">
-                    <button
-                      className="btn"
-                      onClick={() => fetchVessels(1, 50, debouncedQuery)}
-                    >
-                      Làm mới
-                    </button>
-                    <div>Hiển thị {filteredVessels.length} mục</div>
+                  <div className="p-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between text-sm text-gray-600">
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="btn"
+                        disabled={page <= 1}
+                        onClick={() =>
+                          fetchVessels(
+                            Math.max(1, page - 1),
+                            pageSize,
+                            debouncedQuery,
+                            filterHasSignal,
+                            {
+                              operator: operator || undefined,
+                              vesselType: vesselTypeInput || undefined,
+                              flag: flag || undefined,
+                              minSpeed: minSpeed !== '' ? Number(minSpeed) : undefined,
+                              maxSpeed: maxSpeed !== '' ? Number(maxSpeed) : undefined,
+                            },
+                          )
+                        }
+                      >
+                        ← Trước
+                      </button>
+                      <span>
+                        Trang {page} / {totalPages}
+                      </span>
+                      <button
+                        className="btn"
+                        disabled={page >= totalPages}
+                        onClick={() =>
+                          fetchVessels(
+                            Math.min(totalPages, page + 1),
+                            pageSize,
+                            debouncedQuery,
+                            filterHasSignal,
+                            {
+                              operator: operator || undefined,
+                              vesselType: vesselTypeInput || undefined,
+                              flag: flag || undefined,
+                              minSpeed: minSpeed !== '' ? Number(minSpeed) : undefined,
+                              maxSpeed: maxSpeed !== '' ? Number(maxSpeed) : undefined,
+                            },
+                          )
+                        }
+                      >
+                        Sau →
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label htmlFor="pageSize" className="text-gray-600">Số hàng/trang:</label>
+                      <select
+                        id="pageSize"
+                        className="select"
+                        value={pageSize}
+                        onChange={(e) =>
+                          fetchVessels(
+                            1,
+                            Number(e.target.value),
+                            debouncedQuery,
+                            filterHasSignal,
+                            {
+                              operator: operator || undefined,
+                              vesselType: vesselTypeInput || undefined,
+                              flag: flag || undefined,
+                              minSpeed: minSpeed !== '' ? Number(minSpeed) : undefined,
+                              maxSpeed: maxSpeed !== '' ? Number(maxSpeed) : undefined,
+                            },
+                          )
+                        }
+                      >
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                      <button
+                        className="btn"
+                        onClick={() =>
+                          fetchVessels(page, pageSize, debouncedQuery, filterHasSignal, {
+                            operator: operator || undefined,
+                            vesselType: vesselTypeInput || undefined,
+                            flag: flag || undefined,
+                            minSpeed: minSpeed !== '' ? Number(minSpeed) : undefined,
+                            maxSpeed: maxSpeed !== '' ? Number(maxSpeed) : undefined,
+                          })
+                        }
+                      >
+                        Làm mới
+                      </button>
+                      <div>Tổng: {totalItems}</div>
+                    </div>
                   </div>
                 </>
               )}

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAircraftStore } from '@/stores/aircraftStore';
 import { useVesselStore } from '@/stores/vesselStore';
 
@@ -65,6 +66,7 @@ const DrawingActionPopup: React.FC<DrawingActionPopupProps> = ({
   onSearchInRegion,
   onCancel,
 }) => {
+  const router = useRouter();
   const { aircrafts } = useAircraftStore();
   const { vessels } = useVesselStore();
 
@@ -258,7 +260,17 @@ const DrawingActionPopup: React.FC<DrawingActionPopupProps> = ({
             )}
             {results.length > 0 &&
               results.slice(0, 50).map((item: any) => (
-                <div key={`${entityType}-${item.id}`} className="p-3 text-sm">
+                <div
+                  key={`${entityType}-${item.id}`}
+                  className="p-3 text-sm cursor-pointer hover:bg-gray-50"
+                  onClick={() => {
+                    const path =
+                      entityType === 'aircraft'
+                        ? `/aircraft/${item.id}`
+                        : `/vessels/${item.id}`;
+                    router.push(path);
+                  }}
+                >
                   {entityType === 'aircraft' ? (
                     <div className="flex items-center justify-between">
                       <div>

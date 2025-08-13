@@ -140,6 +140,17 @@ export class CreateAircraftPositionDto {
   })
   @IsOptional()
   timestamp?: Date;
+
+  @ApiPropertyOptional({ description: 'Source of the message', example: 'adsb' })
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @ApiPropertyOptional({ description: 'Fusion score', example: 0.92 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  score?: number;
 }
 
 // DTO for querying aircraft history

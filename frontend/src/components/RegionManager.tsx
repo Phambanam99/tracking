@@ -41,7 +41,6 @@ const RegionManager: React.FC = () => {
 
   const handleToggleActive = async (region: Region) => {
     // Will implement update functionality
-    console.log('Toggle active for region:', region.id);
   };
 
   if (isLoading) {
