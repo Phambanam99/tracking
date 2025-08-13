@@ -40,5 +40,6 @@ export const getClusterDistance = (zoom: number): number => {
  * @returns True if icons should be simplified (circles instead of SVG)
  */
 export const shouldSimplifyIcons = (zoom: number): boolean => {
-  return zoom <= 7;
+  // Show full icons a bit earlier to avoid “missing” markers on transition
+  return zoom <= 6;
 };

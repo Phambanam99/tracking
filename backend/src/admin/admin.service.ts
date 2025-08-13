@@ -9,6 +9,9 @@ export type SystemSettings = {
   signalStaleMinutes: number;
   vesselFlagColors: Record<string, string>; // e.g., { VN: '#06b6d4' }
   aircraftOperatorColors: Record<string, string>;
+  mapProvider: 'osm' | 'maptiler';
+  maptilerApiKey?: string;
+  maptilerStyle: string; // e.g., 'streets'
 };
 
 const DEFAULT_SETTINGS: SystemSettings = {
@@ -18,6 +21,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
   signalStaleMinutes: 10,
   vesselFlagColors: {},
   aircraftOperatorColors: {},
+  mapProvider: 'osm',
+  maptilerStyle: 'streets',
 };
 
 const SETTINGS_KEY = 'system:settings';
@@ -40,6 +45,9 @@ export class AdminService {
           signalStaleMinutes: db.signalStaleMinutes,
           vesselFlagColors: (db.vesselFlagColors as any) || {},
           aircraftOperatorColors: (db.aircraftOperatorColors as any) || {},
+          mapProvider: (db as any).mapProvider || 'osm',
+          maptilerApiKey: (db as any).maptilerApiKey || undefined,
+          maptilerStyle: (db as any).maptilerStyle || 'streets',
         }
       : {};
     const merged = { ...DEFAULT_SETTINGS, ...fromDb } as SystemSettings;
@@ -62,6 +70,9 @@ export class AdminService {
         signalStaleMinutes: merged.signalStaleMinutes,
         vesselFlagColors: merged.vesselFlagColors as any,
         aircraftOperatorColors: merged.aircraftOperatorColors as any,
+        mapProvider: merged.mapProvider,
+        maptilerApiKey: merged.maptilerApiKey,
+        maptilerStyle: merged.maptilerStyle,
       },
       update: {
         clusterEnabled: merged.clusterEnabled,
@@ -70,6 +81,9 @@ export class AdminService {
         signalStaleMinutes: merged.signalStaleMinutes,
         vesselFlagColors: merged.vesselFlagColors as any,
         aircraftOperatorColors: merged.aircraftOperatorColors as any,
+        mapProvider: merged.mapProvider,
+        maptilerApiKey: merged.maptilerApiKey,
+        maptilerStyle: merged.maptilerStyle,
       },
     });
     // Update Redis + broadcast

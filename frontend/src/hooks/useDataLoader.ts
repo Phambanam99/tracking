@@ -13,7 +13,6 @@ export function useDataLoader() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        console.log('Loading initial data by viewport bbox...');
         // Try to read current map view bbox (if map exists)
         // Fallback to whole world if not available
         const bboxParam = '';
@@ -25,29 +24,17 @@ export function useDataLoader() {
           `/aircrafts/initial${bboxParam}`,
         );
         if (aircraftResponse) {
-          console.log(
-            'Aircraft data loaded:',
-            aircraftResponse.length,
-            'aircraft',
-          );
-          console.log('Sample aircraft:', aircraftResponse[0]);
           setAircrafts(aircraftResponse);
         } else {
-          console.log('No aircraft data received');
         }
 
         const vesselResponse = await api.get(`/vessels/initial${bboxParam}`);
         if (vesselResponse) {
-          console.log('Vessel data loaded:', vesselResponse.length, 'vessels');
-          console.log('Sample vessel:', vesselResponse[0]);
           setVessels(vesselResponse);
         } else {
-          console.log('No vessel data received');
         }
 
-        console.log('Data loading completed');
       } catch (error) {
-        console.error('Error loading initial data:', error);
       }
     };
 

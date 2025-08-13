@@ -10,7 +10,8 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { VesselService } from './vessel.service';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateVesselDto,
   UpdateVesselDto,
@@ -22,7 +23,10 @@ import {
 @ApiTags('vessels')
 @Controller('vessels')
 export class VesselController {
-  constructor(private readonly vesselService: VesselService) {}
+  constructor(
+    private readonly vesselService: VesselService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   /**
    * Get all vessels with their last known positions
@@ -57,6 +61,12 @@ export class VesselController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('q') q?: string,
+    @Query('hasSignal') hasSignal?: string,
+    @Query('operator') operator?: string,
+    @Query('vesselType') vesselType?: string,
+    @Query('flag') flag?: string,
+    @Query('minSpeed') minSpeed?: string,
+    @Query('maxSpeed') maxSpeed?: string,
   ): Promise<{
     data: VesselResponseDto[];
     total: number;
@@ -73,7 +83,43 @@ export class VesselController {
       p,
       ps,
       q,
+      typeof hasSignal === 'string'
+        ? hasSignal === 'true'
+          ? true
+          : hasSignal === 'false'
+            ? false
+            : undefined
+        : undefined,
+      {
+        operator,
+        vesselType,
+        flag,
+        minSpeed: minSpeed ? Number(minSpeed) : undefined,
+        maxSpeed: maxSpeed ? Number(maxSpeed) : undefined,
+      },
     );
+  }
+
+  @Get('ports')
+  @ApiOperation({ summary: 'Get ports within viewport' })
+  @ApiQuery({ name: 'bbox', required: true, description: 'minLon,minLat,maxLon,maxLat' })
+  async getPorts(@Query('bbox') bbox?: string) {
+    if (!bbox) return [];
+    const parts = bbox.split(',').map((p) => parseFloat(p.trim()));
+    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return [];
+    const [minLon, minLat, maxLon, maxLat] = parts as [number, number, number, number];
+    // Use $queryRaw to avoid type issues if Prisma Client isn't regenerated yet
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, city, state, country, latitude, longitude
+       FROM "ports"
+       WHERE latitude BETWEEN $1 AND $2 AND longitude BETWEEN $3 AND $4
+       LIMIT 5000`,
+      minLat,
+      maxLat,
+      minLon,
+      maxLon,
+    );
+    return rows;
   }
 
   /**

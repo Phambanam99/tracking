@@ -111,12 +111,6 @@ export function useFeatureUpdater({
         );
       });
 
-      console.log(
-        'Updating aircraft features:',
-        filteredAircrafts.length,
-        'aircraft (post-filter)',
-      );
-
       const features: Feature<Point>[] = [];
       for (const aircraft of filteredAircrafts) {
         if (!aircraft.lastPosition) continue;
@@ -133,11 +127,6 @@ export function useFeatureUpdater({
         );
       }
       if (features.length > 0) aircraftSource.addFeatures(features);
-
-      console.log(
-        'Aircraft features updated, total:',
-        aircraftSource.getFeatures().length,
-      );
     }
   }, [
     aircrafts,
@@ -228,12 +217,6 @@ export function useFeatureUpdater({
         );
       });
 
-      console.log(
-        'Updating vessel features:',
-        filteredVessels.length,
-        'vessels (post-filter)',
-      );
-
       const features: Feature<Point>[] = [];
       for (const vessel of filteredVessels) {
         if (!vessel.lastPosition) continue;
@@ -250,11 +233,6 @@ export function useFeatureUpdater({
         );
       }
       if (features.length > 0) vesselSource.addFeatures(features);
-
-      console.log(
-        'Vessel features updated, total:',
-        vesselSource.getFeatures().length,
-      );
     }
   }, [
     vessels,

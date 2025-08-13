@@ -26,7 +26,6 @@ export class RegionController {
   @ApiOperation({ summary: 'Create a region' })
   async createRegion(@Request() req, @Body() createRegionDto: CreateRegionDto) {
     const result = this.regionService.createRegion(req.user.id, createRegionDto);
-    console.log(result);
     return result;
   }
 
@@ -74,5 +73,27 @@ export class RegionController {
   @ApiOperation({ summary: 'Mark all alerts as read' })
   async markAllAlertsAsRead(@Request() req: any) {
     return this.regionService.markAllAlertsAsRead(req.user.id);
+  }
+
+  @Post('alerts/test')
+  @ApiOperation({ summary: 'Simulate a region alert by position update (TEST)' })
+  async simulateRegionAlert(
+    @Request() req: any,
+    @Body()
+    body: {
+      objectType: 'AIRCRAFT' | 'VESSEL';
+      objectId: number;
+      latitude: number;
+      longitude: number;
+    },
+  ) {
+    // Will create an ENTRY/EXIT alert depending on region boundaries and history
+    await this.regionService.processPositionUpdate(
+      body.objectType as any,
+      body.objectId,
+      body.latitude,
+      body.longitude,
+    );
+    return { message: 'Simulated position processed' };
   }
 }

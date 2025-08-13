@@ -33,7 +33,6 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (username: string, password: string) => {
         set({ isLoading: true, error: null });
-        console.log(username + password);
         username = username.trim();
         try {
           const data = await api.post('/auth/login', { username, password });
@@ -68,10 +67,8 @@ export const useAuthStore = create<AuthState>()(
 
       validateToken: async () => {
         const state = useAuthStore.getState();
-        console.log('🔍 validateToken called, token exists:', !!state.token);
 
         if (!state.token) {
-          console.log('❌ No token found, clearing auth state');
           set({
             user: null,
             token: null,
@@ -81,21 +78,12 @@ export const useAuthStore = create<AuthState>()(
         }
 
         try {
-          console.log(
-            '📞 Making request to /users/profile with token:',
-            state.token.substring(0, 20) + '...',
-          );
           const userData = await api.get('/users/profile');
-          console.log('✅ Profile data received:', userData);
-          console.log('🔧 Setting auth state: isAuthenticated = true');
           set({
             user: userData,
             isAuthenticated: true,
           });
-          console.log('✅ Auth state updated successfully');
         } catch (error) {
-          console.log('💥 validateToken error:', error);
-          console.log('🔧 Clearing auth state due to error');
           set({
             user: null,
             token: null,
@@ -105,16 +93,12 @@ export const useAuthStore = create<AuthState>()(
       },
 
       initializeAuth: async () => {
-        // console.log("🚀 initializeAuth called");
         set({ isLoading: true });
         const state = useAuthStore.getState();
 
         if (state.token) {
-          // console.log("🔑 Token found in state, validating...");
           await state.validateToken();
         } else {
-          // console.log("🚫 No token found in state");
-          // Ensure we set loading to false even when no token
           set({
             isLoading: false,
             isAuthenticated: false,
@@ -122,7 +106,6 @@ export const useAuthStore = create<AuthState>()(
         }
 
         set({ isLoading: false });
-        // console.log("✅ initializeAuth completed");
       },
     }),
     {

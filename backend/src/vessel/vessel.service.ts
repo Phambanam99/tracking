@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TrackingService } from '../tracking/tracking.service';
 import { CreateVesselDto, UpdateVesselDto, CreateVesselPositionDto } from './dto/vessel.dto';
@@ -24,16 +25,17 @@ export class VesselService {
           latitude: { gte: bbox[1], lte: bbox[3] },
         }
       : {};
-    const derivedLimit =
+    const derivedLimitBase =
       typeof limit === 'number' && limit > 0
         ? limit
         : zoom == null
-          ? 500000 // Increased from 5000 to 50000
+          ? 20000
           : zoom <= 4
-            ? 100000 // Increased from 1500 to 10000 for low zoom
+            ? 15000
             : zoom <= 6
-              ? 250000 // Increased from 3000 to 25000 for medium zoom
-              : 500000; // Increased from 6000 to 50000 for high zoom
+              ? 10000
+              : 8000;
+    const derivedLimit = Math.min(20000, Math.max(1000, derivedLimitBase));
 
     const vessels = await this.prisma.vessel.findMany({
       where: bbox
@@ -81,6 +83,14 @@ export class VesselService {
     page: number = 1,
     pageSize: number = 1000,
     q?: string,
+    hasSignal?: boolean,
+    adv?: {
+      operator?: string;
+      vesselType?: string;
+      flag?: string;
+      minSpeed?: number;
+      maxSpeed?: number;
+    },
   ) {
     const skip = (page - 1) * pageSize;
 
@@ -104,6 +114,29 @@ export class VesselService {
         { flag: { contains: term, mode: 'insensitive' } },
         { operator: { contains: term, mode: 'insensitive' } },
       ];
+    }
+
+    // Filter by signal presence
+    if (typeof hasSignal === 'boolean') {
+      if (hasSignal) {
+        where.positions = {
+          some: bbox
+            ? {
+                longitude: { gte: bbox[0], lte: bbox[2] },
+                latitude: { gte: bbox[1], lte: bbox[3] },
+              }
+            : {},
+        };
+      } else {
+        where.positions = { none: {} };
+      }
+    }
+
+    // Advanced filters
+    if (adv) {
+      if (adv.operator) where.operator = { contains: adv.operator, mode: 'insensitive' };
+      if (adv.vesselType) where.vesselType = { contains: adv.vesselType, mode: 'insensitive' };
+      if (adv.flag) where.flag = { contains: adv.flag, mode: 'insensitive' };
     }
 
     const total = await this.prisma.vessel.count({ where });
@@ -143,19 +176,27 @@ export class VesselService {
       take: effectivePageSize,
     });
 
-    const data = vessels.map((vessel) => ({
-      id: vessel.id,
-      mmsi: vessel.mmsi,
-      vesselName: vessel.vesselName,
-      vesselType: vessel.vesselType,
-      flag: vessel.flag,
-      operator: vessel.operator,
-      length: vessel.length,
-      width: vessel.width,
-      createdAt: vessel.createdAt,
-      updatedAt: vessel.updatedAt,
-      lastPosition: vessel.positions[0] || null,
-    }));
+    const data = vessels
+      .map((vessel) => ({
+        id: vessel.id,
+        mmsi: vessel.mmsi,
+        vesselName: vessel.vesselName,
+        vesselType: vessel.vesselType,
+        flag: vessel.flag,
+        operator: vessel.operator,
+        length: vessel.length,
+        width: vessel.width,
+        createdAt: vessel.createdAt,
+        updatedAt: vessel.updatedAt,
+        lastPosition: vessel.positions[0] || null,
+      }))
+      .filter((v) => {
+        if (!adv || !v.lastPosition) return true;
+        const sp = v.lastPosition.speed as number | undefined;
+        if (adv.minSpeed != null && !(sp != null && sp >= adv.minSpeed)) return false;
+        if (adv.maxSpeed != null && !(sp != null && sp <= adv.maxSpeed)) return false;
+        return true;
+      });
 
     return {
       data,
@@ -318,20 +359,40 @@ export class VesselService {
       heading?: number;
       status?: string;
       timestamp?: Date;
+      source?: string;
+      score?: number;
     },
   ) {
-    const positionRecord = await this.prisma.vesselPosition.create({
-      data: {
-        vesselId,
-        latitude: position.latitude,
-        longitude: position.longitude,
-        speed: position.speed,
-        course: position.course,
-        heading: position.heading,
-        status: position.status,
-        timestamp: position.timestamp || new Date(),
-      },
-    });
+    let positionRecord;
+    try {
+      positionRecord = await this.prisma.vesselPosition.create({
+        data: {
+          vesselId,
+          latitude: position.latitude,
+          longitude: position.longitude,
+          speed: position.speed,
+          course: position.course,
+          heading: position.heading,
+          status: position.status,
+          timestamp: position.timestamp || new Date(),
+          source: position.source,
+          score: position.score,
+        },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        // Duplicate by (vesselId, timestamp, source) → return existing
+        positionRecord = await this.prisma.vesselPosition.findFirst({
+          where: {
+            vesselId,
+            timestamp: position.timestamp || undefined,
+            source: position.source,
+          },
+        });
+      } else {
+        throw e;
+      }
+    }
 
     // Trigger region alert processing
     await this.trackingService.processVesselPositionUpdate(

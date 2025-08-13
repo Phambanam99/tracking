@@ -298,7 +298,27 @@ model SystemSettings {
   signalStaleMinutes     Int      @default(10)
   vesselFlagColors       Json     @default("{}")
   aircraftOperatorColors Json     @default("{}")
+  // Base map provider configuration
+  mapProvider            String   @default("osm") // 'osm' | 'maptiler'
+  maptilerApiKey         String?                    // required if mapProvider = 'maptiler'
+  maptilerStyle          String   @default("streets") // e.g., 'streets', 'outdoor', 'satellite'
   updatedAt              DateTime @updatedAt
 
   @@map("system_settings")
+}
+
+// Global list of seaports/harbors for vessel context
+model Port {
+  id        Int      @id @default(autoincrement())
+  city      String
+  state     String?
+  country   String?
+  latitude  Float
+  longitude Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([latitude, longitude])
+  @@unique([city, state, country, latitude, longitude])
+  @@map("ports")
 }

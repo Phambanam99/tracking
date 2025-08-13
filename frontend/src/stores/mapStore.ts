@@ -85,6 +85,14 @@ interface MapState {
   filtersByUser: Record<string, MapFilters>;
   _updateFilters: (updater: (prev: MapFilters) => MapFilters) => void;
   applyFilters: () => void;
+  // Server hydration
+  hydrateFromServer: (payload: {
+    activeFilterTab: 'aircraft' | 'vessel';
+    aircraftViewMode: 'all' | 'tracked';
+    vesselViewMode: 'all' | 'tracked';
+    aircraft: AircraftFilters;
+    vessel: VesselFilters;
+  }) => void;
   // Tabs and view modes
   activeFilterTab: 'aircraft' | 'vessel';
   aircraftViewMode: 'all' | 'tracked';
@@ -250,6 +258,33 @@ export const useMapStore = create<MapState>()(
         set({
           appliedFilters: state.filters,
           filtersByUser: { ...state.filtersByUser, [userId]: state.filters },
+        });
+      },
+
+      // Hydrate filters from server for current user
+      hydrateFromServer: (payload) => {
+        const state = get();
+        const userId = state.currentUserId || 'guest';
+        const hydrated: MapFilters = {
+          ...defaultFilters,
+          showAircraft: payload.activeFilterTab === 'aircraft',
+          showVessels: payload.activeFilterTab === 'vessel',
+          aircraft: {
+            ...defaultFilters.aircraft,
+            ...payload.aircraft,
+          },
+          vessel: {
+            ...defaultFilters.vessel,
+            ...payload.vessel,
+          },
+        };
+        set({
+          filters: hydrated,
+          activeFilterTab: payload.activeFilterTab,
+          aircraftViewMode: payload.aircraftViewMode,
+          vesselViewMode: payload.vesselViewMode,
+          filtersByUser: { ...state.filtersByUser, [userId]: hydrated },
+          appliedFilters: hydrated,
         });
       },
 
@@ -424,7 +459,6 @@ export const useMapStore = create<MapState>()(
 
       // Popup actions
       showPopup: (feature: FeatureData, position: [number, number]) => {
-        console.log('showPopup called with:', { feature, position });
         set({
           selectedFeature: feature,
           popupPosition: position,

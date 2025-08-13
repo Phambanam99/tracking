@@ -506,6 +506,7 @@ const MapPopup: React.FC<MapPopupProps> = ({
           </button>
         </div>
 
+
         {/* History controls */}
         <div className="pt-3 border-t space-y-2">
           <div className="flex flex-col items-center justify-between">

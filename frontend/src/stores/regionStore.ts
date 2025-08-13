@@ -62,7 +62,7 @@ interface RegionState {
 
 export const useRegionStore = create<RegionState>()(
   persist(
-    (set, get) => ({
+    (set, _get) => ({
       regions: [],
       alerts: [],
       unreadAlertCount: 0,
@@ -90,7 +90,6 @@ export const useRegionStore = create<RegionState>()(
         set({ isLoading: true, error: null });
         try {
           const newRegion = await api.post('/regions', regionData);
-          console.log('Created region response:', newRegion);
 
           if (newRegion && newRegion.id) {
             set((state) => ({
@@ -166,7 +165,7 @@ export const useRegionStore = create<RegionState>()(
           const alerts = await api.get(
             `/regions/alerts/list?unread=${unreadOnly}`,
           );
-          console.log('Alert ', alerts);
+
           const unreadCount = alerts.filter(
             (alert: RegionAlert) => !alert.isRead,
           ).length;

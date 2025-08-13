@@ -13,6 +13,9 @@ interface FormState {
   signalStaleMinutes: number;
   vesselFlagColors: string;
   aircraftOperatorColors: string;
+  mapProvider: 'osm' | 'maptiler';
+  maptilerApiKey: string;
+  maptilerStyle: string;
 }
 
 export default function AdminSettingsPage() {
@@ -26,6 +29,9 @@ export default function AdminSettingsPage() {
     signalStaleMinutes: 10,
     vesselFlagColors: '{}',
     aircraftOperatorColors: '{}',
+    mapProvider: 'osm',
+    maptilerApiKey: '',
+    maptilerStyle: 'streets',
   });
 
   const vesselExample = `{
@@ -56,6 +62,9 @@ export default function AdminSettingsPage() {
           signalStaleMinutes: s.signalStaleMinutes ?? 10,
           vesselFlagColors: JSON.stringify(s.vesselFlagColors || {}, null, 2),
           aircraftOperatorColors: JSON.stringify(s.aircraftOperatorColors || {}, null, 2),
+          mapProvider: (s.mapProvider as 'osm' | 'maptiler') || 'osm',
+          maptilerApiKey: s.maptilerApiKey || '',
+          maptilerStyle: s.maptilerStyle || 'streets',
         });
       } catch (e) {
         // ignore
@@ -75,6 +84,9 @@ export default function AdminSettingsPage() {
         signalStaleMinutes: Number(form.signalStaleMinutes) || 10,
         vesselFlagColors: JSON.parse(form.vesselFlagColors || '{}'),
         aircraftOperatorColors: JSON.parse(form.aircraftOperatorColors || '{}'),
+        mapProvider: form.mapProvider,
+        maptilerApiKey: form.maptilerApiKey?.trim() || undefined,
+        maptilerStyle: form.maptilerStyle || 'streets',
       };
       const updated = await api.put('/admin/settings', payload);
       setSettings(updated);
@@ -96,6 +108,52 @@ export default function AdminSettingsPage() {
             <div>Đang tải...</div>
           ) : (
             <div className="bg-white rounded-lg shadow p-6 space-y-4">
+              {/* Map provider selection */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-1">
+                  <label className="block text-sm text-gray-600">Nhà cung cấp bản đồ</label>
+                  <select
+                    className="mt-1 w-full border rounded px-2 py-1"
+                    value={form.mapProvider}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, mapProvider: e.target.value as 'osm' | 'maptiler' }))
+                    }
+                  >
+                    <option value="osm">OpenStreetMap (miễn phí)</option>
+                    <option value="maptiler">MapTiler</option>
+                  </select>
+                </div>
+                {form.mapProvider === 'maptiler' && (
+                  <>
+                    <div>
+                      <label className="block text-sm text-gray-600">MapTiler API key</label>
+                      <input
+                        type="text"
+                        className="mt-1 w-full border rounded px-2 py-1"
+                        value={form.maptilerApiKey}
+                        onChange={(e) => setForm((f) => ({ ...f, maptilerApiKey: e.target.value }))}
+                        placeholder="pk.****************"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600">Kiểu map</label>
+                      <select
+                        className="mt-1 w-full border rounded px-2 py-1"
+                        value={form.maptilerStyle}
+                        onChange={(e) => setForm((f) => ({ ...f, maptilerStyle: e.target.value }))}
+                      >
+                        <option value="streets">Streets</option>
+                        <option value="outdoor">Outdoor</option>
+                        <option value="satellite">Satellite</option>
+                        <option value="topo">Topographic</option>
+                        <option value="terrain">Terrain</option>
+                        <option value="bright">Bright</option>
+                        <option value="basic">Basic</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+              </div>
               <div className="flex items-center justify-between">
                 <label className="font-medium">Bật clustering</label>
                 <input

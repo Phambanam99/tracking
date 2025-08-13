@@ -5,7 +5,7 @@ import { AircraftModule } from '../aircraft/aircraft.module';
 import { VesselModule } from '../vessel/vessel.module';
 import { RedisModule } from '../redis/redis.module';
 import { FusionModule } from '../fusion/fusion.module';
-
+import { ScheduleModule } from '@nestjs/schedule';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -18,4 +18,4 @@ import { FusionModule } from '../fusion/fusion.module';
   providers: [DataFetcherService],
   exports: [DataFetcherService],
 })
-export class DataFetcherModule {}
+export class DataFetcherModule { }

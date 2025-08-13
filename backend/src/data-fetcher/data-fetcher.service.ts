@@ -124,6 +124,8 @@ export class DataFetcherService {
             speed: decision.best.groundSpeed,
             heading: decision.best.heading,
             timestamp: new Date(decision.best.ts),
+            source: decision.best.source,
+            score: scoreAircraft(decision.best, now),
           });
 
           if (
@@ -245,6 +247,8 @@ export class DataFetcherService {
             heading: decision.best.heading,
             status: decision.best.status,
             timestamp: new Date(decision.best.ts),
+            source: decision.best.source,
+            score: scoreVessel(decision.best, now),
           });
 
           if (

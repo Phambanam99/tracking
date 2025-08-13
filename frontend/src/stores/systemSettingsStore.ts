@@ -8,6 +8,9 @@ export type SystemSettings = {
   signalStaleMinutes: number;
   vesselFlagColors: Record<string, string>;
   aircraftOperatorColors: Record<string, string>;
+  mapProvider: 'osm' | 'maptiler';
+  maptilerApiKey?: string;
+  maptilerStyle: string;
 };
 
 const defaultSettings: SystemSettings = {
@@ -17,6 +20,8 @@ const defaultSettings: SystemSettings = {
   signalStaleMinutes: 10,
   vesselFlagColors: {},
   aircraftOperatorColors: {},
+  mapProvider: 'osm',
+  maptilerStyle: 'streets',
 };
 
 interface SystemSettingsState {

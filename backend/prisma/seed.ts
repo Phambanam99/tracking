@@ -330,6 +330,49 @@ async function main() {
   });
 
   console.log('✅ System settings seeded:', defaultSystemSettings);
+
+  // Seed ports from ports.json if not already imported (basic heuristic)
+  // Use raw query to avoid type mismatch if client not regenerated
+  const existingPortsRows = (await prisma.$queryRawUnsafe<any[]>(
+    'SELECT COUNT(*)::int AS count FROM "ports"',
+  )) as Array<{ count: number }>;
+  const existingPorts = existingPortsRows?.[0]?.count || 0;
+  if (existingPorts === 0) {
+    try {
+      const portsPath = path.resolve(__dirname, 'ports.json');
+      const raw = fs.readFileSync(portsPath, 'utf8');
+      const ports = JSON.parse(raw) as Array<{
+        CITY: string;
+        STATE?: string;
+        COUNTRY?: string;
+        LATITUDE: number;
+        LONGITUDE: number;
+      }>;
+      // Batch insert to avoid huge payloads
+      const batchSize = 2000;
+      for (let i = 0; i < ports.length; i += batchSize) {
+        const slice = ports.slice(i, i + batchSize);
+        // Bulk insert via raw SQL for performance and compatibility
+        // Insert via simple loop to keep code straightforward and avoid parameter index gymnastics
+        for (const p of slice) {
+          await prisma.$executeRawUnsafe(
+            'INSERT INTO "ports" (city, state, country, latitude, longitude) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING',
+            p.CITY,
+            p.STATE || null,
+            p.COUNTRY || null,
+            p.LATITUDE,
+            p.LONGITUDE,
+          );
+        }
+        console.log(`Inserted ports: ${Math.min(i + batchSize, ports.length)}/${ports.length}`);
+      }
+      console.log('✅ Ports seeded');
+    } catch (e) {
+      console.warn('⚠️ Failed to seed ports.json', e);
+    }
+  } else {
+    console.log(`ℹ️ Ports already seeded: ${existingPorts}`);
+  }
 }
 
 main()

@@ -36,6 +36,17 @@ interface AircraftStore {
     page?: number,
     pageSize?: number,
     q?: string,
+    hasSignal?: boolean,
+    adv?: {
+      operator?: string;
+      aircraftType?: string;
+      registration?: string;
+      callSign?: string;
+      minSpeed?: number;
+      maxSpeed?: number;
+      minAltitude?: number;
+      maxAltitude?: number;
+    },
   ) => Promise<void>;
 }
 
@@ -60,11 +71,57 @@ export const useAircraftStore = create<AircraftStore>((set) => ({
 
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
-  fetchAircrafts: async (page = 1, pageSize = 20, q?: string) => {
+  fetchAircrafts: async (
+    page = 1,
+    pageSize = 20,
+    q?: string,
+    hasSignal?: boolean,
+    adv?: {
+      operator?: string;
+      aircraftType?: string;
+      registration?: string;
+      callSign?: string;
+      minSpeed?: number;
+      maxSpeed?: number;
+      minAltitude?: number;
+      maxAltitude?: number;
+    },
+  ) => {
     set({ loading: true, error: null });
     try {
-      const aircrafts = await api.get('/aircrafts/initial');
-      set({ aircrafts, loading: false });
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('pageSize', String(pageSize));
+      if (q && q.trim()) params.set('q', q.trim());
+      if (typeof hasSignal === 'boolean')
+        params.set('hasSignal', String(hasSignal));
+      if (adv) {
+        if (adv.operator) params.set('operator', adv.operator);
+        if (adv.aircraftType) params.set('aircraftType', adv.aircraftType);
+        if (adv.registration) params.set('registration', adv.registration);
+        if (adv.callSign) params.set('callSign', adv.callSign);
+        if (adv.minSpeed != null) params.set('minSpeed', String(adv.minSpeed));
+        if (adv.maxSpeed != null) params.set('maxSpeed', String(adv.maxSpeed));
+        if (adv.minAltitude != null)
+          params.set('minAltitude', String(adv.minAltitude));
+        if (adv.maxAltitude != null)
+          params.set('maxAltitude', String(adv.maxAltitude));
+      }
+      const result = await api.get(`/aircrafts?${params.toString()}`);
+      const {
+        data,
+        total,
+        page: currentPage,
+        pageSize: currentPageSize,
+      } = result ?? {};
+      set({
+        aircrafts: Array.isArray(data) ? data : [],
+        total: typeof total === 'number' ? total : 0,
+        page: typeof currentPage === 'number' ? currentPage : page,
+        pageSize:
+          typeof currentPageSize === 'number' ? currentPageSize : pageSize,
+        loading: false,
+      });
     } catch (error) {
       set({
         error:

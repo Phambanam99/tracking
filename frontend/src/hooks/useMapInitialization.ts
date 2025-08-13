@@ -6,6 +6,7 @@ import VectorLayer from 'ol/layer/Vector';
 
 import VectorSource from 'ol/source/Vector';
 import OSM from 'ol/source/OSM';
+import XYZ from 'ol/source/XYZ';
 import Cluster from 'ol/source/Cluster'; // ✅ default import
 // import { defaults as defaultControls, Attribution } from 'ol/control';
 import {
@@ -16,6 +17,7 @@ import {
   Circle as CircleStyle,
   Icon,
 } from 'ol/style';
+import RegularShape from 'ol/style/RegularShape';
 import { fromLonLat } from 'ol/proj';
 import {
   getZoomFromResolution,
@@ -50,6 +52,11 @@ export function useMapInitialization(
 
   // Track URLs for cleanup
   const urlRef = useRef<Set<string>>(new Set());
+  // Preloaded base images and tinted canvas caches (for SVG coloring without Blob)
+  const baseAircraftImgRef = useRef<HTMLImageElement | null>(null);
+  const baseVesselImgRef = useRef<HTMLImageElement | null>(null);
+  const aircraftTintCacheRef = useRef<{ [key: string]: HTMLCanvasElement }>({});
+  const vesselTintCacheRef = useRef<{ [key: string]: HTMLCanvasElement }>({});
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
@@ -96,6 +103,51 @@ export function useMapInitialization(
       const iconCacheAircraft: Record<string, Style> = {};
       const iconCacheVessel: Record<string, Style> = {};
 
+      // Ensure base SVGs are preloaded from public/
+      const ensureBaseImagesLoaded = () => {
+        if (!baseAircraftImgRef.current) {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = '/aircraft-icon.svg';
+          baseAircraftImgRef.current = img;
+        }
+        if (!baseVesselImgRef.current) {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = '/vessel-icon.svg';
+          baseVesselImgRef.current = img;
+        }
+      };
+      ensureBaseImagesLoaded();
+
+      const getTintedCanvas = (
+        img: HTMLImageElement,
+        color: string,
+        cache: { [key: string]: HTMLCanvasElement },
+      ): HTMLCanvasElement | null => {
+        const key = color.toUpperCase();
+        const cached = cache[key];
+        if (cached) return cached;
+        if (!img || !img.complete || img.naturalWidth === 0) return null;
+        const size = Math.max(img.naturalWidth, img.naturalHeight) || 24;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d', {
+          // Hint for browsers when frequent readbacks/blending occur
+          willReadFrequently: true,
+        } as any);
+        if (!ctx) return null;
+        ctx.clearRect(0, 0, size, size);
+        ctx.drawImage(img, 0, 0, size, size);
+        ctx.globalCompositeOperation = 'source-in';
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, size, size);
+        ctx.globalCompositeOperation = 'source-over';
+        cache[key] = canvas;
+        return canvas;
+      };
+
       const getClusterStyleAircraft = (
         sizeBucket: number,
         withText: boolean,
@@ -135,42 +187,44 @@ export function useMapInitialization(
       // };
 
       const getIconStyleAircraft = (
-        headingKey: number,
+        headingDeg: number,
         operator?: string,
       ): Style => {
-        const key = `${headingKey}-${operator || 'default'}`;
+        // Quantize heading to reduce style variants
+        const headingBucket = Math.round(headingDeg / 15) * 15; // 15° buckets
+        const color =
+          (operator &&
+            settings.aircraftOperatorColors[operator.toUpperCase()]) ||
+          '#2563eb';
+        const key = `${headingBucket}-${color}`;
+        if (iconCacheAircraft[key]) return iconCacheAircraft[key];
 
-        // Return cached style if exists
-        if (iconCacheAircraft[key]) {
-          return iconCacheAircraft[key];
+        // Try to build tinted canvas based on user's SVG icon
+        const baseImg = baseAircraftImgRef.current;
+        const tinted = baseImg
+          ? getTintedCanvas(baseImg, color, aircraftTintCacheRef.current)
+          : null;
+        if (!tinted) {
+          // Fallback to vector shape until image is ready
+          return new Style({
+            image: new RegularShape({
+              points: 3,
+              radius: 10,
+              rotation: (headingBucket * Math.PI) / 180,
+              fill: new Fill({ color }),
+              stroke: new Stroke({ color: 'white', width: 1.5 }),
+            }),
+          });
         }
-
-        const customColor = operator
-          ? settings.aircraftOperatorColors[operator.toUpperCase()]
-          : '#2563eb'; // Default blue color
-
-        // Create inline SVG with custom color
-        const svgString = `
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="${customColor}"/>
-          </svg>
-        `;
-
-        const blob = new Blob([svgString], { type: 'image/svg+xml' });
-        const url = URL.createObjectURL(blob);
-
-        // Cache both style and URL
         const style = new Style({
           image: new Icon({
-            src: url,
-            scale: 0.8,
-            rotation: (headingKey * Math.PI) / 180,
-          }),
+            img: tinted,
+            scale: 0.9,
+            rotation: (headingBucket * Math.PI) / 180,
+            rotateWithView: true,
+          } as any),
         });
-
         iconCacheAircraft[key] = style;
-        urlRef.current.add(url); // Track for cleanup
-
         return style;
       };
 
@@ -278,40 +332,39 @@ export function useMapInitialization(
       //   return singleDotStyleVessel[key];
       // };
 
-      const getIconStyleVessel = (headingKey: number, flag?: string): Style => {
-        const key = `${headingKey}-${flag || 'default'}`;
+      const getIconStyleVessel = (headingDeg: number, flag?: string): Style => {
+        const headingBucket = Math.round(headingDeg / 15) * 15;
+        const color =
+          (flag && settings.vesselFlagColors[flag.toUpperCase()]) || '#10b981';
+        const key = `${headingBucket}-${color}`;
+        if (iconCacheVessel[key]) return iconCacheVessel[key];
 
-        // Return cached style if exists
-        if (iconCacheVessel[key]) {
-          return iconCacheVessel[key];
+        const baseImg = baseVesselImgRef.current;
+        const tinted = baseImg
+          ? getTintedCanvas(baseImg, color, vesselTintCacheRef.current)
+          : null;
+        if (!tinted) {
+          // Fallback to vector shape until image is ready
+          return new Style({
+            image: new RegularShape({
+              points: 4,
+              radius: 9,
+              angle: Math.PI / 4,
+              rotation: (headingBucket * Math.PI) / 180,
+              fill: new Fill({ color }),
+              stroke: new Stroke({ color: 'white', width: 1.5 }),
+            }),
+          });
         }
-
-        const customColor = flag
-          ? settings.vesselFlagColors[flag.toUpperCase()]
-          : '#10b981'; // Default green color
-
-        // Create inline SVG with custom color
-        const svgString = `
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M2 12L22 2L17 12L22 22L2 12Z" fill="${customColor}"/>
-          </svg>
-        `;
-
-        const blob = new Blob([svgString], { type: 'image/svg+xml' });
-        const url = URL.createObjectURL(blob);
-
-        // Cache both style and URL
         const style = new Style({
           image: new Icon({
-            src: url,
-            scale: 0.8,
-            rotation: (headingKey * Math.PI) / 180,
-          }),
+            img: tinted,
+            scale: 0.9,
+            rotation: (headingBucket * Math.PI) / 180,
+            rotateWithView: true,
+          } as any),
         });
-
         iconCacheVessel[key] = style;
-        urlRef.current.add(url); // Track for cleanup
-
         return style;
       };
 
@@ -406,19 +459,37 @@ export function useMapInitialization(
 
       // WebGL disabled completely due to persistent renderer issues - using vector layers only
 
+      // Base layer selection (OSM or MapTiler)
+      const maptilerStyleMap: Record<string, string> = {
+        streets: 'streets-v2',
+        outdoor: 'outdoor-v2',
+        satellite: 'satellite',
+        topo: 'topo-v2',
+        terrain: 'terrain',
+        bright: 'bright-v2',
+        basic: 'basic-v2',
+      };
+      const styleKey = (settings.maptilerStyle || 'streets').toLowerCase();
+      const styleId =
+        maptilerStyleMap[styleKey] || settings.maptilerStyle || 'streets-v2';
+      const baseLayer = new TileLayer({
+        source:
+          settings.mapProvider === 'maptiler' && settings.maptilerApiKey
+            ? new XYZ({
+                url: `https://api.maptiler.com/maps/${styleId}/256/{z}/{x}/{y}.png?key=${settings.maptilerApiKey}`,
+                attributions:
+                  'Map data © OpenStreetMap contributors, Imagery © MapTiler',
+                maxZoom: settings.maxZoom,
+              })
+            : new OSM(),
+      });
+
       // Map (giữ Attribution hợp lệ cho OSM)
       const map = new Map({
         target: mapRef.current!,
         pixelRatio: 1,
 
-        layers: [
-          new TileLayer({
-            source: new OSM(), // ❗️đừng xoá attribution của OSM
-          }),
-          aircraftLayer,
-          vesselLayer,
-          regionLayer,
-        ],
+        layers: [baseLayer, aircraftLayer, vesselLayer, regionLayer],
         view: new View({
           center: fromLonLat([108.2194, 16.0544]), // VN center
           zoom: Math.max(settings.minZoom, Math.min(settings.maxZoom, 6)),
@@ -450,6 +521,14 @@ export function useMapInitialization(
       if (aircraftLayerRef) aircraftLayerRef.current = aircraftLayer as any;
       if (vesselLayerRef) vesselLayerRef.current = vesselLayer as any;
       if (regionLayerRef) regionLayerRef.current = regionLayer as any;
+      // expose map instance via custom property for sibling hooks
+      try {
+        (regionLayer as any).set?.('map', map);
+      } catch {}
+      // Keep a reference to base layer for dynamic updates
+      try {
+        (map as any).set && (map as any).set('baseLayer', baseLayer);
+      } catch {}
 
       // ensure size cập nhật sau mount
       const updateMapSize = () => {
@@ -459,13 +538,15 @@ export function useMapInitialization(
       setTimeout(updateMapSize, 100);
     }, 50);
 
+    const urlSetSnapshot = new Set(urlRef.current);
     return () => {
       clearTimeout(timer);
       if (mapInstanceRef.current) {
         mapInstanceRef.current.setTarget(undefined);
       }
       // Cleanup object URLs to prevent memory leaks
-      urlRef.current.forEach((url) => {
+      const urls = Array.from(urlSetSnapshot);
+      urls.forEach((url) => {
         URL.revokeObjectURL(url);
       });
     };
@@ -476,5 +557,44 @@ export function useMapInitialization(
     vesselLayerRef,
     regionLayerRef,
     settings,
+  ]);
+
+  // Update base layer when settings change (MapTiler/OSM switch) after map is initialized
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const baseLayer: any = (map as any).get?.('baseLayer');
+    if (!baseLayer) return;
+
+    const maptilerStyleMap: Record<string, string> = {
+      streets: 'streets-v2',
+      outdoor: 'outdoor-v2',
+      satellite: 'satellite',
+      topo: 'topo-v2',
+      terrain: 'terrain',
+      bright: 'bright-v2',
+      basic: 'basic-v2',
+    };
+    const styleKey = (settings.maptilerStyle || 'streets').toLowerCase();
+    const styleId =
+      maptilerStyleMap[styleKey] || settings.maptilerStyle || 'streets-v2';
+
+    const newSource =
+      settings.mapProvider === 'maptiler' && settings.maptilerApiKey
+        ? new XYZ({
+            url: `https://api.maptiler.com/maps/${styleId}/256/{z}/{x}/{y}.png?key=${settings.maptilerApiKey}`,
+            attributions:
+              'Map data © OpenStreetMap contributors, Imagery © MapTiler',
+            maxZoom: settings.maxZoom,
+          })
+        : new OSM();
+
+    baseLayer.setSource(newSource);
+  }, [
+    settings.mapProvider,
+    settings.maptilerApiKey,
+    settings.maptilerStyle,
+    settings.maxZoom,
+    mapInstanceRef,
   ]);
 }

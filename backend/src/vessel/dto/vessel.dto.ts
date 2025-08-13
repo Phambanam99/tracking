@@ -112,6 +112,15 @@ export class CreateVesselPositionDto {
 
   @IsOptional()
   timestamp?: Date;
+
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  score?: number;
 }
 
 // DTO for querying vessel history

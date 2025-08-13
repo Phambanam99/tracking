@@ -5,15 +5,17 @@ import { useVesselStore, Vessel } from '../stores/vesselStore';
 import { useRegionStore } from '../stores/regionStore';
 import { useSystemSettingsStore } from '../stores/systemSettingsStore';
 import { useMapStore } from '../stores/mapStore';
-import Map from 'ol/Map';
-import { toLonLat } from 'ol/proj';
+// import Map from 'ol/Map';
+// import { toLonLat } from 'ol/proj';
 
-interface RegionAlert {
+interface _RegionAlert {
   id: number;
   regionId: number;
   message: string;
   timestamp: Date;
 }
+
+let _wsInitialized = false;
 
 export function useWebSocketHandler() {
   const { updateAircraft } = useAircraftStore();
@@ -22,32 +24,41 @@ export function useWebSocketHandler() {
   const { setSettings } = useSystemSettingsStore();
   const {} = useMapStore();
 
-  // Connect WebSocket
+  // Connect WebSocket once globally
   useEffect(() => {
+    if (_wsInitialized) return;
+    _wsInitialized = true;
     websocketService.connect();
-    return () => websocketService.disconnect();
+    // Do not disconnect on unmount to keep global listeners alive
   }, []);
 
   // WebSocket event listeners
   useEffect(() => {
-    console.log('Setting up WebSocket listeners...');
-
     // Aircraft position updates
     const handleAircraftUpdate = (aircraft: Aircraft) => {
-      console.log('Received aircraft update:', aircraft);
+      if (!aircraft?.lastPosition) return; // ignore stale/no-signal
+      if (
+        typeof aircraft.lastPosition.longitude !== 'number' ||
+        typeof aircraft.lastPosition.latitude !== 'number'
+      )
+        return;
       updateAircraft(aircraft);
     };
 
     // Vessel position updates
     const handleVesselUpdate = (vessel: Vessel) => {
-      console.log('Received vessel update:', vessel);
+      if (!vessel?.lastPosition) return; // ignore stale/no-signal
+      if (
+        typeof vessel.lastPosition.longitude !== 'number' ||
+        typeof vessel.lastPosition.latitude !== 'number'
+      )
+        return;
       updateVessel(vessel);
     };
 
     // Region alerts: push alert immediately and refresh regions
     const handleRegionAlert = (alert: any) => {
       try {
-        console.log('Received region alert:', alert);
         // Normalize shape and push into store
         const normalized = {
           id: alert.id,
@@ -69,7 +80,7 @@ export function useWebSocketHandler() {
       fetchRegions();
     };
 
-    // Set up listeners
+    // Set up listeners (idempotent via websocketService internal tracking)
     websocketService.onAircraftUpdate(handleAircraftUpdate);
     websocketService.onVesselUpdate(handleVesselUpdate);
     websocketService.onRegionAlert(handleRegionAlert);

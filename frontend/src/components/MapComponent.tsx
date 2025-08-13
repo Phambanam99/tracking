@@ -85,7 +85,7 @@ export default function MapComponentClustered() {
   useViewportDataLoader({ mapInstanceRef });
   useMapClickHandler({ mapInstanceRef, mapRef });
   useDrawingMode({ mapInstanceRef, regionLayerRef });
-  useRegionsRendering({ regionLayerRef });
+  useRegionsRendering({ regionLayerRef, mapInstanceRef });
   useFeatureUpdater({ aircraftLayerRef, vesselLayerRef });
 
   // Viewport bbox updates are handled inside useViewportDataLoader
@@ -584,12 +584,6 @@ export default function MapComponentClustered() {
       );
     });
 
-    console.log(
-      'Filtered aircrafts:',
-      result.length,
-      'from total:',
-      aircrafts.length,
-    );
     return result;
   }, [aircrafts, activeFilters, aircraftViewMode, trackedItems]);
 
@@ -663,13 +657,6 @@ export default function MapComponentClustered() {
         matchesSpeedMax
       );
     });
-
-    console.log(
-      'Filtered vessels:',
-      result.length,
-      'from total:',
-      vessels.length,
-    );
     return result;
   }, [vessels, activeFilters, vesselViewMode, trackedItems]);
 
@@ -697,7 +684,6 @@ export default function MapComponentClustered() {
 
   // Handle search in region
   const handleSearchInRegion = () => {
-    console.log('Search in region functionality not implemented yet');
     handleCancelDrawing();
   };
 
