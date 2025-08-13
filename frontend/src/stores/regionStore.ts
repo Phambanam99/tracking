@@ -166,12 +166,20 @@ export const useRegionStore = create<RegionState>()(
             `/regions/alerts/list?unread=${unreadOnly}`,
           );
 
-          const unreadCount = alerts.filter(
+          // Deduplicate by id to avoid duplicate keys in UI
+          const seen = new Set<number>();
+          const deduped = (alerts as RegionAlert[]).filter((a) => {
+            if (seen.has(a.id)) return false;
+            seen.add(a.id);
+            return true;
+          });
+
+          const unreadCount = deduped.filter(
             (alert: RegionAlert) => !alert.isRead,
           ).length;
 
           set({
-            alerts,
+            alerts: deduped,
             unreadAlertCount: unreadCount,
           });
         } catch (error: any) {
@@ -214,10 +222,16 @@ export const useRegionStore = create<RegionState>()(
       },
 
       addNewAlert: (alert) => {
-        set((state) => ({
-          alerts: [alert, ...state.alerts],
-          unreadAlertCount: state.unreadAlertCount + 1,
-        }));
+        set((state) => {
+          const exists = state.alerts.some((a) => a.id === alert.id);
+          const nextAlerts = exists ? state.alerts : [alert, ...state.alerts];
+          return {
+            alerts: nextAlerts,
+            unreadAlertCount: exists
+              ? state.unreadAlertCount
+              : state.unreadAlertCount + 1,
+          };
+        });
       },
 
       cleanupRegions: () => {

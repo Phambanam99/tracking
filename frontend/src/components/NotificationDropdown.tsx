@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRegionStore } from '@/stores/regionStore';
 
 interface NotificationDropdownProps {
@@ -21,11 +21,19 @@ export default function NotificationDropdown({
     }
   }, [isOpen, fetchAlerts]);
 
-  useEffect(() => {
-    // Count unread alerts
-    const unread = alerts.filter((alert) => !alert.isRead).length;
-    setUnreadCount(unread);
+  const dedupedAlerts = useMemo(() => {
+    const seen = new Set<number>();
+    return alerts.filter((alert) => {
+      if (seen.has(alert.id)) return false;
+      seen.add(alert.id);
+      return true;
+    });
   }, [alerts]);
+
+  useEffect(() => {
+    const unread = dedupedAlerts.filter((alert) => !alert.isRead).length;
+    setUnreadCount(unread);
+  }, [dedupedAlerts]);
 
   const handleMarkAsRead = async (alertId: number) => {
     await markAlertAsRead(alertId);
@@ -78,13 +86,13 @@ export default function NotificationDropdown({
         </div>
 
         <div className="max-h-96 overflow-y-auto">
-          {alerts.length === 0 ? (
+          {dedupedAlerts.length === 0 ? (
             <div className="px-4 py-6 text-center text-gray-500">
               <div className="text-4xl mb-2">🔔</div>
               <p>Không có thông báo</p>
             </div>
           ) : (
-            alerts.map((alert) => (
+            dedupedAlerts.map((alert) => (
               <div
                 key={alert.id}
                 className={`px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
