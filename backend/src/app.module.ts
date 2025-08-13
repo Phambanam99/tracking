@@ -14,6 +14,8 @@ import { AuthModule } from './auth/auth.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { RegionModule } from './region/region.module';
 import { AdminModule } from './admin/admin.module';
+import { AisModule } from './ais/ais.module';
+import aisConfig from './config/ais.config';
 
 @Module({
   imports: [
@@ -30,6 +32,7 @@ import { AdminModule } from './admin/admin.module';
     TrackingModule,
     RegionModule,
     AdminModule,
+    AisModule,
   ],
   controllers: [AppController],
   providers: [AppService],

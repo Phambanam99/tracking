@@ -9,13 +9,15 @@ async function testPagination() {
   try {
     const vesselUrl = 'http://localhost:4000/vessels/initial?page=1&pageSize=100';
     console.log(`GET ${vesselUrl}`);
-    
+
     const vesselResponse = await fetch(vesselUrl);
     const vesselData = await vesselResponse.json();
-    
+
     if (vesselData.data && Array.isArray(vesselData.data)) {
       console.log(`✅ Vessels: Loaded ${vesselData.data.length} items`);
-      console.log(`   Total: ${vesselData.total}, Page: ${vesselData.page}, PageSize: ${vesselData.pageSize}, TotalPages: ${vesselData.totalPages}`);
+      console.log(
+        `   Total: ${vesselData.total}, Page: ${vesselData.page}, PageSize: ${vesselData.pageSize}, TotalPages: ${vesselData.totalPages}`,
+      );
     } else if (Array.isArray(vesselData)) {
       console.log(`⚠️  Vessels: Got array response (legacy format), length: ${vesselData.length}`);
     } else {
@@ -32,15 +34,19 @@ async function testPagination() {
   try {
     const aircraftUrl = 'http://localhost:4000/aircrafts/initial?page=1&pageSize=100';
     console.log(`GET ${aircraftUrl}`);
-    
+
     const aircraftResponse = await fetch(aircraftUrl);
     const aircraftData = await aircraftResponse.json();
-    
+
     if (aircraftData.data && Array.isArray(aircraftData.data)) {
       console.log(`✅ Aircrafts: Loaded ${aircraftData.data.length} items`);
-      console.log(`   Total: ${aircraftData.total}, Page: ${aircraftData.page}, PageSize: ${aircraftData.pageSize}, TotalPages: ${aircraftData.totalPages}`);
+      console.log(
+        `   Total: ${aircraftData.total}, Page: ${aircraftData.page}, PageSize: ${aircraftData.pageSize}, TotalPages: ${aircraftData.totalPages}`,
+      );
     } else if (Array.isArray(aircraftData)) {
-      console.log(`⚠️  Aircrafts: Got array response (legacy format), length: ${aircraftData.length}`);
+      console.log(
+        `⚠️  Aircrafts: Got array response (legacy format), length: ${aircraftData.length}`,
+      );
     } else {
       console.log(`❌ Aircrafts: Unexpected response format:`, aircraftData);
     }

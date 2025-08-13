@@ -12,7 +12,6 @@ export class RegionService {
   ) {}
 
   async createRegion(userId: number, createRegionDto: CreateRegionDto) {
-  
     try {
       // Prepare the data for creation
       const regionData = { ...createRegionDto, userId };
@@ -28,7 +27,6 @@ export class RegionService {
           regionData.centerLng = boundary.center[0]; // longitude
           regionData.centerLat = boundary.center[1]; // latitude
           regionData.radius = boundary.radius;
-         
         }
       }
 
@@ -293,7 +291,6 @@ export class RegionService {
 
         // Broadcast alert via Redis/WebSocket
         await this.redisService.publish('region:alert', JSON.stringify(alertData));
-
       }
     }
   }

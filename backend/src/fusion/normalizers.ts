@@ -66,4 +66,3 @@ function intOrUndef(x: any): number | undefined {
   const n = Number.parseInt(String(x), 10);
   return Number.isFinite(n) ? n : undefined;
 }
-

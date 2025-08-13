@@ -31,4 +31,3 @@ export type NormAircraftMsg = {
 };
 
 export type EntityKey = string; // derived from identifiers
-

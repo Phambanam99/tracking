@@ -18,4 +18,3 @@ export const SOURCE_WEIGHT = {
 } as const;
 
 export type SourceKey = keyof typeof SOURCE_WEIGHT;
-

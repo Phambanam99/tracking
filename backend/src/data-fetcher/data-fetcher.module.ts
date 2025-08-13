@@ -18,4 +18,4 @@ import { ScheduleModule } from '@nestjs/schedule';
   providers: [DataFetcherService],
   exports: [DataFetcherService],
 })
-export class DataFetcherModule { }
+export class DataFetcherModule {}
