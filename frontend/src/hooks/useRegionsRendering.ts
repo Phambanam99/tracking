@@ -31,8 +31,8 @@ export function useRegionsRendering({
   regionLayerRef,
   mapInstanceRef,
 }: UseRegionsRenderingProps) {
-  const { regions, fetchRegions } = useRegionStore();
-  const { regionsVisible } = useMapStore();
+  const { regions, fetchRegions, selectedRegion } = useRegionStore();
+  const { regionsVisible, visibleRegionIds } = useMapStore();
   const { ports, showPorts } = usePortsStore();
   const portsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const lastSelectedRef = useRef<Feature<Point> | null>(null);
@@ -58,7 +58,11 @@ export function useRegionsRendering({
     // Only add stored regions if regionsVisible is true
     if (regionsVisible && regions && regions.length > 0) {
       // Add stored regions - filter out any null/undefined values
-      const validRegions = regions.filter(Boolean);
+      let validRegions = regions.filter(Boolean);
+      if (Array.isArray(visibleRegionIds) && visibleRegionIds.length > 0) {
+        const idSet = new Set(visibleRegionIds);
+        validRegions = validRegions.filter((r) => idSet.has(r.id));
+      }
 
       validRegions.forEach((region) => {
         if (region && region.boundary) {
@@ -107,7 +111,63 @@ export function useRegionsRendering({
         }
       });
     }
-  }, [regions, regionsVisible, regionLayerRef]);
+  }, [regions, regionsVisible, visibleRegionIds, regionLayerRef]);
+
+  // Focus map to selected region when it changes (supports both POLYGON and CIRCLE directly)
+  useEffect(() => {
+    if (!selectedRegion) return;
+    const map = (mapInstanceRef?.current ||
+      (regionLayerRef.current as any)?.get?.('map') ||
+      (regionLayerRef.current as any)?.getMap?.()) as any;
+    if (!map) return;
+
+    try {
+      let geometry: any = null;
+      if (
+        selectedRegion.regionType === 'POLYGON' &&
+        selectedRegion.boundary &&
+        'coordinates' in selectedRegion.boundary
+      ) {
+        const coordinates =
+          (selectedRegion.boundary as any).coordinates?.[0] || [];
+        const projected = coordinates.map((coord: number[]) =>
+          fromLonLat(coord),
+        );
+        geometry = new Polygon([projected]);
+      } else if (selectedRegion.regionType === 'CIRCLE') {
+        let center: any = null;
+        let radius: number | undefined;
+        if (
+          selectedRegion.boundary &&
+          'center' in selectedRegion.boundary &&
+          'radius' in selectedRegion.boundary
+        ) {
+          center = fromLonLat((selectedRegion.boundary as any).center);
+          radius = (selectedRegion.boundary as any).radius;
+        } else if (
+          selectedRegion.centerLat &&
+          selectedRegion.centerLng &&
+          selectedRegion.radius
+        ) {
+          center = fromLonLat([
+            selectedRegion.centerLng,
+            selectedRegion.centerLat,
+          ]);
+          radius = selectedRegion.radius as any;
+        }
+        if (center && radius) geometry = new Circle(center, radius);
+      }
+
+      if (geometry?.getExtent) {
+        const extent = geometry.getExtent();
+        map.getView().fit(extent, {
+          padding: [40, 40, 40, 40],
+          duration: 300,
+          maxZoom: 14,
+        });
+      }
+    } catch {}
+  }, [selectedRegion, regionLayerRef, mapInstanceRef]);
 
   // Ports rendering layer (SVG icon)
   useEffect(() => {

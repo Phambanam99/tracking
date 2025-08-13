@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useMapStore } from '@/stores/mapStore';
 import { useRegionStore, Region } from '../stores/regionStore';
 import {
   Plus,
@@ -22,8 +24,11 @@ const RegionManager: React.FC = () => {
     setSelectedRegion,
     setDrawingMode,
   } = useRegionStore();
+  const router = useRouter();
+  const { setRegionsVisibility } = useMapStore();
+  const { setVisibleRegionIds } = useMapStore() as any;
 
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  // const [showCreateForm, setShowCreateForm] = useState(false);
 
   useEffect(() => {
     fetchRegions();
@@ -39,8 +44,26 @@ const RegionManager: React.FC = () => {
     }
   };
 
+  const { updateRegion } = useRegionStore();
+
   const handleToggleActive = async (region: Region) => {
-    // Will implement update functionality
+    try {
+      await updateRegion(region.id, { isActive: !region.isActive });
+    } catch (error) {
+      console.error('Error toggling active state:', error);
+      alert('Không thể cập nhật trạng thái vùng.');
+    }
+  };
+
+  const handleEditName = async (region: Region) => {
+    const newName = prompt('Nhập tên mới cho vùng:', region.name)?.trim();
+    if (!newName || newName === region.name) return;
+    try {
+      await updateRegion(region.id, { name: newName });
+    } catch (error) {
+      console.error('Error renaming region:', error);
+      alert('Không thể đổi tên vùng.');
+    }
   };
 
   if (isLoading) {
@@ -137,7 +160,12 @@ const RegionManager: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setSelectedRegion(region)}
+                    onClick={() => {
+                      setSelectedRegion(region);
+                      setRegionsVisibility(true);
+                      setVisibleRegionIds([region.id]);
+                      router.push('/');
+                    }}
                     className="p-2 text-blue-500 hover:bg-blue-50 rounded"
                     title="Xem trên bản đồ"
                   >
@@ -159,9 +187,9 @@ const RegionManager: React.FC = () => {
                     )}
                   </button>
                   <button
-                    onClick={() => console.log('Edit region:', region.id)}
+                    onClick={() => handleEditName(region)}
                     className="p-2 text-gray-500 hover:bg-gray-50 rounded"
-                    title="Chỉnh sửa"
+                    title="Đổi tên vùng"
                   >
                     <Edit className="h-4 w-4" />
                   </button>

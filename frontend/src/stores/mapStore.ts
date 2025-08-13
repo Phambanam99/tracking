@@ -126,6 +126,9 @@ interface MapState {
   isDeleteMode: boolean;
   drawingTool: 'polygon' | 'circle' | null;
   regionsVisible: boolean;
+  visibleRegionIds: number[] | null;
+  setRegionsVisibility: (visible: boolean) => void;
+  setVisibleRegionIds: (ids: number[] | null) => void;
 
   // Drawing action popup state
   isDrawingActionPopupVisible: boolean;
@@ -233,7 +236,12 @@ export const useMapStore = create<MapState>()(
       isDrawingMode: false,
       isDeleteMode: false,
       drawingTool: null,
-      regionsVisible: true,
+      regionsVisible: false,
+      visibleRegionIds: null,
+      setRegionsVisibility: (visible: boolean) =>
+        set({ regionsVisible: visible }),
+      setVisibleRegionIds: (ids: number[] | null) =>
+        set({ visibleRegionIds: ids }),
 
       // Drawing action popup state
       isDrawingActionPopupVisible: false,
