@@ -25,6 +25,7 @@ import {
   shouldSimplifyIcons,
 } from '../utils/mapUtils';
 import { useSystemSettingsStore } from '@/stores/systemSettingsStore';
+import { useUserPreferencesStore } from '@/stores/userPreferencesStore';
 
 interface UseMapInitializationProps {
   mapRef: React.RefObject<HTMLDivElement | null>;
@@ -49,6 +50,8 @@ export function useMapInitialization(
   } = props;
 
   const { settings } = useSystemSettingsStore();
+  const { baseMapProvider, maptilerStyle: userMaptilerStyle } =
+    useUserPreferencesStore();
 
   // Track URLs for cleanup
   const urlRef = useRef<Set<string>>(new Set());
@@ -136,12 +139,12 @@ export function useMapInitialization(
         const ctx = canvas.getContext('2d', {
           // Hint for browsers when frequent readbacks/blending occur
           willReadFrequently: true,
-        } as any);
+        } as any) as CanvasRenderingContext2D | null;
         if (!ctx) return null;
         ctx.clearRect(0, 0, size, size);
         ctx.drawImage(img, 0, 0, size, size);
         ctx.globalCompositeOperation = 'source-in';
-        ctx.fillStyle = color;
+        (ctx as CanvasRenderingContext2D).fillStyle = color;
         ctx.fillRect(0, 0, size, size);
         ctx.globalCompositeOperation = 'source-over';
         cache[key] = canvas;
@@ -459,7 +462,7 @@ export function useMapInitialization(
 
       // WebGL disabled completely due to persistent renderer issues - using vector layers only
 
-      // Base layer selection (OSM or MapTiler)
+      // Base layer selection (OSM, MapTiler, or custom) with user preference override
       const maptilerStyleMap: Record<string, string> = {
         streets: 'streets-v2',
         outdoor: 'outdoor-v2',
@@ -469,20 +472,23 @@ export function useMapInitialization(
         bright: 'bright-v2',
         basic: 'basic-v2',
       };
+      // On initial mount, follow system default only. User preference updates are handled in a separate effect.
+      const effectiveProvider = settings.mapProvider;
       const styleKey = (settings.maptilerStyle || 'streets').toLowerCase();
       const styleId =
         maptilerStyleMap[styleKey] || settings.maptilerStyle || 'streets-v2';
-      const baseLayer = new TileLayer({
-        source:
-          settings.mapProvider === 'maptiler' && settings.maptilerApiKey
-            ? new XYZ({
-                url: `https://api.maptiler.com/maps/${styleId}/256/{z}/{x}/{y}.png?key=${settings.maptilerApiKey}`,
-                attributions:
-                  'Map data © OpenStreetMap contributors, Imagery © MapTiler',
-                maxZoom: settings.maxZoom,
-              })
-            : new OSM(),
-      });
+      const makeBaseSource = () => {
+        if (effectiveProvider === 'maptiler' && settings.maptilerApiKey) {
+          return new XYZ({
+            url: `https://api.maptiler.com/maps/${styleId}/256/{z}/{x}/{y}.png?key=${settings.maptilerApiKey}`,
+            attributions:
+              'Map data © OpenStreetMap contributors, Imagery © MapTiler',
+            maxZoom: settings.maxZoom,
+          });
+        }
+        return new OSM();
+      };
+      const baseLayer = new TileLayer({ source: makeBaseSource() });
 
       // Map (giữ Attribution hợp lệ cho OSM)
       const map = new Map({
@@ -527,7 +533,9 @@ export function useMapInitialization(
       } catch {}
       // Keep a reference to base layer for dynamic updates
       try {
-        (map as any).set && (map as any).set('baseLayer', baseLayer);
+        if (typeof (map as any).set === 'function') {
+          (map as any).set('baseLayer', baseLayer);
+        }
       } catch {}
 
       // ensure size cập nhật sau mount
@@ -556,10 +564,17 @@ export function useMapInitialization(
     aircraftLayerRef,
     vesselLayerRef,
     regionLayerRef,
-    settings,
+    settings.clusterEnabled,
+    settings.minZoom,
+    settings.maxZoom,
+    settings.aircraftOperatorColors,
+    settings.vesselFlagColors,
+    settings.mapProvider,
+    settings.maptilerApiKey,
+    settings.maptilerStyle,
   ]);
 
-  // Update base layer when settings change (MapTiler/OSM switch) after map is initialized
+  // Update base layer when settings or user preference change after map is initialized
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -575,26 +590,55 @@ export function useMapInitialization(
       bright: 'bright-v2',
       basic: 'basic-v2',
     };
-    const styleKey = (settings.maptilerStyle || 'streets').toLowerCase();
+    const effectiveProvider =
+      baseMapProvider === 'default'
+        ? settings.mapProvider
+        : baseMapProvider.startsWith('custom:')
+        ? 'custom'
+        : baseMapProvider;
+    const styleKey = (
+      (baseMapProvider === 'default'
+        ? settings.maptilerStyle
+        : userMaptilerStyle) || 'streets'
+    ).toLowerCase();
     const styleId =
       maptilerStyleMap[styleKey] || settings.maptilerStyle || 'streets-v2';
 
-    const newSource =
-      settings.mapProvider === 'maptiler' && settings.maptilerApiKey
-        ? new XYZ({
-            url: `https://api.maptiler.com/maps/${styleId}/256/{z}/{x}/{y}.png?key=${settings.maptilerApiKey}`,
-            attributions:
-              'Map data © OpenStreetMap contributors, Imagery © MapTiler',
-            maxZoom: settings.maxZoom,
-          })
-        : new OSM();
+    const getSource = () => {
+      if (effectiveProvider === 'maptiler' && settings.maptilerApiKey) {
+        return new XYZ({
+          url: `https://api.maptiler.com/maps/${styleId}/256/{z}/{x}/{y}.png?key=${settings.maptilerApiKey}`,
+          attributions:
+            'Map data © OpenStreetMap contributors, Imagery © MapTiler',
+          maxZoom: settings.maxZoom,
+        });
+      }
+      if (
+        effectiveProvider === 'custom' &&
+        baseMapProvider.startsWith('custom:')
+      ) {
+        const id = baseMapProvider.slice('custom:'.length);
+        const src = (settings.customMapSources || []).find((s) => s.id === id);
+        if (src) {
+          return new XYZ({
+            url: src.urlTemplate,
+            attributions: src.attribution || '',
+            maxZoom: src.maxZoom ?? settings.maxZoom,
+          });
+        }
+      }
+      return new OSM();
+    };
 
-    baseLayer.setSource(newSource);
+    baseLayer.setSource(getSource());
   }, [
     settings.mapProvider,
     settings.maptilerApiKey,
     settings.maptilerStyle,
+    settings.customMapSources,
     settings.maxZoom,
+    baseMapProvider,
+    userMaptilerStyle,
     mapInstanceRef,
   ]);
 }
