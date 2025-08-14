@@ -18,6 +18,10 @@ export class AisController {
       usingLastUpdateTime: dto?.usingLastUpdateTime,
       userId: dto?.userId,
     });
+    // If backend not connected, return success=false but don't crash
+    if (data === false) {
+      return { success: false, error: 'SignalR is not connected' };
+    }
     return { success: true, data };
   }
 
@@ -47,5 +51,36 @@ export class AisController {
   @Get('health')
   async health() {
     return { ok: true };
+  }
+
+  /** Test endpoint to manually trigger AIS data fetch */
+  @Post('test-fetch')
+  async testFetch() {
+    try {
+      // Calculate time 30 seconds ago (matching cron interval)
+      const now = Date.now();
+      const thirtySecondsAgo = new Date(now - 30000);
+      const queryTime = `DateTime(${thirtySecondsAgo.getFullYear()}, ${thirtySecondsAgo.getMonth() + 1}, ${thirtySecondsAgo.getDate()}, ${thirtySecondsAgo.getHours()}, ${thirtySecondsAgo.getMinutes()}, ${thirtySecondsAgo.getSeconds()})`;
+
+      // Simple test - just trigger a query and return status
+      await this.ais.triggerQuery({
+        query: `(updatetime >= ${queryTime})[***]`,
+        usingLastUpdateTime: false,
+        userId: 3,
+      });
+
+      return {
+        success: true,
+        message: 'AIS query triggered successfully. Check server logs for data processing.',
+        timestamp: new Date().toISOString(),
+        query: `(updatetime >= ${queryTime})[***]`,
+      };
+    } catch (error) {
+      this.logger.error('Error testing AIS fetch:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
   }
 }

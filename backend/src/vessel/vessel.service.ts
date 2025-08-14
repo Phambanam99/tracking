@@ -276,27 +276,34 @@ export class VesselService {
   /**
    * Find vessel by ID with its complete history
    */
-  async findHistory(id: number, fromDate: Date, toDate: Date, limit: number, offset = 0) {
-    const vessel = await this.prisma.vessel.findUnique({
-      where: { id },
-      include: {
-        positions: {
-          where: {
-            timestamp: {
-              gte: fromDate,
-              lte: toDate,
-            },
-          },
-          orderBy: { timestamp: 'asc' },
-          take: limit,
-          skip: offset,
-        },
-      },
-    });
+  async findHistory(
+    id: number,
+    fromDate: Date | undefined,
+    toDate: Date | undefined,
+    limit: number | undefined,
+    offset = 0,
+  ) {
+    // Ensure vessel exists
+    const vessel = await this.prisma.vessel.findUnique({ where: { id } });
+    if (!vessel) return null;
 
-    if (!vessel) {
-      return null;
-    }
+    // Build timestamp condition only for provided bounds
+    const tsCond: Record<string, Date> = {};
+    if (fromDate) tsCond.gte = fromDate;
+    if (toDate) tsCond.lte = toDate;
+
+    const wherePositions: Prisma.VesselPositionWhereInput = {
+      vesselId: id,
+      ...(Object.keys(tsCond).length > 0 ? { timestamp: tsCond as Prisma.DateTimeFilter } : {}),
+    };
+
+    const total = await this.prisma.vesselPosition.count({ where: wherePositions });
+    const positions = await this.prisma.vesselPosition.findMany({
+      where: wherePositions,
+      orderBy: { timestamp: 'asc' },
+      take: limit,
+      skip: offset,
+    });
 
     return {
       id: vessel.id,
@@ -307,7 +314,13 @@ export class VesselService {
       operator: vessel.operator,
       length: vessel.length,
       width: vessel.width,
-      positions: vessel.positions,
+      positions,
+      total,
+      limit: limit ?? total,
+      offset,
+      page: limit ? Math.floor(offset / Math.max(1, limit)) + 1 : 1,
+      pageSize: limit ?? total,
+      totalPages: limit ? Math.max(1, Math.ceil(total / Math.max(1, limit))) : 1,
     };
   }
 

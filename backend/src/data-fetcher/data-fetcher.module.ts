@@ -6,6 +6,9 @@ import { VesselModule } from '../vessel/vessel.module';
 import { RedisModule } from '../redis/redis.module';
 import { FusionModule } from '../fusion/fusion.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { AisModule } from '../ais/ais.module';
+import { AisProvider } from './sources/ais.provider';
+
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -14,8 +17,9 @@ import { ScheduleModule } from '@nestjs/schedule';
     VesselModule,
     RedisModule,
     FusionModule,
+    AisModule,
   ],
-  providers: [DataFetcherService],
+  providers: [DataFetcherService, AisProvider],
   exports: [DataFetcherService],
 })
 export class DataFetcherModule {}

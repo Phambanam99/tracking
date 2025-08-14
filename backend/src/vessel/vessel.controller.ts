@@ -131,10 +131,21 @@ export class VesselController {
     @Param('id', ParseIntPipe) id: number,
     @Query() queryDto: VesselHistoryQueryDto,
   ) {
-    const fromDate = queryDto.from || new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const toDate = queryDto.to || new Date();
-    const limit = queryDto.limit || 1000;
-    const offset = (queryDto as any).offset ? Number((queryDto as any).offset) : 0;
+    const fromDate = queryDto.from;
+    const toDate = queryDto.to;
+
+    // Support both limit/offset and page/pageSize
+    const page = (queryDto as any).page ? Math.max(1, Number((queryDto as any).page)) : undefined;
+    const pageSize = (queryDto as any).pageSize
+      ? Math.min(1000, Math.max(1, Number((queryDto as any).pageSize)))
+      : undefined;
+    const limit = pageSize ?? queryDto.limit ?? undefined;
+    const offset =
+      page != null && limit != null
+        ? (page - 1) * limit
+        : (queryDto as any).offset
+          ? Number((queryDto as any).offset)
+          : 0;
 
     const vessel = await this.vesselService.findHistory(id, fromDate, toDate, limit, offset);
 

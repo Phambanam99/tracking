@@ -8,7 +8,9 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { API_VERSION } from './common/version';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: process.env.DISABLE_LOGS === 'true' ? false : undefined,
+  });
 
   // Global validation
   app.useGlobalPipes(

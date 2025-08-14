@@ -286,27 +286,34 @@ export class AircraftService {
   /**
    * Find aircraft by ID with its complete history
    */
-  async findHistory(id: number, fromDate: Date, toDate: Date, limit: number, offset = 0) {
-    const aircraft = await this.prisma.aircraft.findUnique({
-      where: { id },
-      include: {
-        positions: {
-          where: {
-            timestamp: {
-              gte: fromDate,
-              lte: toDate,
-            },
-          },
-          orderBy: { timestamp: 'asc' },
-          take: limit,
-          skip: offset,
-        },
-      },
-    });
+  async findHistory(
+    id: number,
+    fromDate: Date | undefined,
+    toDate: Date | undefined,
+    limit: number | undefined,
+    offset = 0,
+  ) {
+    // Ensure aircraft exists
+    const aircraft = await this.prisma.aircraft.findUnique({ where: { id } });
+    if (!aircraft) return null;
 
-    if (!aircraft) {
-      return null;
-    }
+    // Build timestamp condition only for provided bounds
+    const tsCond: Record<string, Date> = {};
+    if (fromDate) tsCond.gte = fromDate;
+    if (toDate) tsCond.lte = toDate;
+
+    const wherePositions: Prisma.AircraftPositionWhereInput = {
+      aircraftId: id,
+      ...(Object.keys(tsCond).length > 0 ? { timestamp: tsCond as Prisma.DateTimeFilter } : {}),
+    };
+
+    const total = await this.prisma.aircraftPosition.count({ where: wherePositions });
+    const positions = await this.prisma.aircraftPosition.findMany({
+      where: wherePositions,
+      orderBy: { timestamp: 'asc' },
+      take: limit,
+      skip: offset,
+    });
 
     return {
       id: aircraft.id,
@@ -315,7 +322,13 @@ export class AircraftService {
       registration: aircraft.registration,
       aircraftType: aircraft.aircraftType,
       operator: aircraft.operator,
-      positions: aircraft.positions,
+      positions,
+      total,
+      limit: limit ?? total,
+      offset,
+      page: limit ? Math.floor(offset / Math.max(1, limit)) + 1 : 1,
+      pageSize: limit ?? total,
+      totalPages: limit ? Math.max(1, Math.ceil(total / Math.max(1, limit))) : 1,
     };
   }
 

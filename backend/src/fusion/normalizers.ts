@@ -9,9 +9,9 @@ function toIsoUtc(input: string | number | Date | undefined): string | undefined
 }
 
 export function normalizeVessel(raw: any, source: VesselSource): NormVesselMsg | undefined {
-  const ts = toIsoUtc(raw.ts || raw.timestamp || raw.time || raw.observedAt || raw.datetime);
-  const lat = Number(raw.lat ?? raw.latitude);
-  const lon = Number(raw.lon ?? raw.lng ?? raw.longitude);
+  const ts = toIsoUtc(raw.ts);
+  const lat = Number(raw.lat);
+  const lon = Number(raw.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || !ts) return undefined;
   const m: NormVesselMsg = {
     source,

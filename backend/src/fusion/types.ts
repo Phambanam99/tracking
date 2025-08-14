@@ -1,5 +1,24 @@
-export type VesselSource = 'marine_traffic' | 'vessel_finder' | 'china_port' | 'custom';
+export type VesselSource =
+  | 'marine_traffic'
+  | 'vessel_finder'
+  | 'china_port'
+  | 'ais_marine'
+  | 'custom';
 export type AircraftSource = 'adsb_exchange' | 'opensky' | 'custom';
+
+export type RawVessel = {
+  mmsi: string;
+  name: string;
+  lat: number;
+  lon: number;
+  speed: number;
+  course: number;
+  heading: number;
+  status: string;
+  timestamp: number;
+  source: VesselSource;
+  raw?: any; // Original data for debugging
+};
 
 export type NormVesselMsg = {
   source: VesselSource;
