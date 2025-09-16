@@ -3,7 +3,6 @@ import { Controller, Get, Post, Body, Sse, MessageEvent, Logger } from '@nestjs/
 import { map, merge, Observable, interval, startWith } from 'rxjs';
 import { AisSignalrService } from './ais-signalr.service';
 import type { QueryRequestDto } from './ais.types';
-import { QueryResultState } from './ais.types';
 
 @Controller('ais')
 export class AisController {
@@ -50,7 +49,12 @@ export class AisController {
   /** (tuỳ chọn) endpoint test connect lại */
   @Get('health')
   async health() {
-    return { ok: true };
+    const status = (this.ais as any)?.getStatus ? (this.ais as any).getStatus() : {};
+    return {
+      ok: true,
+      signalr: status,
+      timestamp: new Date().toISOString(),
+    };
   }
 
   /** Test endpoint to manually trigger AIS data fetch */

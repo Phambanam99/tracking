@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { VesselService } from './vessel.service';
+import { RedisService } from '../redis/redis.service';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -26,6 +27,7 @@ export class VesselController {
   constructor(
     private readonly vesselService: VesselService,
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
   ) {}
 
   /**
@@ -50,6 +52,54 @@ export class VesselController {
     const z = zoom ? Number(zoom) : undefined;
     const lim = limit ? Number(limit) : undefined;
     return this.vesselService.findAllWithLastPosition(parsedBbox, z, lim);
+  }
+
+  /**
+   * Online vessels from Redis TTL cache (fast for dashboard)
+   */
+  @Get('online')
+  @ApiOperation({ summary: 'List online vessels (from Redis cache, TTL-based)' })
+  @ApiQuery({ name: 'bbox', required: false, description: 'minLon,minLat,maxLon,maxLat' })
+  @ApiQuery({ name: 'limit', required: false, description: 'max items', type: Number })
+  async listOnline(@Query('bbox') bbox?: string, @Query('limit') limit?: string): Promise<any[]> {
+    const lim = limit ? Math.max(1, Number(limit)) : 5000;
+
+    // Fetch keys
+    const client = this.redis.getClient();
+    const keys = await client.keys('vessel:last:*');
+    if (!keys.length) return [];
+
+    // MGET values
+    const values = await client.mget(keys);
+    const items = values
+      .map((v) => {
+        try {
+          return v ? JSON.parse(v) : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean) as any[];
+
+    // Optional bbox filter
+    let filtered = items;
+    if (bbox) {
+      const parts = bbox.split(',').map((p) => parseFloat(p.trim()));
+      if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
+        const [minLon, minLat, maxLon, maxLat] = parts as [number, number, number, number];
+        filtered = items.filter(
+          (it) =>
+            it &&
+            it.longitude >= minLon &&
+            it.longitude <= maxLon &&
+            it.latitude >= minLat &&
+            it.latitude <= maxLat,
+        );
+      }
+    }
+
+    // Limit
+    return filtered.slice(0, lim);
   }
 
   /**

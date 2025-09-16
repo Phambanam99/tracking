@@ -46,120 +46,7 @@ export class DataFetcherService {
     }
   }
 
-  /**
-   * Simulate fetching aircraft data from external APIs like Flightradar24
-   */
-  private async fetchAndUpdateAircraftData() {
-    // Simulate some aircraft data - replace with real API calls later
-    const simulatedAircraftData = [
-      {
-        flightId: 'UAL123',
-        callSign: 'UAL123',
-        registration: 'N12345',
-        aircraftType: 'Boeing 737',
-        operator: 'United Airlines',
-        position: {
-          latitude: 37.7749 + (Math.random() - 0.5) * 0.01, // San Francisco area
-          longitude: -122.4194 + (Math.random() - 0.5) * 0.01,
-          altitude: 35000 + Math.floor(Math.random() * 5000),
-          speed: 450 + Math.floor(Math.random() * 100),
-          heading: Math.floor(Math.random() * 360),
-        },
-      },
-      {
-        flightId: 'DAL456',
-        callSign: 'DAL456',
-        registration: 'N67890',
-        aircraftType: 'Airbus A320',
-        operator: 'Delta Airlines',
-        position: {
-          latitude: 40.7128 + (Math.random() - 0.5) * 0.01, // New York area
-          longitude: -74.006 + (Math.random() - 0.5) * 0.01,
-          altitude: 30000 + Math.floor(Math.random() * 5000),
-          speed: 420 + Math.floor(Math.random() * 100),
-          heading: Math.floor(Math.random() * 360),
-        },
-      },
-    ];
-
-    const now = Date.now();
-    // Normalize and ingest as if coming from a single source for demo
-    const normalized = simulatedAircraftData
-      .map((a) =>
-        normalizeAircraft(
-          {
-            ...a,
-            ts: new Date().toISOString(),
-            lat: a.position.latitude,
-            lon: a.position.longitude,
-            altitude: a.position.altitude,
-            speed: a.position.speed,
-            heading: a.position.heading,
-          },
-          'custom',
-        ),
-      )
-      .filter((m): m is NonNullable<typeof m> => !!m);
-
-    this.aircraftFusion.ingest(normalized, now);
-
-    for (const aircraftData of simulatedAircraftData) {
-      try {
-        // Upsert aircraft
-        const aircraft = await this.aircraftService.upsertAircraft({
-          flightId: aircraftData.flightId,
-          callSign: aircraftData.callSign,
-          registration: aircraftData.registration,
-          aircraftType: aircraftData.aircraftType,
-          operator: aircraftData.operator,
-        });
-
-        // Decide by fusion for this aircraft key
-        const key = aircraftData.flightId; // demo key
-        const decision = await this.aircraftFusion.decide(key, now);
-        if (decision.best) {
-          // Persist position (idempotent via timestamp granularity in demo)
-          await this.aircraftService.addPosition(aircraft.id, {
-            latitude: decision.best.lat,
-            longitude: decision.best.lon,
-            altitude: decision.best.altitude,
-            speed: decision.best.groundSpeed,
-            heading: decision.best.heading,
-            timestamp: new Date(decision.best.ts),
-            source: decision.best.source,
-            score: scoreAircraft(decision.best, now),
-          });
-
-          if (
-            decision.publish &&
-            Date.now() - Date.parse(decision.best.ts) <= FUSION_CONFIG.ALLOWED_LATENESS_MS
-          ) {
-            await this.redisService.publish(
-              'aircraft:position:update',
-              JSON.stringify({
-                aircraftId: aircraft.id,
-                flightId: aircraftData.flightId,
-                latitude: decision.best.lat,
-                longitude: decision.best.lon,
-                altitude: decision.best.altitude,
-                speed: decision.best.groundSpeed,
-                heading: decision.best.heading,
-                source: decision.best.source,
-                score: scoreAircraft(decision.best, now),
-                predicted: false,
-                timestamp: decision.best.ts,
-              }),
-            );
-            await this.aircraftFusion.markPublished(key, decision.best.ts);
-          }
-        }
-
-        this.logger.debug(`✅ Updated aircraft ${aircraftData.flightId} and published to Redis`);
-      } catch (error) {
-        this.logger.error(`Error updating aircraft ${aircraftData.flightId}:`, error);
-      }
-    }
-  }
+ 
 
   /**
    * Fetch real vessel data from AIS provider
@@ -269,6 +156,25 @@ export class DataFetcherService {
                   predicted: false,
                   timestamp: chosen.ts,
                 }),
+              );
+              // Cache latest vessel state with TTL 10 minutes
+              await this.redisService.set(
+                `vessel:last:${vessel.id}`,
+                JSON.stringify({
+                  vesselId: vessel.id,
+                  vesselName: vesselData.name,
+                  latitude: chosen.lat,
+                  longitude: chosen.lon,
+                  speed: chosen.speed,
+                  course: chosen.course,
+                  heading: chosen.heading,
+                  status: chosen.status,
+                  source: chosen.source,
+                  score: scoreVessel(chosen, now),
+                  predicted: false,
+                  timestamp: chosen.ts,
+                }),
+                600,
               );
               await this.vesselFusion.markPublished(key, chosen.ts);
             }
