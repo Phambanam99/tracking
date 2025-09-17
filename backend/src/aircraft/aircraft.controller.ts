@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { AircraftService } from './aircraft.service';
+import { RedisService } from '../redis/redis.service';
 import { ApiOperation, ApiTags, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import {
   CreateAircraftDto,
@@ -22,7 +23,10 @@ import {
 @ApiTags('aircrafts')
 @Controller('aircrafts')
 export class AircraftController {
-  constructor(private readonly aircraftService: AircraftService) {}
+  constructor(
+    private readonly aircraftService: AircraftService,
+    private readonly redis: RedisService,
+  ) {}
 
   /**
    * Get all aircraft with their last known positions
@@ -242,5 +246,44 @@ export class AircraftController {
   @ApiResponse({ status: 404, description: 'Aircraft not found' })
   async addPosition(@Body() createPositionDto: CreateAircraftPositionDto) {
     return this.aircraftService.addPositionWithDto(createPositionDto);
+  }
+
+  /**
+   * Get online aircraft (from Redis fused AIS if stored similarly or fallback to DB recent positions)
+   * For now emulate structure similar to vessels online using ais:vessels:* keys filtered by an aircraft prefix if future separation needed.
+   * Since fusion currently targets vessels, we provide a placeholder returning empty array to avoid 400 misuse.
+   * Later can be wired to an `ais:aircraft:*` key namespace.
+   */
+  @Get('online')
+  @ApiOperation({ summary: 'Get online aircraft (placeholder – not yet populated)' })
+  @ApiQuery({ name: 'bbox', required: false, description: 'minLon,minLat,maxLon,maxLat' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max number (<=5000)' })
+  @ApiQuery({
+    name: 'stalenessSec',
+    required: false,
+    description: 'Max age seconds (default 3600)',
+  })
+  async getOnlineAircraft(
+    @Query('bbox') bbox?: string,
+    @Query('limit') limitStr?: string,
+    @Query('stalenessSec') stalenessStr?: string,
+  ) {
+    // Placeholder until aircraft fusion implemented. Return structure consistent with vessels.
+    let bboxNums: [number, number, number, number] | null = null;
+    if (bbox) {
+      const parts = bbox.split(',').map((p) => parseFloat(p.trim()));
+      if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
+        bboxNums = [parts[0], parts[1], parts[2], parts[3]];
+      }
+    }
+    const _limit = limitStr ? Math.min(5000, Math.max(1, Number(limitStr))) : 1000; // reserved for future use
+    const stalenessSec = stalenessStr ? Math.max(10, Number(stalenessStr)) : 3600;
+    return {
+      count: 0,
+      stalenessSec,
+      bbox: bboxNums,
+      data: [],
+      note: 'Aircraft online feed not yet implemented',
+    };
   }
 }

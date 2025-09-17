@@ -58,7 +58,7 @@ Tạo file `backend/.env` (ví dụ):
 
 ```env
 PORT=3000
-DATABASE_URL=postgresql://admin:Phamnam99@localhost:5432/tracking?schema=public
+DATABASE_URLL=postgresql://admin:Phamnam99@localhost:5432/tracking?schema=public
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=change-me
 JWT_EXPIRES_IN=24h
@@ -167,7 +167,7 @@ Frontend (`frontend/package.json`):
 
 - Không truy cập được Swagger: đảm bảo backend chạy cổng 3000 và truy cập `http://localhost:3000/api/docs`
 - Lỗi CORS: đặt `FRONTEND_ORIGIN` trong `backend/.env` khớp với URL frontend (mặc định `http://localhost:4000`)
-- DB không kết nối: chạy `docker compose up -d` hoặc chỉnh `DATABASE_URL` cho đúng user/password/port
+- DB không kết nối: chạy `docker compose up -d` hoặc chỉnh `DATABASE_URLL` cho đúng user/password/port
 - Prisma lỗi loại bảng: chạy `npx prisma migrate dev` hoặc `npx prisma db push` (chỉ khi hiểu rõ hậu quả)
 - Xung đột cổng: đổi `PORT` backend hoặc `-p` frontend (`frontend/package.json` mặc định 4000)
 

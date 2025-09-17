@@ -3,8 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 
 // Prefer same-origin proxy via Next.js to backend
 // Default base path is '/api' which next.config.ts rewrites to backend '/api'
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.trim() || 'http://localhost:3000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim() || '/api';
 const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || '1.0.0';
 
 class ApiService {

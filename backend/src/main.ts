@@ -108,7 +108,26 @@ async function bootstrap() {
     `,
   });
 
-  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
+  await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
+
+  // Debug: liệt kê toàn bộ routes đã đăng ký (tạm thời)
+  const server: any = app.getHttpServer();
+  const router = server._events?.request?._router || server._router; // express router
+  const globalPrefix = 'api'; // we know we set it above
+  if (router && router.stack) {
+    console.log('--- Registered Routes ---');
+    router.stack
+      .filter((l: any) => l.route)
+      .forEach((l: any) => {
+        const methods = Object.keys(l.route.methods)
+          .filter((m) => l.route.methods[m])
+          .map((m) => m.toUpperCase())
+          .join(',');
+        const path = `/${globalPrefix}${l.route.path}`;
+        console.log(methods.padEnd(10), path);
+      });
+    console.log('-------------------------');
+  }
 }
 
 void bootstrap();

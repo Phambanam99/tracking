@@ -1,5 +1,7 @@
--- RenameIndex
-ALTER INDEX "public"."ports_city_state_country_lat_lon_key" RENAME TO "ports_city_state_country_latitude_longitude_key";
+-- This migration previously attempted to rename port-related indexes BEFORE the ports table
+-- was introduced (in a later migration). That ordering caused shadow database failures.
+-- It has been converted into a no-op to preserve migration chain consistency.
+-- If you still want the new index names, create a NEW migration after the ports creation
+-- that performs the rename safely, or adjust future migrations accordingly.
 
--- RenameIndex
-ALTER INDEX "public"."ports_lat_lon_idx" RENAME TO "ports_latitude_longitude_idx";
+-- NO-OP

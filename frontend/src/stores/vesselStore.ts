@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import api from '../services/apiClient';
 
+// Thời gian hết hạn: 30 phút không có cập nhật sẽ bị xoá khỏi store
+const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30'
+
+// Interval prune mặc định (5 phút quét một lần)
+const PRUNE_INTERVAL_MS = 5 * 60 * 1000;
+
+let pruneTimer: ReturnType<typeof setInterval> | null = null;
+
 export interface Vessel {
   id: number;
   mmsi: string;
@@ -22,6 +30,8 @@ export interface Vessel {
     status?: string;
     timestamp: Date;
   };
+  // Thời điểm cuối cùng nhận dữ liệu (tính theo Date.now())
+  lastSeen?: number;
 }
 
 interface VesselStore {
@@ -33,6 +43,7 @@ interface VesselStore {
   error: string | null;
   setVessels: (vessels: Vessel[]) => void;
   updateVessel: (vessel: Vessel) => void;
+  pruneStale: () => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   fetchVessels: (
@@ -50,24 +61,68 @@ interface VesselStore {
   ) => Promise<void>;
 }
 
-export const useVesselStore = create<VesselStore>((set) => ({
+export const useVesselStore = create<VesselStore>((set, get) => ({
   vessels: [],
   total: 0,
   page: 1,
   pageSize: 20,
   loading: false,
   error: null,
-  setVessels: (vessels) => set({ vessels }),
+  setVessels: (vessels) =>
+    set({
+      vessels: vessels.map((v) => ({
+        ...v,
+        lastSeen: Date.now(),
+        lastPosition: v.lastPosition
+          ? { ...v.lastPosition, timestamp: new Date(v.lastPosition.timestamp) }
+          : undefined,
+      })),
+    }),
   updateVessel: (incoming) =>
     set((state) => {
       const idx = state.vessels.findIndex((v) => v.id === incoming.id);
       if (idx === -1) {
-        return { vessels: [...state.vessels, incoming] };
+        return {
+          vessels: [
+            ...state.vessels,
+            {
+              ...incoming,
+              lastSeen: Date.now(),
+              lastPosition: incoming.lastPosition
+                ? {
+                    ...incoming.lastPosition,
+                    timestamp: new Date(incoming.lastPosition.timestamp),
+                  }
+                : undefined,
+            },
+          ],
+        };
       }
       const next = [...state.vessels];
-      next[idx] = { ...next[idx], ...incoming };
+      next[idx] = {
+        ...next[idx],
+        ...incoming,
+        lastSeen: Date.now(),
+        lastPosition: incoming.lastPosition
+          ? {
+              ...incoming.lastPosition,
+              timestamp: new Date(incoming.lastPosition.timestamp),
+            }
+          : next[idx].lastPosition,
+      };
       return { vessels: next };
     }),
+
+  pruneStale: () => {
+    const now = Date.now();
+    const before = get().vessels.length;
+    const fresh = get().vessels.filter((v) =>
+      v.lastSeen ? now - v.lastSeen <= STALE_THRESHOLD_MS : true,
+    );
+    if (fresh.length !== before) {
+      set({ vessels: fresh });
+    }
+  },
 
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
@@ -106,8 +161,15 @@ export const useVesselStore = create<VesselStore>((set) => ({
         page: currentPage,
         pageSize: currentPageSize,
       } = result ?? {};
+      const arr = Array.isArray(data) ? data : [];
       set({
-        vessels: Array.isArray(data) ? data : [],
+        vessels: arr.map((v: any) => ({
+          ...v,
+          lastSeen: Date.now(),
+          lastPosition: v?.lastPosition
+            ? { ...v.lastPosition, timestamp: new Date(v.lastPosition.timestamp) }
+            : undefined,
+        })),
         total: typeof total === 'number' ? total : 0,
         page: typeof currentPage === 'number' ? currentPage : page,
         pageSize:
@@ -123,3 +185,19 @@ export const useVesselStore = create<VesselStore>((set) => ({
     }
   },
 }));
+
+// Khởi động interval prune một lần khi module được import
+if (!pruneTimer) {
+  pruneTimer = setInterval(() => {
+    try {
+      useVesselStore.getState().pruneStale();
+    } catch (_) {
+      // ignore
+    }
+  }, PRUNE_INTERVAL_MS);
+}
+
+// Tuỳ chọn: expose hàm force prune ngay lập tức
+export function forcePruneVessels() {
+  useVesselStore.getState().pruneStale();
+}

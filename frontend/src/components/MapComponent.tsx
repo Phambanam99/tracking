@@ -29,8 +29,9 @@ import {
   useRegionsRendering,
   useWebSocketHandler,
   useFeatureUpdater,
-  useViewportDataLoader,
 } from '../hooks';
+import { useAircraftViewportLoader } from '@/hooks/useAircraftViewportLoader';
+import { useVesselViewportLoader } from '@/hooks/useVesselViewportLoader';
 
 export default function MapComponentClustered() {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -82,13 +83,15 @@ export default function MapComponentClustered() {
     regionLayerRef,
   });
   // Then attach viewport loader (fetch + WS bbox)
-  useViewportDataLoader({ mapInstanceRef });
+  // Separate loaders để tránh fetch thừa
+  useAircraftViewportLoader({ mapInstanceRef });
+  useVesselViewportLoader({ mapInstanceRef });
   useMapClickHandler({ mapInstanceRef, mapRef });
   useDrawingMode({ mapInstanceRef, regionLayerRef });
   useRegionsRendering({ regionLayerRef, mapInstanceRef });
   useFeatureUpdater({ aircraftLayerRef, vesselLayerRef });
 
-  // Viewport bbox updates are handled inside useViewportDataLoader
+  // Viewport bbox updates handled inside split loaders
 
   // Respond to focusTarget by centering map and switching the tab/layer visibility
   useEffect(() => {
@@ -449,7 +452,7 @@ export default function MapComponentClustered() {
           }
           return undefined;
         },
-        { hitTolerance: 10 },
+        { hitTolerance: 18 },
       );
 
       if (lastHover && lastHover !== hovered) {
@@ -489,7 +492,8 @@ export default function MapComponentClustered() {
     const updatePointerListener = () => {
       const z = map.getView().getZoom() ?? 8;
       map.un('pointermove', onPointerMove as any);
-      if (z >= 8) map.on('pointermove', onPointerMove);
+      // Enable hover at lower zoom levels to make time labels easier to discover
+      if (z >= 5) map.on('pointermove', onPointerMove);
     };
     updatePointerListener();
     map.getView().on('change:resolution', updatePointerListener);

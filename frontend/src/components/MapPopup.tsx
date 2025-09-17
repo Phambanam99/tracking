@@ -284,6 +284,7 @@ const MapPopup: React.FC<MapPopupProps> = ({
         ? `/aircrafts/${id}/history?from=${encodeURIComponent(fromISO)}`
         : `/vessels/${id}/history?from=${encodeURIComponent(fromISO)}`;
       const data = await api.get(endpoint);
+      console.log(data);
       const positions = Array.isArray(data.positions) ? data.positions : [];
       setHistoryPath({
         type: isAircraft ? 'aircraft' : 'vessel',

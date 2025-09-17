@@ -22,7 +22,7 @@ interface Vessel {
   createdAt: Date;
   updatedAt: Date;
   lastPosition?: {
-    id: number;
+    id?: number;
     latitude: number;
     longitude: number;
     speed?: number;
@@ -36,12 +36,25 @@ interface Vessel {
 export default function VesselDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { vessels, fetchVessels } = useVesselStore();
+  const { vessels, fetchVessels, updateVessel } = useVesselStore();
   const { setFocusTarget } = useMapStore();
   const { isTracking, trackItem, untrackItem, fetchTrackedItems } = useTrackingStore();
   const [vessel, setVessel] = useState<Vessel | null>(null);
   const [loading, setLoading] = useState(true);
   const [trackingBusy, setTrackingBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [saveOk, setSaveOk] = useState(false);
+
+  const [form, setForm] = useState<{
+    vesselName?: string;
+    vesselType?: string;
+    flag?: string;
+    operator?: string;
+    length?: string;
+    width?: string;
+  }>({});
 
   const SIGNAL_STALE_MINUTES = Number(
     process.env.NEXT_PUBLIC_SIGNAL_STALE_MINUTES || 10,
@@ -54,7 +67,7 @@ export default function VesselDetailPage() {
       }
 
       const vesselId = parseInt(params.id as string);
-      let foundVessel = vessels.find((v) => v.id === vesselId);
+      const foundVessel = vessels.find((v) => v.id === vesselId);
 
       if (foundVessel) {
         setVessel(foundVessel);
@@ -76,6 +89,63 @@ export default function VesselDetailPage() {
   useEffect(() => {
     fetchTrackedItems().catch(() => undefined);
   }, [fetchTrackedItems]);
+
+  const startEditing = () => {
+    if (!vessel) return;
+    setForm({
+      vesselName: vessel.vesselName || '',
+      vesselType: vessel.vesselType || '',
+      flag: vessel.flag || '',
+      operator: vessel.operator || '',
+      length: vessel.length != null ? String(vessel.length) : '',
+      width: vessel.width != null ? String(vessel.width) : '',
+    });
+    setErrorMsg(null);
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setEditing(false);
+    setErrorMsg(null);
+  };
+
+  const saveEdits = async () => {
+    if (!vessel) return;
+    setSaving(true);
+    setErrorMsg(null);
+    try {
+      const payload: any = {
+        vesselName: form.vesselName?.trim() || undefined,
+        vesselType: form.vesselType?.trim() || undefined,
+        flag: form.flag?.trim() ? form.flag.trim().toUpperCase() : undefined,
+        operator: form.operator?.trim() || undefined,
+      };
+      const lengthVal = form.length?.trim();
+      const widthVal = form.width?.trim();
+      if (lengthVal) {
+        const n = Number(lengthVal);
+        if (!Number.isFinite(n) || n < 1) throw new Error('Chiều dài không hợp lệ');
+        payload.length = n;
+      }
+      if (widthVal) {
+        const n = Number(widthVal);
+        if (!Number.isFinite(n) || n < 1) throw new Error('Chiều rộng không hợp lệ');
+        payload.width = n;
+      }
+
+      const updated = await api.put(`/vessels/${vessel.id}`, payload);
+      // Update local state and global store
+      setVessel((prev) => (prev ? { ...prev, ...updated } : updated));
+      updateVessel(updated);
+      setEditing(false);
+      setSaveOk(true);
+      setTimeout(() => setSaveOk(false), 2500);
+    } catch (e: any) {
+      setErrorMsg(e?.message || 'Không thể lưu thay đổi');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -165,9 +235,33 @@ export default function VesselDetailPage() {
                 >
                   Quay lại
                 </button>
-                <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
-                  Chỉnh sửa
-                </button>
+                {editing ? (
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={saveEdits}
+                      disabled={saving}
+                      className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
+                        saving ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                      }`}
+                    >
+                      {saving ? 'Đang lưu...' : 'Lưu'}
+                    </button>
+                    <button
+                      onClick={cancelEditing}
+                      disabled={saving}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      Hủy
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={startEditing}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    Chỉnh sửa
+                  </button>
+                )}
               </div>
             </div>
 
@@ -179,94 +273,193 @@ export default function VesselDetailPage() {
                     <h3 className="text-lg font-medium text-gray-900 mb-4">
                       Thông tin cơ bản
                     </h3>
-
-                    <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-                      <div>
-                        <dt className="text-sm font-medium text-gray-500">
-                          MMSI
-                        </dt>
-                        <dd className="mt-1 text-sm text-gray-900">
-                          {vessel.mmsi}
-                        </dd>
+                    {errorMsg && (
+                      <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                        {errorMsg}
                       </div>
-
-                      {vessel.vesselName && (
-                        <div>
-                          <dt className="text-sm font-medium text-gray-500">
-                            Tên tàu
-                          </dt>
-                          <dd className="mt-1 text-sm text-gray-900">
-                            {vessel.vesselName}
-                          </dd>
-                        </div>
-                      )}
-
-                      {vessel.vesselType && (
-                        <div>
-                          <dt className="text-sm font-medium text-gray-500">
-                            Loại tàu
-                          </dt>
-                          <dd className="mt-1 text-sm text-gray-900">
-                            {vessel.vesselType}
-                          </dd>
-                        </div>
-                      )}
-
-                      {vessel.flag && (
-                        <div>
-                          <dt className="text-sm font-medium text-gray-500">
-                            Cờ hiệu
-                          </dt>
-                          <dd className="mt-1 text-sm text-gray-900">
-                            {vessel.flag}
-                          </dd>
-                        </div>
-                      )}
-
-                      {vessel.operator && (
-                        <div>
-                          <dt className="text-sm font-medium text-gray-500">
-                            Chủ sở hữu
-                          </dt>
-                          <dd className="mt-1 text-sm text-gray-900">
-                            {vessel.operator}
-                          </dd>
-                        </div>
-                      )}
-
-                      {vessel.length && (
-                        <div>
-                          <dt className="text-sm font-medium text-gray-500">
-                            Chiều dài
-                          </dt>
-                          <dd className="mt-1 text-sm text-gray-900">
-                            {vessel.length}m
-                          </dd>
-                        </div>
-                      )}
-
-                      {vessel.width && (
-                        <div>
-                          <dt className="text-sm font-medium text-gray-500">
-                            Chiều rộng
-                          </dt>
-                          <dd className="mt-1 text-sm text-gray-900">
-                            {vessel.width}m
-                          </dd>
-                        </div>
-                      )}
-
-                      <div>
-                        <dt className="text-sm font-medium text-gray-500">
-                          Ngày tạo
-                        </dt>
-                        <dd className="mt-1 text-sm text-gray-900">
-                          {new Date(vessel.createdAt).toLocaleDateString(
-                            'vi-VN',
-                          )}
-                        </dd>
+                    )}
+                    {!errorMsg && saveOk && (
+                      <div className="mb-4 rounded-md bg-green-50 p-3 text-sm text-green-700">
+                        Đã lưu thay đổi
                       </div>
-                    </dl>
+                    )}
+
+                    {editing ? (
+                      <div
+                        className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') cancelEditing();
+                          if (e.key === 'Enter' && !saving) saveEdits();
+                        }}
+                      >
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">MMSI</label>
+                          <input
+                            type="text"
+                            value={vessel.mmsi}
+                            disabled
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-gray-100"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Tên tàu</label>
+                          <input
+                            type="text"
+                            value={form.vesselName || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, vesselName: e.target.value }))}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            placeholder="Nhập tên tàu"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Loại tàu</label>
+                          <input
+                            type="text"
+                            value={form.vesselType || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, vesselType: e.target.value }))}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            placeholder="Nhập loại tàu"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Quốc gia</label>
+                          <input
+                            type="text"
+                            value={form.flag || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, flag: e.target.value }))}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            placeholder="VN, US hoặc tên quốc gia"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Chủ sở hữu</label>
+                          <input
+                            type="text"
+                            value={form.operator || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, operator: e.target.value }))}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            placeholder="Tên chủ sở hữu/đơn vị"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Chiều dài (m)</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={form.length || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, length: e.target.value }))}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            placeholder="VD: 120"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Chiều rộng (m)</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={form.width || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, width: e.target.value }))}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            placeholder="VD: 30"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Ngày tạo</label>
+                          <input
+                            type="text"
+                            value={new Date(vessel.createdAt).toLocaleDateString('vi-VN')}
+                            disabled
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-100"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500">
+                            MMSI
+                          </dt>
+                          <dd className="mt-1 text-sm text-gray-900">
+                            {vessel.mmsi}
+                          </dd>
+                        </div>
+
+                        {vessel.vesselName && (
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">
+                              Tên tàu
+                            </dt>
+                            <dd className="mt-1 text-sm text-gray-900">
+                              {vessel.vesselName}
+                            </dd>
+                          </div>
+                        )}
+
+                        {vessel.vesselType && (
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">
+                              Loại tàu
+                            </dt>
+                            <dd className="mt-1 text-sm text-gray-900">
+                              {vessel.vesselType}
+                            </dd>
+                          </div>
+                        )}
+
+                        {vessel.flag && (
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Quốc gia</dt>
+                            <dd className="mt-1 text-sm text-gray-900">
+                              {vessel.flag}
+                            </dd>
+                          </div>
+                        )}
+
+                        {vessel.operator && (
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">
+                              Chủ sở hữu
+                            </dt>
+                            <dd className="mt-1 text-sm text-gray-900">
+                              {vessel.operator}
+                            </dd>
+                          </div>
+                        )}
+
+                        {vessel.length && (
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">
+                              Chiều dài
+                            </dt>
+                            <dd className="mt-1 text-sm text-gray-900">
+                              {vessel.length}m
+                            </dd>
+                          </div>
+                        )}
+
+                        {vessel.width && (
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">
+                              Chiều rộng
+                            </dt>
+                            <dd className="mt-1 text-sm text-gray-900">
+                              {vessel.width}m
+                            </dd>
+                          </div>
+                        )}
+
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500">
+                            Ngày tạo
+                          </dt>
+                          <dd className="mt-1 text-sm text-gray-900">
+                            {new Date(vessel.createdAt).toLocaleDateString(
+                              'vi-VN',
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
+                    )}
                   </div>
                 </div>
 

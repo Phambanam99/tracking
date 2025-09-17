@@ -25,7 +25,7 @@ Giai đoạn 1: Backend Core với NestJS & Prisma 1
       npx prisma migrate dev thành công, tạo ra các bảng tương ứng trong DB PostgreSQL6.
 
     - Biến môi trường  
-      DATABASE_URL được sử dụng để kết nối7.
+      DATABASE_URLL được sử dụng để kết nối7.
 
 - **Task 1.3: (Backend) Xây dựng Module aircraft**
   - **Mô tả:** Tạo module, controller, và service cho chức năng liên quan đến máy bay8.

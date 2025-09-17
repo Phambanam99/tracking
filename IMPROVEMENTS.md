@@ -92,7 +92,7 @@ export class PaginationDto {
 // backend/prisma/schema.prisma
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("DATABASE_URLL")
   // Add connection pooling
   connectionLimit = 10
 }
@@ -236,7 +236,7 @@ test('renders map component', () => {
 # backend/.env.production
 NODE_ENV=production
 JWT_SECRET=your-production-secret
-DATABASE_URL=postgresql://prod-user:pass@prod-host:5432/tracking
+DATABASE_URLL=postgresql://prod-user:pass@prod-host:5432/tracking
 REDIS_URL=redis://prod-redis:6379
 LOG_LEVEL=error
 ```

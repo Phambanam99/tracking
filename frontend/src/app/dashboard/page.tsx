@@ -5,8 +5,10 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAircraftStore } from '@/stores/aircraftStore';
 import { useVesselStore } from '@/stores/vesselStore';
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { aircrafts, fetchAircrafts } = useAircraftStore();
   const { vessels, fetchVessels } = useVesselStore();
 
@@ -96,7 +98,8 @@ export default function DashboardPage() {
                     {aircrafts.slice(0, 5).map((aircraft) => (
                       <div
                         key={aircraft.id}
-                        className="flex items-center justify-between"
+                        className="flex items-center justify-between rounded-md p-2 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => router.push(`/aircraft/${aircraft.id}`)}
                       >
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
@@ -143,7 +146,8 @@ export default function DashboardPage() {
                     {vessels.slice(0, 5).map((vessel) => (
                       <div
                         key={vessel.id}
-                        className="flex items-center justify-between"
+                        className="flex items-center justify-between rounded-md p-2 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => router.push(`/vessels/${vessel.id}`)}
                       >
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">

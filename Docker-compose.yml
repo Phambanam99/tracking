@@ -13,7 +13,6 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-      # Any .sql or .sh here runs on first init:
       - ./postgres/initdb:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d tracking"]
@@ -36,6 +35,17 @@ services:
       timeout: 5s
       retries: 10
 
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: redisinsight
+    restart: unless-stopped
+    ports:
+      - "5540:5540"        # UI chạy trên 5540
+    volumes:
+      - redisinsight_data:/data
+    # không cần env gì thêm
+
 volumes:
   pg_data:
   redis_data:
+  redisinsight_data:

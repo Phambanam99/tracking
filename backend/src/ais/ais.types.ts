@@ -13,6 +13,8 @@ export interface AisModel {
   speed?: number;
   course?: number;
   updatetime?: string; // ISO
+  /** Id của nguồn (multi-source) nếu có */
+  sourceId?: string;
   [k: string]: any;
 }
 
