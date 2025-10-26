@@ -160,6 +160,7 @@ export class VesselResponseDto {
   createdAt: Date;
   updatedAt: Date;
   lastPosition?: VesselPositionResponseDto;
+  images?: VesselImageDto[];
 }
 
 export class VesselPositionResponseDto {
@@ -171,4 +172,59 @@ export class VesselPositionResponseDto {
   heading?: number | null;
   status?: string | null;
   timestamp: Date;
+}
+
+export class VesselImageDto {
+  id: number;
+  url: string;
+  caption?: string | null;
+  source?: string | null;
+  isPrimary: boolean;
+  order: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export class CreateVesselImageDto {
+  @IsNotEmpty()
+  @IsString()
+  url: string;
+
+  @IsOptional()
+  @IsString()
+  caption?: string;
+
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @IsOptional()
+  isPrimary?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  order?: number;
+}
+
+export class UpdateVesselImageDto {
+  @IsOptional()
+  @IsString()
+  url?: string;
+
+  @IsOptional()
+  @IsString()
+  caption?: string;
+
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @IsOptional()
+  isPrimary?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  order?: number;
 }

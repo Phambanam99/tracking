@@ -5,6 +5,12 @@ const nextConfig: NextConfig = {
   productionBrowserSourceMaps: false,
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: '**' }, // broad allow; refine if needed
+      { protocol: 'http', hostname: 'localhost' },
+    ],
+  },
   async rewrites() {
     return [
       {

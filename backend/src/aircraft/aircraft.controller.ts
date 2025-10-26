@@ -18,7 +18,13 @@ import {
   CreateAircraftPositionDto,
   AircraftHistoryQueryDto,
   AircraftResponseDto,
+  CreateAircraftImageDto,
+  UpdateAircraftImageDto,
 } from './dto/aircraft.dto';
+import { UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 
 @ApiTags('aircrafts')
 @Controller('aircrafts')
@@ -246,6 +252,60 @@ export class AircraftController {
   @ApiResponse({ status: 404, description: 'Aircraft not found' })
   async addPosition(@Body() createPositionDto: CreateAircraftPositionDto) {
     return this.aircraftService.addPositionWithDto(createPositionDto);
+  }
+
+  // -------------------- IMAGES CRUD --------------------
+  @Get(':id/images')
+  @ApiOperation({ summary: 'List aircraft images' })
+  async listImages(@Param('id', ParseIntPipe) id: number) {
+    return this.aircraftService.listImages(id);
+  }
+
+  @Post(':id/images')
+  @ApiOperation({ summary: 'Add aircraft image' })
+  async addImage(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateAircraftImageDto) {
+    return this.aircraftService.addImage(id, dto);
+  }
+
+  @Put('images/:imageId')
+  @ApiOperation({ summary: 'Update aircraft image' })
+  async updateImage(
+    @Param('imageId', ParseIntPipe) imageId: number,
+    @Body() dto: UpdateAircraftImageDto,
+  ) {
+    return this.aircraftService.updateImage(imageId, dto);
+  }
+
+  @Delete('images/:imageId')
+  @ApiOperation({ summary: 'Delete aircraft image' })
+  async deleteImage(@Param('imageId', ParseIntPipe) imageId: number) {
+    await this.aircraftService.deleteImage(imageId);
+    return { message: 'Deleted' };
+  }
+
+  @Post(':id/images/upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => cb(null, 'uploads'),
+        filename: (_req, file, cb) => {
+          const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          cb(null, unique + extname(file.originalname));
+        },
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload aircraft image file' })
+  async uploadImage(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: any,
+    @Body() dto: CreateAircraftImageDto,
+  ) {
+    if (!file) return { error: 'No file uploaded' };
+    const base = process.env.PUBLIC_BASE_URL || '';
+    const url = base + '/uploads/' + file.filename;
+    return this.aircraftService.addImage(id, { ...dto, url });
   }
 
   /**

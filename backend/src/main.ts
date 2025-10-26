@@ -1,6 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { join } from 'path';
+import * as fs from 'fs';
+import * as express from 'express';
 import helmet from 'helmet';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -9,6 +12,14 @@ import { API_VERSION } from './common/version';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Ensure uploads directory exists & serve it statically
+  const uploadsDir = join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  // Serve static files for uploaded images
+  app.use('/uploads', express.static(uploadsDir));
 
   // Global validation
   app.useGlobalPipes(

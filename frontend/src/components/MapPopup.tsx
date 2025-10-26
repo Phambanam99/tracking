@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { X, Plane, Ship, MapPin, Clock, Move } from 'lucide-react';
 import { useTrackingStore } from '@/stores/trackingStore';
 import api from '@/services/apiClient';
@@ -11,6 +12,14 @@ interface Aircraft {
   registration?: string;
   aircraftType?: string;
   operator?: string;
+  images?: Array<{
+    id: number;
+    url: string;
+    caption?: string | null;
+    source?: string | null;
+    isPrimary: boolean;
+    order: number;
+  }>;
   lastPosition?: {
     latitude: number;
     longitude: number;
@@ -30,6 +39,14 @@ interface Vessel {
   operator?: string;
   length?: number;
   width?: number;
+  images?: Array<{
+    id: number;
+    url: string;
+    caption?: string | null;
+    source?: string | null;
+    isPrimary: boolean;
+    order: number;
+  }>;
   lastPosition?: {
     latitude: number;
     longitude: number;
@@ -64,6 +81,8 @@ const MapPopup: React.FC<MapPopupProps> = ({
   >(null);
   const [historyHours, setHistoryHours] = useState(24);
   const popupRef = useRef<HTMLDivElement>(null);
+  const [images, setImages] = useState<string[]>([]);
+  const [imgIndex, setImgIndex] = useState(0);
 
   // Tracking functionality
   const {
@@ -207,6 +226,41 @@ const MapPopup: React.FC<MapPopupProps> = ({
       };
     }
   }, [isDragging, handleMouseMove, handleMouseUp]);
+
+  // Load images (lazy fetch detail when popup opens)
+  useEffect(() => {
+    const loadImage = async () => {
+      if (!feature) return;
+      const isA = !!feature.aircraft;
+      const obj: any = isA ? feature.aircraft : feature.vessel;
+      const existing = Array.isArray(obj.images) ? obj.images : [];
+      if (existing.length) {
+        const sorted = [...existing].sort((a,b)=> (b.isPrimary?1:0)-(a.isPrimary?1:0) || a.order - b.order || a.id - b.id);
+        setImages(sorted.map(i=>i.url));
+        setImgIndex(0);
+        return;
+      }
+      try {
+        const detail = await api.get(isA ? `/aircrafts/${obj.id}` : `/vessels/${obj.id}`);
+        const imgs = Array.isArray(detail.images) ? detail.images : [];
+        if (imgs.length) {
+          const sorted = [...imgs].sort((a,b)=> (b.isPrimary?1:0)-(a.isPrimary?1:0) || a.order - b.order || a.id - b.id);
+          setImages(sorted.map(i=>i.url));
+          setImgIndex(0);
+        } else {
+          setImages([]);
+        }
+      } catch (_) {
+        // ignore errors
+      }
+    };
+    if (isVisible) {
+      loadImage();
+    } else {
+      setImages([]);
+      setImgIndex(0);
+    }
+  }, [feature, isVisible]);
 
   if (!isVisible || !feature || !currentPosition) return null;
 
@@ -361,6 +415,54 @@ const MapPopup: React.FC<MapPopupProps> = ({
       <div className="p-4 space-y-3">
         {/* Basic Info */}
         <div className="space-y-2">
+          <div className="mb-2 -mt-1 relative">
+            {images.length > 0 ? (
+              <div className="relative overflow-hidden rounded">
+                <div
+                  className="flex transition-transform duration-300"
+                  style={{ transform: `translateX(-${imgIndex * 100}%)` }}
+                >
+                  {images.map((src, i) => (
+                    <div key={i} className="min-w-full h-32 relative">
+                      <Image
+                        src={src}
+                        alt={`img-${i}`}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 320px"
+                        className="object-cover"
+                        priority={i === 0}
+                      />
+                    </div>
+                  ))}
+                </div>
+                {images.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setImgIndex(i => (i === 0 ? images.length - 1 : i - 1))}
+                      className="absolute top-1/2 -translate-y-1/2 left-1 bg-black/40 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs hover:bg-black/60"
+                    >‹</button>
+                    <button
+                      onClick={() => setImgIndex(i => (i === images.length - 1 ? 0 : i + 1))}
+                      className="absolute top-1/2 -translate-y-1/2 right-1 bg-black/40 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs hover:bg-black/60"
+                    >›</button>
+                    <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-1">
+                      {images.map((_, i) => (
+                        <span
+                          key={i}
+                          onClick={() => setImgIndex(i)}
+                          className={`w-2 h-2 rounded-full cursor-pointer ${i === imgIndex ? 'bg-white' : 'bg-white/40'}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="w-full h-32 flex items-center justify-center border border-dashed rounded bg-gray-50 text-gray-400 text-xs">
+                Không có ảnh
+              </div>
+            )}
+          </div>
           {isAircraft ? (
             <>
               <div className="flex justify-between">

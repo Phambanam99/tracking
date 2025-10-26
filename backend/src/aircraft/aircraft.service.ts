@@ -7,6 +7,7 @@ import {
   UpdateAircraftDto,
   CreateAircraftPositionDto,
 } from './dto/aircraft.dto';
+import { CreateAircraftImageDto, UpdateAircraftImageDto } from './dto/aircraft.dto';
 
 @Injectable()
 export class AircraftService {
@@ -86,7 +87,10 @@ export class AircraftService {
           orderBy: { timestamp: 'desc' },
           take: 1,
         },
-      },
+        images: {
+          orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }, { id: 'asc' }],
+        },
+      } as any,
     });
 
     if (!aircraft) return null;
@@ -100,7 +104,8 @@ export class AircraftService {
       operator: aircraft.operator,
       createdAt: aircraft.createdAt,
       updatedAt: aircraft.updatedAt,
-      lastPosition: aircraft.positions[0] || null,
+      lastPosition: (aircraft as any).positions?.[0] || null,
+      images: (aircraft as any).images || [],
     };
   }
 
@@ -207,7 +212,10 @@ export class AircraftService {
           orderBy: { timestamp: 'desc' },
           take: 1,
         },
-      },
+        images: {
+          orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }, { id: 'asc' }],
+        },
+      } as any,
       orderBy: { id: 'asc' }, // Consistent ordering for pagination
       skip,
       take: effectivePageSize,
@@ -224,7 +232,8 @@ export class AircraftService {
         operator: aircraft.operator,
         createdAt: aircraft.createdAt,
         updatedAt: aircraft.updatedAt,
-        lastPosition: aircraft.positions[0] || null,
+        lastPosition: (aircraft as any).positions?.[0] || null,
+        images: (aircraft as any).images || [],
       }))
       .filter((a) => {
         if (!adv || !a.lastPosition) return true;
@@ -366,16 +375,32 @@ export class AircraftService {
   ) {
     let positionRecord;
     try {
-      positionRecord = await this.prisma.aircraftPosition.create({
-        data: {
+      const timestamp = position.timestamp || new Date();
+      positionRecord = await this.prisma.aircraftPosition.upsert({
+        where: {
+          aircraftId_timestamp_source: {
+            aircraftId,
+            timestamp,
+            source: position.source,
+          },
+        },
+        create: {
           aircraftId,
           latitude: position.latitude,
           longitude: position.longitude,
           altitude: position.altitude,
           speed: position.speed,
           heading: position.heading,
-          timestamp: position.timestamp || new Date(),
+          timestamp,
           source: position.source,
+          score: position.score,
+        },
+        update: {
+          latitude: position.latitude,
+          longitude: position.longitude,
+          altitude: position.altitude,
+          speed: position.speed,
+          heading: position.heading,
           score: position.score,
         },
       });
@@ -401,5 +426,62 @@ export class AircraftService {
     );
 
     return positionRecord;
+  }
+
+  /**
+   * Aircraft Images CRUD (mirrors vessel images)
+   */
+  async listImages(aircraftId: number) {
+    return (this.prisma as any).aircraftImage.findMany({
+      where: { aircraftId },
+      orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  async addImage(aircraftId: number, dto: CreateAircraftImageDto) {
+    if (dto.isPrimary) {
+      await (this.prisma as any).aircraftImage.updateMany({
+        where: { aircraftId, isPrimary: true },
+        data: { isPrimary: false },
+      });
+    }
+    return (this.prisma as any).aircraftImage.create({
+      data: {
+        aircraftId,
+        url: dto.url,
+        caption: dto.caption,
+        source: dto.source,
+        isPrimary: dto.isPrimary ?? false,
+        order: dto.order ?? 0,
+      },
+    });
+  }
+
+  async updateImage(imageId: number, dto: UpdateAircraftImageDto) {
+    if (dto.isPrimary) {
+      const existing = await (this.prisma as any).aircraftImage.findUnique({
+        where: { id: imageId },
+      });
+      if (existing) {
+        await (this.prisma as any).aircraftImage.updateMany({
+          where: { aircraftId: existing.aircraftId, isPrimary: true },
+          data: { isPrimary: false },
+        });
+      }
+    }
+    return (this.prisma as any).aircraftImage.update({
+      where: { id: imageId },
+      data: {
+        url: dto.url,
+        caption: dto.caption,
+        source: dto.source,
+        isPrimary: dto.isPrimary,
+        order: dto.order,
+      },
+    });
+  }
+
+  async deleteImage(imageId: number) {
+    return (this.prisma as any).aircraftImage.delete({ where: { id: imageId } });
   }
 }

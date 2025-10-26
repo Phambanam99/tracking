@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegionService } from '../region/region.service';
 import { ObjectType } from '@prisma/client';
@@ -29,7 +29,7 @@ export class TrackingService {
     });
 
     if (!aircraft) {
-      throw new Error(`Aircraft with ID ${aircraftId} not found`);
+      throw new NotFoundException(`Aircraft with ID ${aircraftId} not found`);
     }
 
     // Check if already tracking
@@ -41,7 +41,7 @@ export class TrackingService {
     });
 
     if (existingTracking) {
-      throw new Error(`Aircraft ${aircraftId} is already being tracked`);
+      throw new ConflictException(`Aircraft ${aircraftId} is already being tracked`);
     }
 
     try {
@@ -65,7 +65,7 @@ export class TrackingService {
       });
     } catch (error: any) {
       if (error.code === 'P2002') {
-        throw new Error(`Aircraft ${aircraftId} is already being tracked`);
+        throw new ConflictException(`Aircraft ${aircraftId} is already being tracked`);
       }
       throw error;
     }
@@ -111,24 +111,34 @@ export class TrackingService {
 
   // Vessel tracking methods
   async trackVessel(userId: number, vesselId: number, alias?: string, notes?: string) {
-    return this.prisma.userTrackedVessel.create({
-      data: {
-        userId,
-        vesselId,
-        alias,
-        notes,
-      },
-      include: {
-        vessel: {
-          include: {
-            positions: {
-              orderBy: { timestamp: 'desc' },
-              take: 1,
+    let vessel = await this.prisma.vessel.findUnique({ where: { id: vesselId } });
+    //if vessel null id is mmsi
+    if (!vessel) {
+      const vesselByMmsi = await this.prisma.vessel.findUnique({ where: { mmsi: String(vesselId) } });
+      if (vesselByMmsi) {
+        vessel = vesselByMmsi;
+      }
+    }
+    if (!vessel) throw new NotFoundException(`Vessel with ID ${vesselId} not found`);
+    const existing = await this.prisma.userTrackedVessel.findFirst({ where: { userId, vesselId } });
+    if (existing) throw new ConflictException(`Vessel ${vesselId} is already being tracked`);
+    try {
+      return await this.prisma.userTrackedVessel.create({
+        data: { userId, vesselId, alias, notes },
+        include: {
+          vessel: {
+            include: {
+              positions: { orderBy: { timestamp: 'desc' }, take: 1 },
             },
           },
         },
-      },
-    });
+      });
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        throw new ConflictException(`Vessel ${vesselId} is already being tracked`);
+      }
+      throw error;
+    }
   }
 
   async untrackVessel(userId: number, vesselId: number) {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -31,6 +32,14 @@ interface Vessel {
     status?: string;
     timestamp: Date;
   };
+  images?: Array<{
+    id: number;
+    url: string;
+    caption?: string | null;
+    source?: string | null;
+    isPrimary: boolean;
+    order: number;
+  }>;
 }
 
 export default function VesselDetailPage() {
@@ -46,6 +55,14 @@ export default function VesselDetailPage() {
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState(false);
+  const [images, setImages] = useState<Vessel['images']>([]);
+  const [imgUrl, setImgUrl] = useState('');
+  const [imgFile, setImgFile] = useState<File | null>(null);
+  const [imgCaption, setImgCaption] = useState('');
+  const [imgSource, setImgSource] = useState('');
+  const [imgPrimary, setImgPrimary] = useState(false);
+  const [imgOrder, setImgOrder] = useState('0');
+  const [imgBusy, setImgBusy] = useState(false);
 
   const [form, setForm] = useState<{
     vesselName?: string;
@@ -71,11 +88,15 @@ export default function VesselDetailPage() {
 
       if (foundVessel) {
         setVessel(foundVessel);
+        setImages(foundVessel.images || []);
       } else {
         // Fallback: fetch detail by ID from backend
         try {
           const detail = await api.get(`/vessels/${vesselId}`);
-          if (detail && !detail.error) setVessel(detail);
+          if (detail && !detail.error) {
+            setVessel(detail);
+            setImages(detail.images || []);
+          }
         } catch {
           // ignore
         }
@@ -102,6 +123,71 @@ export default function VesselDetailPage() {
     });
     setErrorMsg(null);
     setEditing(true);
+  };
+
+  const refreshImages = async () => {
+    if (!vessel) return;
+    try {
+      const data = await api.get(`/vessels/${vessel.id}/images`);
+      setImages(data);
+    } catch (e) {
+      console.warn('Failed to load images', e);
+    }
+  };
+
+  const addImage = async () => {
+    if (!vessel) return;
+    if (!imgFile && !imgUrl.trim()) return; // require either file or manual URL
+    setImgBusy(true);
+    try {
+      if (imgFile) {
+        const formData = new FormData();
+        formData.append('file', imgFile);
+        if (imgCaption.trim()) formData.append('caption', imgCaption.trim());
+        if (imgSource.trim()) formData.append('source', imgSource.trim());
+        if (imgPrimary) formData.append('isPrimary', 'true');
+        if (imgOrder) formData.append('order', imgOrder);
+        await api.postMultipart(`/vessels/${vessel.id}/images/upload`, formData);
+      } else {
+        await api.post(`/vessels/${vessel.id}/images`, {
+          url: imgUrl.trim(),
+          caption: imgCaption.trim() || undefined,
+          source: imgSource.trim() || undefined,
+          isPrimary: imgPrimary || undefined,
+          order: imgOrder ? Number(imgOrder) : undefined,
+        });
+      }
+      setImgUrl('');
+      setImgFile(null);
+      setImgCaption('');
+      setImgSource('');
+      setImgPrimary(false);
+      setImgOrder('0');
+      await refreshImages();
+    } finally {
+      setImgBusy(false);
+    }
+  };
+
+  const setPrimary = async (imageId: number) => {
+    setImgBusy(true);
+    try {
+      await api.put(`/vessels/images/${imageId}`, { isPrimary: true });
+      await refreshImages();
+    } finally {
+      setImgBusy(false);
+    }
+  };
+
+  const deleteImage = async (imageId: number) => {
+    if (!confirm('Xóa ảnh này?')) return;
+    setImgBusy(true);
+    try {
+      await api.delete(`/vessels/images/${imageId}`);
+      await refreshImages();
+    } finally {
+      setImgBusy(false);
+    }
   };
 
   const cancelEditing = () => {
@@ -564,6 +650,116 @@ export default function VesselDetailPage() {
 
                     {/* Paginated history table */}
                     <HistoryTable vesselId={vessel.id} />
+                  </div>
+                </div>
+                {/* Images Gallery */}
+                <div className="bg-white shadow rounded-lg mt-6">
+                  <div className="px-4 py-5 sm:p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-medium text-gray-900">Hình ảnh</h3>
+                      <button
+                        onClick={refreshImages}
+                        disabled={imgBusy}
+                        className="text-sm text-indigo-600 hover:underline disabled:opacity-50"
+                      >Làm mới</button>
+                    </div>
+                    {images && images.length > 0 ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+                        {images.map(img => (
+                          <div key={img.id} className="group relative border rounded overflow-hidden">
+                            <div className="w-full h-32 relative">
+                              <Image
+                                src={img.url}
+                                alt={img.caption || 'image'}
+                                fill
+                                sizes="128px"
+                                className="object-cover"
+                                placeholder="empty"
+                                unoptimized={false}
+                              />
+                            </div>
+                            {img.isPrimary && (
+                              <span className="absolute top-1 left-1 bg-indigo-600 text-white text-xs px-2 py-0.5 rounded">Primary</span>
+                            )}
+                            {editing && (
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2 text-xs">
+                                {!img.isPrimary && (
+                                  <button onClick={() => setPrimary(img.id)} disabled={imgBusy} className="bg-white/80 hover:bg-white text-gray-800 px-2 py-1 rounded">Primary</button>
+                                )}
+                                <button onClick={() => deleteImage(img.id)} disabled={imgBusy} className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700">Xóa</button>
+                              </div>
+                            )}
+                            {img.caption && <div className="p-1 text-[11px] text-gray-600 truncate">{img.caption}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mb-6">
+                        <div className="w-full h-40 flex items-center justify-center border-2 border-dashed rounded text-gray-400 text-sm bg-gray-50">
+                          <div>
+                            <div className="text-4xl text-gray-300 mb-2">🖼️</div>
+                            <p>Chưa có hình ảnh</p>
+                            {!editing && (
+                              <p className="text-xs text-gray-400 mt-1">Vào chế độ chỉnh sửa để thêm ảnh</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {editing && (
+                      <div className="border-t pt-4">
+                        <h4 className="font-medium text-sm mb-2">Thêm ảnh</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                          <div className="md:col-span-2 flex flex-col gap-1">
+                            <input
+                              className="border rounded px-2 py-1 text-sm"
+                              placeholder="Image URL (nếu không upload file)"
+                              value={imgUrl}
+                              onChange={e => setImgUrl(e.target.value)}
+                              disabled={!!imgFile}
+                            />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="border rounded px-2 py-1 text-sm"
+                              onChange={e => {
+                                const f = e.target.files?.[0] || null;
+                                setImgFile(f);
+                                if (f) setImgUrl('');
+                              }}
+                            />
+                          </div>
+                          <input
+                            className="border rounded px-2 py-1 text-sm"
+                            placeholder="Caption"
+                            value={imgCaption}
+                            onChange={e => setImgCaption(e.target.value)}
+                          />
+                          <input
+                            className="border rounded px-2 py-1 text-sm"
+                            placeholder="Source"
+                            value={imgSource}
+                            onChange={e => setImgSource(e.target.value)}
+                          />
+                          <input
+                            className="border rounded px-2 py-1 text-sm"
+                            placeholder="Order"
+                            value={imgOrder}
+                            onChange={e => setImgOrder(e.target.value)}
+                          />
+                          <label className="flex items-center gap-2 text-sm">
+                            <input type="checkbox" checked={imgPrimary} onChange={e => setImgPrimary(e.target.checked)} /> Primary
+                          </label>
+                          <div className="md:col-span-5 flex justify-end">
+                            <button
+                              onClick={addImage}
+                              disabled={imgBusy || (!imgUrl.trim() && !imgFile)}
+                              className={`px-4 py-1.5 rounded text-sm text-white ${imgBusy || (!imgUrl.trim() && !imgFile) ? 'bg-indigo-300' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                            >{imgBusy ? 'Đang thêm...' : imgFile ? 'Upload ảnh' : 'Thêm ảnh'}</button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -9,6 +9,17 @@ const PRUNE_INTERVAL_MS = 5 * 60 * 1000;
 
 let pruneTimer: ReturnType<typeof setInterval> | null = null;
 
+export interface VesselImage {
+  id: number;
+  url: string;
+  caption?: string | null;
+  source?: string | null;
+  isPrimary: boolean;
+  order: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface Vessel {
   id: number;
   mmsi: string;
@@ -30,6 +41,7 @@ export interface Vessel {
     status?: string;
     timestamp: Date;
   };
+  images?: VesselImage[]; // Added images relation
   // Thời điểm cuối cùng nhận dữ liệu (tính theo Date.now())
   lastSeen?: number;
 }
@@ -72,6 +84,7 @@ export const useVesselStore = create<VesselStore>((set, get) => ({
     set({
       vessels: vessels.map((v) => ({
         ...v,
+        images: Array.isArray((v as any).images) ? (v as any).images : undefined,
         lastSeen: Date.now(),
         lastPosition: v.lastPosition
           ? { ...v.lastPosition, timestamp: new Date(v.lastPosition.timestamp) }
@@ -87,6 +100,9 @@ export const useVesselStore = create<VesselStore>((set, get) => ({
             ...state.vessels,
             {
               ...incoming,
+              images: Array.isArray((incoming as any).images)
+                ? (incoming as any).images
+                : undefined,
               lastSeen: Date.now(),
               lastPosition: incoming.lastPosition
                 ? {
@@ -102,6 +118,9 @@ export const useVesselStore = create<VesselStore>((set, get) => ({
       next[idx] = {
         ...next[idx],
         ...incoming,
+        images: Array.isArray((incoming as any).images)
+          ? (incoming as any).images
+          : next[idx].images,
         lastSeen: Date.now(),
         lastPosition: incoming.lastPosition
           ? {
@@ -165,6 +184,7 @@ export const useVesselStore = create<VesselStore>((set, get) => ({
       set({
         vessels: arr.map((v: any) => ({
           ...v,
+            images: Array.isArray(v.images) ? v.images : undefined,
           lastSeen: Date.now(),
           lastPosition: v?.lastPosition
             ? { ...v.lastPosition, timestamp: new Date(v.lastPosition.timestamp) }

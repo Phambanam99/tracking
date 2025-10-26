@@ -282,8 +282,15 @@ export class AisFusionService implements OnModuleInit, OnModuleDestroy {
           create: { mmsi: rec.mmsi },
           update: {},
         });
-        await tx.vesselPosition.create({
-          data: {
+        await tx.vesselPosition.upsert({
+          where: {
+            vesselId_timestamp_source: {
+              vesselId: vessel.id,
+              timestamp: new Date(rec.ts),
+              source: rec.sourceId ?? null,
+            },
+          },
+          create: {
             vesselId: vessel.id,
             latitude: rec.lat,
             longitude: rec.lon,
@@ -293,6 +300,15 @@ export class AisFusionService implements OnModuleInit, OnModuleDestroy {
             status: null,
             timestamp: new Date(rec.ts),
             source: rec.sourceId ?? null,
+            score: rec.score,
+          },
+          update: {
+            latitude: rec.lat,
+            longitude: rec.lon,
+            speed: rec.speed ?? null,
+            course: rec.course ?? null,
+            heading: rec.course ?? null,
+            status: null,
             score: rec.score,
           },
         });

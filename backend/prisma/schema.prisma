@@ -77,6 +77,8 @@ model Aircraft {
 
   // Relationship with positions
   positions AircraftPosition[]
+  // Images
+  images    AircraftImage[]
 
   // Personal tracking relationships
   trackedByUsers UserTrackedAircraft[]
@@ -121,6 +123,8 @@ model Vessel {
 
   // Relationship with positions
   positions VesselPosition[]
+  // Images
+  images    VesselImage[]
 
   // Personal tracking relationships
   trackedByUsers UserTrackedVessel[]
@@ -357,4 +361,40 @@ model AisVesselHistory {
   @@index([timestamp])
   @@index([mmsi, timestamp])
   @@map("ais_vessel_history")
+}
+
+// Images for vessels
+model VesselImage {
+  id        Int      @id @default(autoincrement())
+  vesselId  Int
+  url       String
+  caption   String?
+  source    String?
+  isPrimary Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vessel Vessel @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+
+  @@index([vesselId])
+  @@map("vessel_images")
+}
+
+// Images for aircraft
+model AircraftImage {
+  id        Int      @id @default(autoincrement())
+  aircraftId Int
+  url       String
+  caption   String?
+  source    String?
+  isPrimary Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  aircraft Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+
+  @@index([aircraftId])
+  @@map("aircraft_images")
 }

@@ -20,7 +20,13 @@ import {
   CreateVesselPositionDto,
   VesselHistoryQueryDto,
   VesselResponseDto,
+  CreateVesselImageDto,
+  UpdateVesselImageDto,
 } from './dto/vessel.dto';
+import { UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 
 @ApiTags('vessels')
 @Controller('vessels')
@@ -272,6 +278,11 @@ export class VesselController {
   @ApiOperation({ summary: 'Get vessel detail with last position' })
   async findById(@Param('id', ParseIntPipe) id: number) {
     const vessel = await this.vesselService.findByIdWithLastPosition(id);
+    // If the vessel is not found, using findByMmsiWithLastPosition
+    if (!vessel) {
+      return this.vesselService.findByMmsiWithLastPosition(String(id));
+    }
+
     if (!vessel) {
       return { error: 'Vessel not found' };
     }
@@ -316,5 +327,62 @@ export class VesselController {
   @ApiOperation({ summary: 'Add vessel position' })
   async addPosition(@Body() createPositionDto: CreateVesselPositionDto) {
     return this.vesselService.addPositionWithDto(createPositionDto);
+  }
+
+  // -------------------- IMAGES CRUD --------------------
+  @Get(':id/images')
+  @ApiOperation({ summary: 'List vessel images' })
+  async listImages(@Param('id', ParseIntPipe) id: number) {
+    return this.vesselService.listImages(id);
+  }
+
+  @Post(':id/images')
+  @ApiOperation({ summary: 'Add vessel image' })
+  async addImage(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateVesselImageDto) {
+    return this.vesselService.addImage(id, dto);
+  }
+
+  @Post(':id/images/upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => cb(null, 'uploads'),
+        filename: (_req, file, cb) => {
+          const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          cb(null, unique + extname(file.originalname));
+        },
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    }),
+  )
+  @ApiOperation({ summary: 'Upload vessel image file' })
+  async uploadImage(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: any,
+    @Body() dto: CreateVesselImageDto,
+  ) {
+    if (!file) {
+      return { error: 'No file uploaded' };
+    }
+    // Build absolute URL (assumes frontend hits same host or env BASE_URL)
+    const base = process.env.PUBLIC_BASE_URL || '';
+    const url = base + '/uploads/' + file.filename;
+    return this.vesselService.addImage(id, { ...dto, url });
+  }
+
+  @Put('images/:imageId')
+  @ApiOperation({ summary: 'Update vessel image' })
+  async updateImage(
+    @Param('imageId', ParseIntPipe) imageId: number,
+    @Body() dto: UpdateVesselImageDto,
+  ) {
+    return this.vesselService.updateImage(imageId, dto);
+  }
+
+  @Delete('images/:imageId')
+  @ApiOperation({ summary: 'Delete vessel image' })
+  async deleteImage(@Param('imageId', ParseIntPipe) imageId: number) {
+    await this.vesselService.deleteImage(imageId);
+    return { message: 'Deleted' };
   }
 }
