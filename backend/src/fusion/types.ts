@@ -1,5 +1,19 @@
-export type VesselSource = 'marine_traffic' | 'vessel_finder' | 'china_port' | 'custom';
-export type AircraftSource = 'adsb_exchange' | 'opensky' | 'custom';
+export type VesselSource =
+  | 'ais'
+  | 'aisstream.io'
+  | 'signalr'
+  | 'marine_traffic'
+  | 'vessel_finder'
+  | 'china_port'
+  | 'custom'
+  | 'fused' // ← Added for merged messages
+  | 'unknown';
+export type AircraftSource =
+  | 'adsb_exchange'
+  | 'opensky'
+  | 'custom'
+  | 'fused' // ← Added for merged messages
+  | 'unknown';
 
 export type NormVesselMsg = {
   source: VesselSource;

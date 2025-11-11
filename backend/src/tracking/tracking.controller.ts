@@ -24,12 +24,7 @@ export class TrackingController {
   ) {
     try {
       const userId = req.user.id;
-      return await this.trackingService.trackAircraft(
-        userId,
-        parseInt(aircraftId),
-        body.alias,
-        body.notes,
-      );
+      return await this.trackingService.trackAircraft(userId, aircraftId, body.alias, body.notes);
     } catch (error: any) {
       if (error.code === 'P2002') {
         // Unique constraint violation - already tracking
@@ -43,7 +38,7 @@ export class TrackingController {
   @ApiOperation({ summary: 'Untrack an aircraft' })
   async untrackAircraft(@Param('id') aircraftId: string, @Request() req: any) {
     const userId = req.user.id;
-    return this.trackingService.untrackAircraft(userId, parseInt(aircraftId));
+    return this.trackingService.untrackAircraft(userId, aircraftId);
   }
 
   @Get('aircraft/:id/status')
@@ -67,14 +62,14 @@ export class TrackingController {
     @Request() req: any,
   ) {
     const userId = req.user.id;
-    return this.trackingService.trackVessel(userId, parseInt(vesselId), body.alias, body.notes);
+    return this.trackingService.trackVessel(userId, vesselId, body.alias, body.notes);
   }
 
   @Delete('vessel/:id')
   @ApiOperation({ summary: 'Untrack a vessel' })
   async untrackVessel(@Param('id') vesselId: string, @Request() req: any) {
     const userId = req.user.id;
-    return this.trackingService.untrackVessel(userId, parseInt(vesselId));
+    return this.trackingService.untrackVessel(userId, vesselId);
   }
 
   @Get('vessel/:id/status')

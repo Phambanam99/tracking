@@ -1,5 +1,6 @@
 // Enhanced API service for handling HTTP requests with authentication
 import { useAuthStore } from '../stores/authStore';
+import { performanceMonitor } from '../utils/performanceMonitor';
 
 // Prefer same-origin proxy via Next.js to backend
 // Default base path is '/api' which next.config.ts rewrites to backend '/api'
@@ -17,6 +18,7 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {},
   ): Promise<Response> {
+    const startTime = performance.now();
     const token = this.getAuthToken();
 
     const config: RequestInit = {
@@ -29,31 +31,70 @@ class ApiService {
       ...options,
     };
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-
-    const text = await response.text();
-    let payload: any = {};
     try {
-      payload = text ? JSON.parse(text) : {};
-    } catch {
-      payload = { raw: text };
-    }
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
 
-    if (!response.ok) {
-      const errorMessage =
-        (payload && (payload.error?.message || payload.message)) ||
-        response.statusText ||
-        `HTTP ${response.status}`;
-      const error = new Error(errorMessage) as Error & { status?: number; body?: any };
-      error.status = response.status;
-      (error as any).body = payload;
+      const text = await response.text();
+      let payload: any = {};
+      try {
+        payload = text ? JSON.parse(text) : {};
+      } catch {
+        payload = { raw: text };
+      }
+
+      const duration = performance.now() - startTime;
+
+      if (!response.ok) {
+        performanceMonitor.trackApiCall(endpoint, duration, false, true);
+
+        // Handle 401 Unauthorized - token expired or invalid
+        if (response.status === 401) {
+          console.warn('[ApiClient] 401 Unauthorized - Auto logout');
+
+          // Clear auth state and redirect to login
+          const { logout } = useAuthStore.getState();
+          logout();
+
+          // Redirect to login page if not already there
+          if (
+            typeof window !== 'undefined' &&
+            !window.location.pathname.includes('/login')
+          ) {
+            console.log('[ApiClient] Redirecting to login page...');
+            window.location.href = '/login?expired=true';
+          }
+        }
+
+        const errorMessage =
+          (payload && (payload.error?.message || payload.message)) ||
+          response.statusText ||
+          `HTTP ${response.status}`;
+        const error = new Error(errorMessage) as Error & {
+          status?: number;
+          body?: any;
+        };
+        error.status = response.status;
+        (error as any).body = payload;
+        throw error;
+      }
+
+      performanceMonitor.trackApiCall(endpoint, duration, false, false);
+
+      if (payload && typeof payload === 'object' && 'success' in payload) {
+        return new Response(JSON.stringify(payload.data), {
+          status: response.status,
+          headers: response.headers,
+        });
+      }
+      return new Response(JSON.stringify(payload), {
+        status: response.status,
+        headers: response.headers,
+      });
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      performanceMonitor.trackApiCall(endpoint, duration, false, true);
       throw error;
     }
-
-    if (payload && typeof payload === 'object' && 'success' in payload) {
-      return new Response(JSON.stringify(payload.data), { status: response.status, headers: response.headers });
-    }
-    return new Response(JSON.stringify(payload), { status: response.status, headers: response.headers });
   }
 
   async get(endpoint: string): Promise<any> {
@@ -82,7 +123,22 @@ class ApiService {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const errorMessage = (payload && (payload.error?.message || payload.message)) || `HTTP ${response.status}`;
+      // Handle 401 Unauthorized
+      if (response.status === 401) {
+        console.warn('[ApiClient] 401 Unauthorized (multipart) - Auto logout');
+        const { logout } = useAuthStore.getState();
+        logout();
+        if (
+          typeof window !== 'undefined' &&
+          !window.location.pathname.includes('/login')
+        ) {
+          window.location.href = '/login?expired=true';
+        }
+      }
+
+      const errorMessage =
+        (payload && (payload.error?.message || payload.message)) ||
+        `HTTP ${response.status}`;
       const error = new Error(errorMessage) as Error & { status?: number };
       error.status = response.status;
       throw error;

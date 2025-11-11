@@ -25,7 +25,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      // forbidNonWhitelisted: true, // Disabled - too strict, causes 400 for endpoints without DTO
       transform: true,
     }),
   );

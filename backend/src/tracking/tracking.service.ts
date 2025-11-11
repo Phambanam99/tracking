@@ -22,33 +22,60 @@ export class TrackingService {
   ) {}
 
   // Aircraft tracking methods
-  async trackAircraft(userId: number, aircraftId: number, alias?: string, notes?: string) {
-    // First check if aircraft exists
-    const aircraft = await this.prisma.aircraft.findUnique({
-      where: { id: aircraftId },
-    });
+  async trackAircraft(
+    userId: number,
+    aircraftIdOrFlightId: string | number,
+    alias?: string,
+    notes?: string,
+  ) {
+    // Try to find by ID first, then by flightId
+    const numericId =
+      typeof aircraftIdOrFlightId === 'number'
+        ? aircraftIdOrFlightId
+        : parseInt(aircraftIdOrFlightId, 10);
+    let aircraft = !isNaN(numericId)
+      ? await this.prisma.aircraft.findUnique({ where: { id: numericId } })
+      : null;
 
     if (!aircraft) {
-      throw new NotFoundException(`Aircraft with ID ${aircraftId} not found`);
+      // Try finding by flightId
+      aircraft = await this.prisma.aircraft.findFirst({
+        where: { flightId: String(aircraftIdOrFlightId) },
+      });
     }
 
-    // Check if already tracking
+    if (!aircraft) {
+      throw new NotFoundException(`Aircraft with ID/FlightID ${aircraftIdOrFlightId} not found`);
+    }
+
+    // Check if already tracking (use actual database ID)
     const existingTracking = await this.prisma.userTrackedAircraft.findFirst({
       where: {
         userId,
-        aircraftId,
+        aircraftId: aircraft.id,
+      },
+      include: {
+        aircraft: {
+          include: {
+            positions: {
+              orderBy: { timestamp: 'desc' },
+              take: 1,
+            },
+          },
+        },
       },
     });
 
+    // If already tracking, return existing record (idempotent)
     if (existingTracking) {
-      throw new ConflictException(`Aircraft ${aircraftId} is already being tracked`);
+      return existingTracking;
     }
 
     try {
       return await this.prisma.userTrackedAircraft.create({
         data: {
           userId,
-          aircraftId,
+          aircraftId: aircraft.id,
           alias,
           notes,
         },
@@ -65,17 +92,50 @@ export class TrackingService {
       });
     } catch (error: any) {
       if (error.code === 'P2002') {
-        throw new ConflictException(`Aircraft ${aircraftId} is already being tracked`);
+        // Race condition - fetch and return existing
+        const existing = await this.prisma.userTrackedAircraft.findFirst({
+          where: { userId, aircraftId: aircraft.id },
+          include: {
+            aircraft: {
+              include: {
+                positions: {
+                  orderBy: { timestamp: 'desc' },
+                  take: 1,
+                },
+              },
+            },
+          },
+        });
+        if (existing) return existing;
       }
       throw error;
     }
   }
 
-  async untrackAircraft(userId: number, aircraftId: number) {
+  async untrackAircraft(userId: number, aircraftIdOrFlightId: string | number) {
+    // Find aircraft first
+    const numericId =
+      typeof aircraftIdOrFlightId === 'number'
+        ? aircraftIdOrFlightId
+        : parseInt(aircraftIdOrFlightId, 10);
+    let aircraft = !isNaN(numericId)
+      ? await this.prisma.aircraft.findUnique({ where: { id: numericId } })
+      : null;
+
+    if (!aircraft) {
+      aircraft = await this.prisma.aircraft.findFirst({
+        where: { flightId: String(aircraftIdOrFlightId) },
+      });
+    }
+
+    if (!aircraft) {
+      throw new NotFoundException(`Aircraft with ID/FlightID ${aircraftIdOrFlightId} not found`);
+    }
+
     return this.prisma.userTrackedAircraft.deleteMany({
       where: {
         userId,
-        aircraftId,
+        aircraftId: aircraft.id,
       },
     });
   }
@@ -110,21 +170,48 @@ export class TrackingService {
   }
 
   // Vessel tracking methods
-  async trackVessel(userId: number, vesselId: number, alias?: string, notes?: string) {
-    let vessel = await this.prisma.vessel.findUnique({ where: { id: vesselId } });
-    //if vessel null id is mmsi
+  async trackVessel(
+    userId: number,
+    vesselIdOrMmsi: string | number,
+    alias?: string,
+    notes?: string,
+  ) {
+    // Try to find by ID first, then by MMSI
+    const numericId =
+      typeof vesselIdOrMmsi === 'number' ? vesselIdOrMmsi : parseInt(vesselIdOrMmsi, 10);
+    let vessel = !isNaN(numericId)
+      ? await this.prisma.vessel.findUnique({ where: { id: numericId } })
+      : null;
+
     if (!vessel) {
-      const vesselByMmsi = await this.prisma.vessel.findUnique({ where: { mmsi: String(vesselId) } });
-      if (vesselByMmsi) {
-        vessel = vesselByMmsi;
-      }
+      // Try finding by MMSI
+      vessel = await this.prisma.vessel.findFirst({ where: { mmsi: String(vesselIdOrMmsi) } });
     }
-    if (!vessel) throw new NotFoundException(`Vessel with ID ${vesselId} not found`);
-    const existing = await this.prisma.userTrackedVessel.findFirst({ where: { userId, vesselId } });
-    if (existing) throw new ConflictException(`Vessel ${vesselId} is already being tracked`);
+
+    if (!vessel) {
+      throw new NotFoundException(`Vessel with ID/MMSI ${vesselIdOrMmsi} not found`);
+    }
+
+    // Check if already tracking (use actual database ID)
+    const existing = await this.prisma.userTrackedVessel.findFirst({
+      where: { userId, vesselId: vessel.id },
+      include: {
+        vessel: {
+          include: {
+            positions: { orderBy: { timestamp: 'desc' }, take: 1 },
+          },
+        },
+      },
+    });
+
+    // If already tracking, return existing record (idempotent)
+    if (existing) {
+      return existing;
+    }
+
     try {
       return await this.prisma.userTrackedVessel.create({
-        data: { userId, vesselId, alias, notes },
+        data: { userId, vesselId: vessel.id, alias, notes },
         include: {
           vessel: {
             include: {
@@ -135,17 +222,43 @@ export class TrackingService {
       });
     } catch (error: any) {
       if (error.code === 'P2002') {
-        throw new ConflictException(`Vessel ${vesselId} is already being tracked`);
+        // Race condition - fetch and return existing
+        const existing = await this.prisma.userTrackedVessel.findFirst({
+          where: { userId, vesselId: vessel.id },
+          include: {
+            vessel: {
+              include: {
+                positions: { orderBy: { timestamp: 'desc' }, take: 1 },
+              },
+            },
+          },
+        });
+        if (existing) return existing;
       }
       throw error;
     }
   }
 
-  async untrackVessel(userId: number, vesselId: number) {
+  async untrackVessel(userId: number, vesselIdOrMmsi: string | number) {
+    // Find vessel first
+    const numericId =
+      typeof vesselIdOrMmsi === 'number' ? vesselIdOrMmsi : parseInt(vesselIdOrMmsi, 10);
+    let vessel = !isNaN(numericId)
+      ? await this.prisma.vessel.findUnique({ where: { id: numericId } })
+      : null;
+
+    if (!vessel) {
+      vessel = await this.prisma.vessel.findFirst({ where: { mmsi: String(vesselIdOrMmsi) } });
+    }
+
+    if (!vessel) {
+      throw new NotFoundException(`Vessel with ID/MMSI ${vesselIdOrMmsi} not found`);
+    }
+
     return this.prisma.userTrackedVessel.deleteMany({
       where: {
         userId,
-        vesselId,
+        vesselId: vessel.id,
       },
     });
   }

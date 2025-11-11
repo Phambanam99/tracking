@@ -8,14 +8,20 @@ import { useAircraftStore, Aircraft } from '@/stores/aircraftStore';
  * Chỉ tải dữ liệu aircraft theo viewport hiện tại (online trước, fallback initial).
  * Không đụng đến vessels hay ports.
  */
-export function useAircraftViewportLoader(params: { mapInstanceRef: React.RefObject<Map | null> }) {
-  const { mapInstanceRef } = params;
+export function useAircraftViewportLoader(params: {
+  mapInstanceRef: React.RefObject<Map | null>;
+  isActive?: boolean;
+}) {
+  const { mapInstanceRef, isActive = true } = params;
   const { setAircrafts } = useAircraftStore();
   const lastBboxRef = useRef<string>('');
   const lastZoomRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
+    // Skip if not active
+    if (!isActive) return;
+
     const cleanup: Array<() => void> = [];
     lastBboxRef.current = '';
     lastZoomRef.current = null;
@@ -40,7 +46,8 @@ export function useAircraftViewportLoader(params: { mapInstanceRef: React.RefObj
         ];
         const bboxStr = bbox.join(',');
         const zoom = map.getView().getZoom() ?? 0;
-        if (bboxStr === lastBboxRef.current && zoom === lastZoomRef.current) return;
+        if (bboxStr === lastBboxRef.current && zoom === lastZoomRef.current)
+          return;
         lastBboxRef.current = bboxStr;
         lastZoomRef.current = zoom;
 
@@ -63,18 +70,22 @@ export function useAircraftViewportLoader(params: { mapInstanceRef: React.RefObj
             if (r.data && Array.isArray(r.data.data)) return r.data.data;
             return [];
           };
-            const arr = unwrap(raw);
+          const arr = unwrap(raw);
           let aircrafts: Aircraft[] = Array.isArray(arr)
-            ? arr
+            ? (arr
                 .map((a: any) =>
-                  a && typeof a.longitude === 'number' && typeof a.latitude === 'number'
+                  a &&
+                  typeof a.longitude === 'number' &&
+                  typeof a.latitude === 'number'
                     ? {
                         id:
                           a.id ??
                           a.aircraftId ??
                           (typeof a.flightId === 'string' && a.flightId
                             ? a.flightId
-                            : `${a.longitude}:${a.latitude}:${a.timestamp || ''}`),
+                            : `${a.longitude}:${a.latitude}:${
+                                a.timestamp || ''
+                              }`),
                         flightId: a.flightId ?? '',
                         createdAt: new Date(a.timestamp ?? Date.now()),
                         updatedAt: new Date(a.timestamp ?? Date.now()),
@@ -89,7 +100,7 @@ export function useAircraftViewportLoader(params: { mapInstanceRef: React.RefObj
                       }
                     : null,
                 )
-                .filter(Boolean) as Aircraft[]
+                .filter(Boolean) as Aircraft[])
             : [];
           if (!aircrafts.length) {
             const init = await api.get(`/aircrafts/initial${qsInitial}`);
@@ -131,5 +142,5 @@ export function useAircraftViewportLoader(params: { mapInstanceRef: React.RefObj
       if (timerRef.current) window.clearTimeout(timerRef.current);
       cleanup.forEach((fn) => fn());
     };
-  }, [mapInstanceRef, setAircrafts]);
+  }, [mapInstanceRef, setAircrafts, isActive]);
 }

@@ -2,6 +2,10 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import AuthProvider from '@/components/AuthProvider';
+import { QueryProvider } from '@/providers/QueryProvider';
+import { PerformanceDebugPanel } from '@/components/PerformanceDebugPanel';
+import { DataPrefetchProvider } from '@/providers/DataPrefetchProvider';
+import { AuthSyncWrapper } from '@/components/AuthSyncWrapper';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -26,7 +30,16 @@ export default function RootLayout({
   return (
     <html lang="vi" suppressHydrationWarning>
       <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <AuthProvider>{children}</AuthProvider>
+        <QueryProvider>
+          <AuthSyncWrapper>
+            <AuthProvider>
+              <DataPrefetchProvider>
+                {children}
+                <PerformanceDebugPanel />
+              </DataPrefetchProvider>
+            </AuthProvider>
+          </AuthSyncWrapper>
+        </QueryProvider>
       </body>
     </html>
   );

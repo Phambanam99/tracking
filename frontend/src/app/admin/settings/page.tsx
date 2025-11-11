@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Header from '@/components/Header';
 import api from '@/services/apiClient';
 import { useSystemSettingsStore } from '@/stores/systemSettingsStore';
+import ColorPicker from '@/components/ColorPicker';
 
 interface FormState {
   clusterEnabled: boolean;
@@ -26,9 +27,13 @@ interface FormState {
 }
 
 export default function AdminSettingsPage() {
-  const { settings, setSettings } = useSystemSettingsStore();
+  const { setSettings } = useSystemSettingsStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [colorPickerFor, setColorPickerFor] = useState<'vessel' | 'aircraft'>('vessel');
+  const vesselTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const aircraftTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [form, setForm] = useState<FormState>({
     clusterEnabled: true,
     minZoom: 4,
@@ -60,8 +65,18 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     (async () => {
+      console.log('[Settings] Loading settings...');
+      
+      // Add timeout protection
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Settings fetch timeout')), 5000);
+      });
+
       try {
-        const s = await api.get('/admin/settings');
+        const settingsPromise = api.get('/admin/settings');
+        const s = await Promise.race([settingsPromise, timeoutPromise]) as any;
+        
+        console.log('[Settings] ✓ Settings loaded:', s);
         setSettings(s);
         setForm({
           clusterEnabled: !!s.clusterEnabled,
@@ -76,9 +91,11 @@ export default function AdminSettingsPage() {
           customMapSources: Array.isArray(s.customMapSources) ? s.customMapSources : [],
         });
       } catch (e) {
-        // ignore
+        console.error('[Settings] Failed to load settings:', e);
+        alert('Không thể tải cài đặt hệ thống. Bạn có thể không có quyền truy cập trang này (cần role ADMIN).');
       } finally {
         setLoading(false);
+        console.log('[Settings] Loading complete');
       }
     })();
   }, [setSettings]);
@@ -108,14 +125,46 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const handleColorSelect = (color: string) => {
+    const textarea = colorPickerFor === 'vessel' ? vesselTextareaRef.current : aircraftTextareaRef.current;
+    const fieldName = colorPickerFor === 'vessel' ? 'vesselFlagColors' : 'aircraftOperatorColors';
+    
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = form[fieldName];
+      const before = text.substring(0, start);
+      const after = text.substring(end);
+      const newText = before + `"${color}"` + after;
+      
+      setForm((f) => ({ ...f, [fieldName]: newText }));
+      
+      setTimeout(() => {
+        textarea.focus();
+        const newCursorPos = start + color.length + 2;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      }, 0);
+    }
+    
+    setShowColorPicker(false);
+  };
+
+  const openColorPicker = (type: 'vessel' | 'aircraft') => {
+    setColorPickerFor(type);
+    setShowColorPicker(true);
+  };
+
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requiredRole="ADMIN">
       <div className="min-h-screen bg-gray-50">
         <Header />
         <main className="max-w-5xl mx-auto py-6 sm:px-6 lg:px-8">
           <h1 className="text-2xl font-semibold mb-4">Cài đặt hệ thống</h1>
           {loading ? (
-            <div>Đang tải...</div>
+            <div className="bg-white rounded-lg shadow p-6 flex flex-col items-center justify-center min-h-[300px]">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+              <p className="text-gray-600">Đang tải cài đặt...</p>
+            </div>
           ) : (
             <div className="bg-white rounded-lg shadow p-6 space-y-4">
               {/* Map provider selection */}
@@ -207,15 +256,25 @@ export default function AdminSettingsPage() {
               <div>
                 <div className="flex items-center justify-between">
                   <label className="block text-sm text-gray-600">Màu tàu theo quốc gia (JSON)</label>
-                  <button
-                    type="button"
-                    className="text-xs text-blue-600 hover:text-blue-800"
-                    onClick={() => setForm((f) => ({ ...f, vesselFlagColors: vesselExample }))}
-                  >
-                    Dán ví dụ
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      onClick={() => openColorPicker('vessel')}
+                    >
+                      🎨 Chọn màu
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                      onClick={() => setForm((f) => ({ ...f, vesselFlagColors: vesselExample }))}
+                    >
+                      Dán ví dụ
+                    </button>
+                  </div>
                 </div>
                 <textarea
+                  ref={vesselTextareaRef}
                   className="mt-1 w-full border rounded px-2 py-1 font-mono text-sm h-40"
                   value={form.vesselFlagColors}
                   onChange={(e) => setForm((f) => ({ ...f, vesselFlagColors: e.target.value }))}
@@ -226,15 +285,25 @@ export default function AdminSettingsPage() {
               <div>
                 <div className="flex items-center justify-between">
                   <label className="block text-sm text-gray-600">Màu máy bay theo hãng (JSON)</label>
-                  <button
-                    type="button"
-                    className="text-xs text-blue-600 hover:text-blue-800"
-                    onClick={() => setForm((f) => ({ ...f, aircraftOperatorColors: aircraftExample }))}
-                  >
-                    Dán ví dụ
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      onClick={() => openColorPicker('aircraft')}
+                    >
+                      🎨 Chọn màu
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                      onClick={() => setForm((f) => ({ ...f, aircraftOperatorColors: aircraftExample }))}
+                    >
+                      Dán ví dụ
+                    </button>
+                  </div>
                 </div>
                 <textarea
+                  ref={aircraftTextareaRef}
                   className="mt-1 w-full border rounded px-2 py-1 font-mono text-sm h-40"
                   value={form.aircraftOperatorColors}
                   onChange={(e) =>
@@ -380,6 +449,18 @@ export default function AdminSettingsPage() {
                 >
                   {saving ? 'Đang lưu...' : 'Lưu cài đặt'}
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* Color Picker Modal */}
+          {showColorPicker && (
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+              onClick={() => setShowColorPicker(false)}
+            >
+              <div onClick={(e) => e.stopPropagation()}>
+                <ColorPicker onColorSelect={handleColorSelect} />
               </div>
             </div>
           )}

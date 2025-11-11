@@ -4,20 +4,28 @@ import { toLonLat } from 'ol/proj';
 import api from '@/services/apiClient';
 import { useVesselStore } from '@/stores/vesselStore';
 import { usePortsStore } from '@/stores/portsStore';
+import { useMapStore } from '@/stores/mapStore';
 
 /**
  * Chỉ tải vessels (online trước, fallback initial) và optionally ports.
  * Tách biệt khỏi aircraft để giảm tải & tránh fetch thừa khi chỉ xem 1 lớp.
  */
-export function useVesselViewportLoader(params: { mapInstanceRef: React.RefObject<Map | null> }) {
-  const { mapInstanceRef } = params;
+export function useVesselViewportLoader(params: {
+  mapInstanceRef: React.RefObject<Map | null>;
+  isActive?: boolean;
+}) {
+  const { mapInstanceRef, isActive = true } = params;
   const { setVessels } = useVesselStore();
   const { setPorts, showPorts } = usePortsStore();
+  const { showPredictedVessels } = useMapStore();
   const lastBboxRef = useRef<string>('');
   const lastZoomRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
+    // Skip if not active
+    if (!isActive) return;
+
     const cleanup: Array<() => void> = [];
     lastBboxRef.current = '';
     lastZoomRef.current = null;
@@ -42,7 +50,8 @@ export function useVesselViewportLoader(params: { mapInstanceRef: React.RefObjec
         ];
         const bboxStr = bbox.join(',');
         const zoom = map.getView().getZoom() ?? 0;
-        if (bboxStr === lastBboxRef.current && zoom === lastZoomRef.current) return;
+        if (bboxStr === lastBboxRef.current && zoom === lastZoomRef.current)
+          return;
         lastBboxRef.current = bboxStr;
         lastZoomRef.current = zoom;
 
@@ -51,15 +60,21 @@ export function useVesselViewportLoader(params: { mapInstanceRef: React.RefObjec
         if (websocketService.socket) websocketService.updateViewport(bbox);
         else {
           websocketService.connect();
-            setTimeout(() => websocketService.subscribeViewport(bbox), 200);
+          setTimeout(() => websocketService.subscribeViewport(bbox), 200);
         }
 
-        const qsOnline = `?bbox=${encodeURIComponent(bboxStr)}&limit=5000`;
+        const qsOnline = `?bbox=${encodeURIComponent(
+          bboxStr,
+        )}&limit=50000&includePredicted=${showPredictedVessels}`;
         const qsInitial = `?bbox=${encodeURIComponent(bboxStr)}&zoom=${zoom}`;
         try {
-          const promises: Promise<any>[] = [api.get(`/vessels/online${qsOnline}`)];
+          const promises: Promise<any>[] = [
+            api.get(`/vessels/online${qsOnline}`),
+          ];
           if (showPorts) {
-            promises.push(api.get(`/vessels/ports?bbox=${encodeURIComponent(bboxStr)}`));
+            promises.push(
+              api.get(`/vessels/ports?bbox=${encodeURIComponent(bboxStr)}`),
+            );
           }
           const [vesselRaw, portsRaw] = await Promise.all(promises);
           const unwrap = (r: any): any[] => {
@@ -70,10 +85,14 @@ export function useVesselViewportLoader(params: { mapInstanceRef: React.RefObjec
             return [];
           };
           const arr = unwrap(vesselRaw);
-          let vessels: import('@/stores/vesselStore').Vessel[] = Array.isArray(arr)
+          let vessels: import('@/stores/vesselStore').Vessel[] = Array.isArray(
+            arr,
+          )
             ? (arr
                 .map((v: any) =>
-                  v && typeof v.longitude === 'number' && typeof v.latitude === 'number'
+                  v &&
+                  typeof v.longitude === 'number' &&
+                  typeof v.latitude === 'number'
                     ? {
                         id:
                           v.id ??
@@ -94,26 +113,51 @@ export function useVesselViewportLoader(params: { mapInstanceRef: React.RefObjec
                           status: v.status,
                           timestamp: new Date(v.timestamp ?? Date.now()),
                         },
+                        // ✅ Prediction fields
+                        predicted: v.predicted ?? false,
+                        confidence: v.confidence ?? 1.0,
+                        timeSinceLastMeasurement:
+                          v.timeSinceLastMeasurement ?? 0,
                       }
                     : null,
                 )
                 .filter(Boolean) as import('@/stores/vesselStore').Vessel[])
             : [];
+          console.log('[VesselLoader] Online vessels:', vessels.length);
           if (!vessels.length) {
             const init = await api.get(`/vessels/initial${qsInitial}`);
+            console.log(
+              '[VesselLoader] Initial API response:',
+              Array.isArray(init) ? init.length : 'not array',
+              init,
+            );
             if (Array.isArray(init)) {
+              const beforeFilter = init.length;
               vessels = init.filter(
                 (v: any) =>
                   v?.lastPosition &&
                   typeof v.lastPosition.longitude === 'number' &&
                   typeof v.lastPosition.latitude === 'number',
               );
+              console.log(
+                '[VesselLoader] Filtered vessels:',
+                vessels.length,
+                'of',
+                beforeFilter,
+                '(removed',
+                beforeFilter - vessels.length,
+                'without valid position)',
+              );
             }
           }
+          console.log(
+            '[VesselLoader] Setting vessels to store:',
+            vessels.length,
+          );
           if (vessels.length) setVessels(vessels);
           if (showPorts && Array.isArray(portsRaw)) setPorts(portsRaw as any);
-        } catch (_) {
-          // ignore
+        } catch (e) {
+          console.error('[VesselLoader] Error:', e);
         }
       };
 
@@ -140,5 +184,12 @@ export function useVesselViewportLoader(params: { mapInstanceRef: React.RefObjec
       if (timerRef.current) window.clearTimeout(timerRef.current);
       cleanup.forEach((fn) => fn());
     };
-  }, [mapInstanceRef, setVessels, setPorts, showPorts]);
+  }, [
+    mapInstanceRef,
+    setVessels,
+    setPorts,
+    showPorts,
+    showPredictedVessels,
+    isActive,
+  ]);
 }

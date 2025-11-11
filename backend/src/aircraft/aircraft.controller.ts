@@ -8,10 +8,22 @@ import {
   Query,
   Body,
   ParseIntPipe,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { AircraftService } from './aircraft.service';
 import { RedisService } from '../redis/redis.service';
-import { ApiOperation, ApiTags, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiTags,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import { AuthGuard } from '../auth/guards/auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles, UserRole } from '../auth/decorators/roles.decorator';
 import {
   CreateAircraftDto,
   UpdateAircraftDto,
@@ -20,7 +32,9 @@ import {
   AircraftResponseDto,
   CreateAircraftImageDto,
   UpdateAircraftImageDto,
+  OnlineAircraftQueryDto,
 } from './dto/aircraft.dto';
+import { AircraftEditHistoryDto } from './dto/aircraft-edit-history.dto';
 import { UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -47,20 +61,18 @@ export class AircraftController {
     type: [AircraftResponseDto],
   })
   async findAllWithLastPosition(
-    @Query('bbox') bbox?: string,
-    @Query('zoom') zoom?: string,
-    @Query('limit') limit?: string,
+    @Query() queryDto: OnlineAircraftQueryDto,
   ): Promise<AircraftResponseDto[]> {
     // bbox is "minLon,minLat,maxLon,maxLat"
     let parsedBbox: [number, number, number, number] | undefined;
-    if (bbox) {
-      const parts = bbox.split(',').map((p) => parseFloat(p.trim()));
+    if (queryDto.bbox) {
+      const parts = queryDto.bbox.split(',').map((p) => parseFloat(p.trim()));
       if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
         parsedBbox = [parts[0], parts[1], parts[2], parts[3]];
       }
     }
-    const z = zoom ? Number(zoom) : undefined;
-    const lim = limit ? Number(limit) : undefined;
+    const z = queryDto.zoom;
+    const lim = queryDto.limit;
     return this.aircraftService.findAllWithLastPosition(parsedBbox, z, lim);
   }
 
@@ -171,7 +183,18 @@ export class AircraftController {
     const limit = queryDto.limit || 1000;
     const offset = (queryDto as any).offset ? Number((queryDto as any).offset) : 0;
 
-    const aircraft = await this.aircraftService.findHistory(id, fromDate, toDate, limit, offset);
+    let aircraft = await this.aircraftService.findHistory(id, fromDate, toDate, limit, offset);
+
+    // If not found by ID, try finding by flightId (similar to GET /:id endpoint)
+    if (!aircraft) {
+      aircraft = await this.aircraftService.findHistoryByFlightId(
+        String(id),
+        fromDate,
+        toDate,
+        limit,
+        offset,
+      );
+    }
 
     if (!aircraft) {
       return { error: 'Aircraft not found' };
@@ -198,6 +221,9 @@ export class AircraftController {
    * Create a new aircraft
    */
   @Post()
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR)
+  @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Create a new aircraft' })
   @ApiResponse({
     status: 201,
@@ -213,6 +239,9 @@ export class AircraftController {
    * Update an aircraft
    */
   @Put(':id')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR)
+  @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Update an aircraft' })
   @ApiParam({ name: 'id', description: 'Aircraft ID', type: 'number' })
   @ApiResponse({
@@ -225,14 +254,35 @@ export class AircraftController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateAircraftDto: UpdateAircraftDto,
+    @Req() req: any,
   ): Promise<AircraftResponseDto> {
-    return this.aircraftService.update(id, updateAircraftDto);
+    const updated = await this.aircraftService.update(id, updateAircraftDto);
+
+    // Record edit history
+    if (req.user?.id) {
+      const changes: Record<string, any> = {};
+      Object.entries(updateAircraftDto).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          changes[key] = value;
+        }
+      });
+      if (Object.keys(changes).length > 0) {
+        await this.aircraftService.recordEdit(id, req.user.id, changes).catch(() => {
+          // Silently fail edit history recording
+        });
+      }
+    }
+
+    return updated;
   }
 
   /**
    * Delete an aircraft
    */
   @Delete(':id')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR)
+  @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Delete an aircraft' })
   @ApiParam({ name: 'id', description: 'Aircraft ID', type: 'number' })
   @ApiResponse({ status: 200, description: 'Aircraft deleted successfully' })
@@ -246,6 +296,9 @@ export class AircraftController {
    * Add position data for an aircraft
    */
   @Post('positions')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR)
+  @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Add aircraft position' })
   @ApiResponse({ status: 201, description: 'Position added successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input data' })
@@ -262,12 +315,18 @@ export class AircraftController {
   }
 
   @Post(':id/images')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR)
+  @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Add aircraft image' })
   async addImage(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateAircraftImageDto) {
     return this.aircraftService.addImage(id, dto);
   }
 
   @Put('images/:imageId')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR)
+  @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Update aircraft image' })
   async updateImage(
     @Param('imageId', ParseIntPipe) imageId: number,
@@ -277,6 +336,9 @@ export class AircraftController {
   }
 
   @Delete('images/:imageId')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR)
+  @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Delete aircraft image' })
   async deleteImage(@Param('imageId', ParseIntPipe) imageId: number) {
     await this.aircraftService.deleteImage(imageId);
@@ -284,6 +346,9 @@ export class AircraftController {
   }
 
   @Post(':id/images/upload')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR)
+  @ApiBearerAuth('bearer')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -317,11 +382,11 @@ export class AircraftController {
   @Get('online')
   @ApiOperation({ summary: 'Get online aircraft (placeholder – not yet populated)' })
   @ApiQuery({ name: 'bbox', required: false, description: 'minLon,minLat,maxLon,maxLat' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Max number (<=5000)' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max number of aircraft (<=5000)' })
   @ApiQuery({
     name: 'stalenessSec',
     required: false,
-    description: 'Max age seconds (default 3600)',
+    description: 'Max age in seconds (default 3600)',
   })
   async getOnlineAircraft(
     @Query('bbox') bbox?: string,
@@ -336,8 +401,10 @@ export class AircraftController {
         bboxNums = [parts[0], parts[1], parts[2], parts[3]];
       }
     }
-    const _limit = limitStr ? Math.min(5000, Math.max(1, Number(limitStr))) : 1000; // reserved for future use
-    const stalenessSec = stalenessStr ? Math.max(10, Number(stalenessStr)) : 3600;
+
+    const limit = limitStr ? Math.max(1, Math.min(5000, parseInt(limitStr, 10))) : 1000;
+    const stalenessSec = stalenessStr ? Math.max(10, parseInt(stalenessStr, 10)) : 3600;
+
     return {
       count: 0,
       stalenessSec,
@@ -345,5 +412,28 @@ export class AircraftController {
       data: [],
       note: 'Aircraft online feed not yet implemented',
     };
+  }
+
+  /**
+   * Get edit history for an aircraft
+   */
+  @Get(':id/edit-history')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'Get aircraft edit history' })
+  @ApiParam({ name: 'id', description: 'Aircraft ID', type: 'number' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Limit' })
+  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Offset' })
+  @ApiResponse({ status: 200, description: 'Edit history' })
+  async getEditHistory(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.aircraftService.getEditHistory(
+      id,
+      limit ? parseInt(limit) : 50,
+      offset ? parseInt(offset) : 0,
+    );
   }
 }

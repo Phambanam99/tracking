@@ -21,4 +21,10 @@ export default () => ({
   AIS_USING_LAST_UPDATE_TIME: parseBool(process.env.AIS_USING_LAST_UPDATE_TIME, true),
   AIS_AUTO_TRIGGER: parseBool(process.env.AIS_AUTO_TRIGGER, false),
   AIS_AUTO_TRIGGER_INTERVAL_MS: Number(process.env.AIS_AUTO_TRIGGER_INTERVAL_MS ?? 15000),
+
+  // AISStream.io configuration
+  AI_STREAM_API: process.env.AI_STREAM_API ?? '89feca5a66015a869401e8911866b85dc6690666',
+  AISTREAM_ENABLED: parseBool(process.env.AISTREAM_ENABLED, true),
+  AISTREAM_ENDPOINT: process.env.AISTREAM_ENDPOINT ?? 'wss://stream.aisstream.io/v0/stream',
+  AISTREAM_POLL_INTERVAL_MS: Number(process.env.AISTREAM_POLL_INTERVAL_MS ?? 30000),
 });

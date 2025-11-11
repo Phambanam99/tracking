@@ -32,6 +32,8 @@ import {
 } from '../hooks';
 import { useAircraftViewportLoader } from '@/hooks/useAircraftViewportLoader';
 import { useVesselViewportLoader } from '@/hooks/useVesselViewportLoader';
+import { useWeatherData } from '@/hooks/useWeatherData';
+import { useWeatherLayer } from '@/hooks/useWeatherLayer';
 
 export default function MapComponentClustered() {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -82,14 +84,18 @@ export default function MapComponentClustered() {
     vesselLayerRef,
     regionLayerRef,
   });
-  // Then attach viewport loader (fetch + WS bbox)
-  // Separate loaders để tránh fetch thừa
-  useAircraftViewportLoader({ mapInstanceRef });
-  useVesselViewportLoader({ mapInstanceRef });
+  // Then attach viewport loaders (only for active tab to save bandwidth)
+  // Both hooks are called unconditionally, but each checks if it should be active internally
+  // This follows React's Rules of Hooks (hooks must be called in same order every render)
+  useAircraftViewportLoader({ mapInstanceRef, isActive: activeFilterTab === 'aircraft' });
+  useVesselViewportLoader({ mapInstanceRef, isActive: activeFilterTab === 'vessel' });
   useMapClickHandler({ mapInstanceRef, mapRef });
   useDrawingMode({ mapInstanceRef, regionLayerRef });
   useRegionsRendering({ regionLayerRef, mapInstanceRef });
   useFeatureUpdater({ aircraftLayerRef, vesselLayerRef });
+  // Weather layer hooks
+  useWeatherData({ mapInstanceRef });
+  useWeatherLayer({ mapInstanceRef });
 
   // Viewport bbox updates handled inside split loaders
 

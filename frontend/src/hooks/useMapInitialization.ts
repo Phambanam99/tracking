@@ -371,16 +371,31 @@ export function useMapInitialization(
         return style;
       };
 
+      let vesselStyleCallCount = 0;
       const vesselVectorStyle: import('ol/style/Style').StyleFunction = (
         feature,
         resolution,
       ) => {
+        vesselStyleCallCount++;
+        if (vesselStyleCallCount === 1) {
+          console.log(
+            '[VesselStyle] First call - clusterEnabled:',
+            clusterEnabled,
+            'feature:',
+            feature,
+          );
+        }
         const zoom = getZoomFromResolution(resolution);
         const clusterMembers = feature.get('features') as any[] | undefined;
 
         if (clusterEnabled) {
-          if (!clusterMembers || !Array.isArray(clusterMembers))
+          if (!clusterMembers || !Array.isArray(clusterMembers)) {
+            console.warn(
+              '[VesselStyle] No cluster members for feature:',
+              feature,
+            );
             return new Style();
+          }
           const size = clusterMembers.length;
           if (size > 1) {
             const bucket = Math.min(99, Math.max(2, size));
@@ -405,6 +420,10 @@ export function useMapInitialization(
           }
 
           const vs = clusterMembers[0]?.get('vessel');
+          if (!vs) {
+            console.warn('[VesselStyle] No vessel data in cluster member');
+            return new Style();
+          }
           const heading = vs?.lastPosition?.heading || 0;
           const headingKey = Math.round(heading / 5) * 5;
           const flag = vs?.flag as string;

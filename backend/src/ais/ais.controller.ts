@@ -12,7 +12,8 @@ import {
 } from '@nestjs/common';
 import { map, merge, Observable, interval, startWith } from 'rxjs';
 import { AisSignalrService } from './ais-signalr.service';
-import { AisFusionService } from './ais-fusion.service';
+import { AisAistreamService } from './ais-aistream.service';
+import { AisOrchestratorService } from './ais-orchestrator.service';
 import type { QueryRequestDto } from './ais.types';
 
 @Controller('ais')
@@ -20,7 +21,8 @@ export class AisController {
   private readonly logger = new Logger(AisController.name);
   constructor(
     private readonly ais: AisSignalrService,
-    private readonly fusion: AisFusionService,
+    private readonly aisAistream: AisAistreamService,
+    private readonly orchestrator: AisOrchestratorService,
   ) {}
 
   /** Gọi REST để bắt đầu query (server sẽ stream dữ liệu qua SignalR về cho Nest) */
@@ -54,7 +56,9 @@ export class AisController {
     );
 
     if (mode === 'fused') {
-      const fused$ = this.fusion.fusedStream$.pipe(map((rec) => ({ type: 'Fused', data: rec })));
+      const fused$ = this.orchestrator.fusedStream$.pipe(
+        map((rec) => ({ type: 'Fused', data: rec })),
+      );
       return merge(heartbeat$, fused$) as unknown as Observable<MessageEvent>;
     }
 
@@ -91,28 +95,13 @@ export class AisController {
   /** Diagnostic status (metrics & fusion stats) */
   @Get('status')
   async status() {
-    // Access internal stats via public getters / shallow reflection
     const signalr = this.ais.getStatus();
-    // fusion stats are private; expose minimal snapshot by casting (safe for diagnostics)
-    const fusionAny: any = this.fusion as any;
-    const fusionStats = fusionAny.stats ? { ...fusionAny.stats } : undefined;
+    const aisstream = this.aisAistream.getStatus();
+    const orchestratorStats = this.orchestrator.getStats();
     return {
       signalr,
-      fusion: {
-        stats: fusionStats,
-        buffers: fusionAny.buffers ? fusionAny.buffers.size : undefined,
-        lastPublished: fusionAny.lastPublished ? fusionAny.lastPublished.size : undefined,
-        config: fusionAny.cfg
-          ? {
-              windowMs: fusionAny.cfg.windowMs,
-              allowedLatenessMs: fusionAny.cfg.allowedLatenessMs,
-              minMoveMeters: fusionAny.cfg.minMoveMeters,
-              publishMinIntervalMs: fusionAny.cfg.publishMinIntervalMs,
-              acceptAll: fusionAny.cfg.acceptAll,
-              redisRetentionMs: fusionAny.cfg.redisRetentionMs,
-            }
-          : undefined,
-      },
+      aisstream,
+      orchestrator: orchestratorStats,
       now: new Date().toISOString(),
     };
   }

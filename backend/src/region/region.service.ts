@@ -192,9 +192,22 @@ export class RegionService {
     latitude: number,
     longitude: number,
   ) {
-    // Get all active regions
+    // Optimization: Check if there are any active regions first
+    const regionCount = await this.prisma.region.count({
+      where: { isActive: true },
+    });
+
+    // Skip if no active regions
+    if (regionCount === 0) {
+      return;
+    }
+
+    // Limit to reasonable number of regions to prevent performance issues
+    // If there are too many regions, process only a subset per update
+    const MAX_REGIONS_PER_UPDATE = 50;
     const regions = await this.prisma.region.findMany({
       where: { isActive: true },
+      take: MAX_REGIONS_PER_UPDATE,
     });
 
     for (const region of regions) {

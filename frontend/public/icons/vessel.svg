@@ -1,0 +1,8 @@
+<svg width="24" height="24" viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg">
+    <!-- Normal vessel icon - solid blue -->
+    <path d="M12 2L4 8V12L12 18L20 12V8L12 2Z" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
+    <circle cx="12" cy="10" r="2" fill="#ffffff"/>
+</svg>
+
+

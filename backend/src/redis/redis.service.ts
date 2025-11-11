@@ -7,14 +7,20 @@ export class RedisService implements OnModuleDestroy {
   private redisClient: Redis;
   private pubClient: Redis;
   private subClient: Redis;
+  private readonly keyPrefix: string;
 
   constructor(private config: ConfigService) {
+    // Environment-specific key prefix
+    const env = this.config.get<string>('NODE_ENV', 'development');
+    this.keyPrefix = this.config.get<string>('REDIS_KEY_PREFIX', `ais:${env}:`);
+
     // Redis connection configuration
     const redisConfig = {
       host: this.config.get<string>('REDIS_HOST', 'localhost'),
       port: parseInt(this.config.get<string>('REDIS_PORT', '6379')),
       password: this.config.get<string | undefined>('REDIS_PASSWORD'),
       db: parseInt(this.config.get<string>('REDIS_DB', '0')),
+      keyPrefix: this.keyPrefix,
     };
 
     // Main client for general operations

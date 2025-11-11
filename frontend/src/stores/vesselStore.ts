@@ -44,6 +44,10 @@ export interface Vessel {
   images?: VesselImage[]; // Added images relation
   // Thời điểm cuối cùng nhận dữ liệu (tính theo Date.now())
   lastSeen?: number;
+  // ✅ Prediction fields
+  predicted?: boolean; // Is this position predicted?
+  confidence?: number; // 0-1, prediction confidence
+  timeSinceLastMeasurement?: number; // seconds since last real measurement
 }
 
 interface VesselStore {
@@ -84,7 +88,9 @@ export const useVesselStore = create<VesselStore>((set, get) => ({
     set({
       vessels: vessels.map((v) => ({
         ...v,
-        images: Array.isArray((v as any).images) ? (v as any).images : undefined,
+        images: Array.isArray((v as any).images)
+          ? (v as any).images
+          : undefined,
         lastSeen: Date.now(),
         lastPosition: v.lastPosition
           ? { ...v.lastPosition, timestamp: new Date(v.lastPosition.timestamp) }
@@ -181,13 +187,17 @@ export const useVesselStore = create<VesselStore>((set, get) => ({
         pageSize: currentPageSize,
       } = result ?? {};
       const arr = Array.isArray(data) ? data : [];
+      // console.log(`Fetched vessels: ${JSON.stringify(arr, null, 2)}`);
       set({
         vessels: arr.map((v: any) => ({
           ...v,
-            images: Array.isArray(v.images) ? v.images : undefined,
+          images: Array.isArray(v.images) ? v.images : undefined,
           lastSeen: Date.now(),
           lastPosition: v?.lastPosition
-            ? { ...v.lastPosition, timestamp: new Date(v.lastPosition.timestamp) }
+            ? {
+                ...v.lastPosition,
+                timestamp: new Date(v.lastPosition.timestamp),
+              }
             : undefined,
         })),
         total: typeof total === 'number' ? total : 0,

@@ -321,3 +321,47 @@ export class UpdateAircraftImageDto {
   @IsInt()
   order?: number;
 }
+
+// DTO for online aircraft query (bbox filtering)
+export class OnlineAircraftQueryDto {
+  @ApiPropertyOptional({
+    description: 'Bounding box: minLon,minLat,maxLon,maxLat',
+    example: '100.0,10.0,110.0,20.0',
+  })
+  @IsOptional()
+  @IsString()
+  bbox?: string;
+
+  @ApiPropertyOptional({
+    description: 'Limit number of results (max 5000)',
+    example: 1000,
+    minimum: 1,
+    maximum: 5000,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5000)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    description: 'Max staleness in seconds',
+    example: 3600,
+    minimum: 10,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(10)
+  stalenessSec?: number;
+
+  @ApiPropertyOptional({
+    description: 'Zoom level',
+    example: 10,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  zoom?: number;
+}

@@ -15,6 +15,10 @@ import { TrackingModule } from './tracking/tracking.module';
 import { RegionModule } from './region/region.module';
 import { AdminModule } from './admin/admin.module';
 import { AisModule } from './ais/ais.module';
+import { MetricsModule } from './metrics/metrics.module';
+import { ResilienceModule } from './resilience/resilience.module';
+import { WeatherModule } from './weather/weather.module';
+import { VesselEnrichmentModule } from './vessel-enrichment/vessel-enrichment.module';
 import aisConfig from './config/ais.config';
 
 @Module({
@@ -33,6 +37,10 @@ import aisConfig from './config/ais.config';
     RegionModule,
     AdminModule,
     AisModule,
+    MetricsModule,
+    ResilienceModule,
+    WeatherModule,
+    VesselEnrichmentModule,
   ],
   controllers: [AppController],
   providers: [AppService],

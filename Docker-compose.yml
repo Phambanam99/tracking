@@ -17,7 +17,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-
+# add pgadmin service
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: tracking-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80" # Truy cập pgAdmin tại http://localhost:5050
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin # Volume để lưu trữ cài đặt pgAdmin
+    depends_on:
+      db:
+        condition: service_healthy # Chờ cho đến khi 'db' sẵn sàng
   redis:
     image: redis:7-alpine
     container_name: tracking-redis
@@ -47,3 +61,4 @@ volumes:
   pg_data:
   redis_data:
   redisinsight_data:
+  pgadmin_data:

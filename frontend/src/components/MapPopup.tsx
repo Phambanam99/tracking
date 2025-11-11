@@ -339,6 +339,13 @@ const MapPopup: React.FC<MapPopupProps> = ({
         : `/vessels/${id}/history?from=${encodeURIComponent(fromISO)}`;
       const data = await api.get(endpoint);
       console.log(data);
+
+      // Check if backend returned an error in the data
+      if (data && data.error) {
+        setHistoryError(data.error);
+        return;
+      }
+
       const positions = Array.isArray(data.positions) ? data.positions : [];
       setHistoryPath({
         type: isAircraft ? 'aircraft' : 'vessel',
@@ -492,6 +499,14 @@ const MapPopup: React.FC<MapPopupProps> = ({
                   {(data as Vessel).mmsi}
                 </span>
               </div>
+              {(data as Vessel).vesselName && (
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Tên tàu:</span>
+                  <span className="text-sm font-medium">
+                    {(data as Vessel).vesselName}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Loại tàu:</span>
                 <span className="text-sm font-medium">

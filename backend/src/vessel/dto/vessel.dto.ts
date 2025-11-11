@@ -145,6 +145,19 @@ export class VesselHistoryQueryDto {
   @IsNumber()
   @Min(0)
   offset?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(1000)
+  pageSize?: number;
 }
 
 // Response DTOs

@@ -9,6 +9,7 @@ import { useMapStore } from '@/stores/mapStore';
 import { useTrackingStore } from '@/stores/trackingStore';
 import api from '@/services/apiClient';
 import HistoryTable from './HistoryTable';
+import EditHistoryTable from '@/components/aircraft/EditHistoryTable';
 
 interface Aircraft {
   id: number;
@@ -487,6 +488,16 @@ export default function AircraftDetailPage() {
 
                     {/* Paginated history table */}
                     <HistoryTable aircraftId={aircraft.id} />
+                  </div>
+                </div>
+
+                {/* Edit History */}
+                <div className="mt-6 bg-white shadow rounded-lg">
+                  <div className="px-4 py-5 sm:p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      Lịch sử chỉnh sửa
+                    </h3>
+                    <EditHistoryTable aircraftId={aircraft.id} />
                   </div>
                 </div>
               </div>

@@ -288,7 +288,10 @@ export class AircraftService {
    */
   async addPositionWithDto(createPositionDto: CreateAircraftPositionDto) {
     return await this.prisma.aircraftPosition.create({
-      data: createPositionDto,
+      data: {
+        ...createPositionDto,
+        source: createPositionDto.source || 'api', // Default to 'api' if not provided
+      },
     });
   }
 
@@ -298,6 +301,48 @@ export class AircraftService {
   async findHistory(id: number, fromDate: Date, toDate: Date, limit: number, offset = 0) {
     const aircraft = await this.prisma.aircraft.findUnique({
       where: { id },
+      include: {
+        positions: {
+          where: {
+            timestamp: {
+              gte: fromDate,
+              lte: toDate,
+            },
+          },
+          orderBy: { timestamp: 'asc' },
+          take: limit,
+          skip: offset,
+        },
+      },
+    });
+
+    if (!aircraft) {
+      return null;
+    }
+
+    return {
+      id: aircraft.id,
+      flightId: aircraft.flightId,
+      callSign: aircraft.callSign,
+      registration: aircraft.registration,
+      aircraftType: aircraft.aircraftType,
+      operator: aircraft.operator,
+      positions: aircraft.positions,
+    };
+  }
+
+  /**
+   * Find aircraft by flightId with its complete history
+   */
+  async findHistoryByFlightId(
+    flightId: string,
+    fromDate: Date,
+    toDate: Date,
+    limit: number,
+    offset = 0,
+  ) {
+    const aircraft = await this.prisma.aircraft.findFirst({
+      where: { flightId },
       include: {
         positions: {
           where: {
@@ -372,6 +417,9 @@ export class AircraftService {
       source?: string;
       score?: number;
     },
+    options?: {
+      skipRegionProcessing?: boolean; // Skip region alert processing for bulk operations
+    },
   ) {
     let positionRecord;
     try {
@@ -381,7 +429,7 @@ export class AircraftService {
           aircraftId_timestamp_source: {
             aircraftId,
             timestamp,
-            source: position.source,
+            source: position.source || 'unknown',
           },
         },
         create: {
@@ -392,7 +440,7 @@ export class AircraftService {
           speed: position.speed,
           heading: position.heading,
           timestamp,
-          source: position.source,
+          source: position.source || 'unknown',
           score: position.score,
         },
         update: {
@@ -418,12 +466,16 @@ export class AircraftService {
       }
     }
 
-    // Trigger region alert processing
-    await this.trackingService.processAircraftPositionUpdate(
-      aircraftId,
-      position.latitude,
-      position.longitude,
-    );
+    // Trigger region alert processing (skip for bulk operations)
+    if (!options?.skipRegionProcessing) {
+      // Run region processing asynchronously without blocking
+      this.trackingService
+        .processAircraftPositionUpdate(aircraftId, position.latitude, position.longitude)
+        .catch((err) => {
+          // Log error but don't fail the position update
+          console.error('Error processing region alerts:', err);
+        });
+    }
 
     return positionRecord;
   }
@@ -483,5 +535,73 @@ export class AircraftService {
 
   async deleteImage(imageId: number) {
     return (this.prisma as any).aircraftImage.delete({ where: { id: imageId } });
+  }
+
+  /**
+   * Bulk delete aircraft by IDs
+   */
+  async bulkDelete(ids: number[]) {
+    return this.prisma.aircraft.deleteMany({
+      where: { id: { in: ids } },
+    });
+  }
+
+  /**
+   * Bulk create aircraft
+   */
+  async bulkCreate(aircrafts: CreateAircraftDto[]) {
+    return this.prisma.$transaction(aircrafts.map((data) => this.prisma.aircraft.create({ data })));
+  }
+
+  /**
+   * Record aircraft edit in history
+   */
+  async recordEdit(aircraftId: number, userId: number, changes: Record<string, any>) {
+    return this.prisma.aircraftEditHistory.create({
+      data: {
+        aircraftId,
+        userId,
+        changes: JSON.stringify(changes),
+      },
+      include: {
+        user: {
+          select: { id: true, username: true },
+        },
+      },
+    });
+  }
+
+  /**
+   * Get edit history for an aircraft
+   */
+  async getEditHistory(aircraftId: number, limit = 50, offset = 0) {
+    const [history, total] = await Promise.all([
+      this.prisma.aircraftEditHistory.findMany({
+        where: { aircraftId },
+        include: {
+          user: {
+            select: { id: true, username: true },
+          },
+        },
+        orderBy: { editedAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.aircraftEditHistory.count({
+        where: { aircraftId },
+      }),
+    ]);
+
+    return {
+      data: history.map((h) => ({
+        id: h.id,
+        aircraftId: h.aircraftId,
+        userId: h.userId,
+        userName: h.user.username,
+        changes: JSON.parse(h.changes),
+        editedAt: h.editedAt,
+      })),
+      total,
+    };
   }
 }

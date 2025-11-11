@@ -100,6 +100,9 @@ interface MapState {
   setActiveFilterTab: (tab: 'aircraft' | 'vessel') => void;
   setAircraftViewMode: (mode: 'all' | 'tracked') => void;
   setVesselViewMode: (mode: 'all' | 'tracked') => void;
+  // Predicted vessels toggle
+  showPredictedVessels: boolean;
+  setShowPredictedVessels: (show: boolean) => void;
   selectedFeature: FeatureData | null;
   popupPosition: [number, number] | null;
   isPopupVisible: boolean;
@@ -216,6 +219,7 @@ export const useMapStore = create<MapState>()(
       activeFilterTab: 'vessel',
       aircraftViewMode: 'all',
       vesselViewMode: 'all',
+      showPredictedVessels: true, // Default: show predicted vessels
       selectedFeature: null,
       popupPosition: null,
       isPopupVisible: false,
@@ -435,6 +439,9 @@ export const useMapStore = create<MapState>()(
         set({ aircraftViewMode: mode }),
       setVesselViewMode: (mode: 'all' | 'tracked') =>
         set({ vesselViewMode: mode }),
+
+      setShowPredictedVessels: (show: boolean) =>
+        set({ showPredictedVessels: show }),
 
       // Per-user filter persistence
       setCurrentUserId: (userId: string) => {

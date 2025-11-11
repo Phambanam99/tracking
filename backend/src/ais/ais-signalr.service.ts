@@ -139,9 +139,9 @@ export class AisSignalrService implements OnModuleInit, OnModuleDestroy {
                 return typeof a + ':' + String(a).slice(0, 40);
               })
               .join(', ');
-            this.logger.debug(`[SignalR:event] ${event} args=${summary}`);
+            // this.logger.debug(`[SignalR:event] ${event} args=${summary}`);
           } catch (e: any) {
-            this.logger.debug(`[SignalR:event] ${event} (error summarizing args: ${e.message})`);
+            // this.logger.debug(`[SignalR:event] ${event} (error summarizing args: ${e.message})`);
           }
           return handler(...args);
         });
@@ -175,11 +175,11 @@ export class AisSignalrService implements OnModuleInit, OnModuleDestroy {
             sample.updatetime !== undefined);
 
         if (!hasExpectedStructure) {
-          this.logger.warn('QueryData may have unexpected structure - missing key AIS properties');
-          this.logger.debug(`First item sample: ${JSON.stringify(sample)}`);
+          // this.logger.warn('QueryData may have unexpected structure - missing key AIS properties');
+          // this.logger.debug(`First item sample: ${JSON.stringify(sample)}`);
         }
       }
-      this.logger.log(`QueryData batch: ${len}`);
+      // this.logger.log(`QueryData batch: ${len}`);
       this.data$.next({ state: QueryResultState.Query, data: data ?? [] });
       this.metrics.queryDataBatches++;
       this.metrics.queryDataRows += len;
@@ -190,7 +190,7 @@ export class AisSignalrService implements OnModuleInit, OnModuleDestroy {
           this.logger.debug('QueryData empty batch (no rows).');
         } else {
           const first: any = data[0];
-          this.logger.debug(`QueryData sample[0]: ${data[0]}`);
+          // this.logger.debug(`QueryData sample[0]: ${JSON.stringify(data[0], null, 2)}`);
           // Detect timestamp field variants
           const tsRaw: any =
             first.updatetime || first.updateTime || first.UpdateTime || first.timestamp;
@@ -213,9 +213,9 @@ export class AisSignalrService implements OnModuleInit, OnModuleDestroy {
             this.metrics.lastTsRange = rangeMsg;
           }
           const keys = Object.keys(first).slice(0, 15).join(',');
-          this.logger.debug(
-            `QueryData sample[0]: mmsi=${(first.mmsi || first.MMSI || '-') as any} ts=${tsRaw} keys=${keys}${rangeMsg}`,
-          );
+          // this.logger.debug(
+          //   `QueryData sample[0]: mmsi=${(first.mmsi || first.MMSI || '-') as any} ts=${tsRaw} keys=${keys}${rangeMsg}`,
+          // );
         }
       }
       // Incremental advancement: push lower bound forward based on max timestamp in batch
@@ -232,9 +232,9 @@ export class AisSignalrService implements OnModuleInit, OnModuleDestroy {
         if (maxTs) {
           const next = new Date(maxTs + 60 * 1000); // advance +1 minute to reduce duplicates
           this.lastLowerBound = next;
-          this.logger.debug(
-            `Incremental query advanced lower bound -> ${next.toISOString()} (maxTs=${new Date(maxTs).toISOString()})`,
-          );
+          // this.logger.debug(
+          //   `Incremental query advanced lower bound -> ${next.toISOString()} (maxTs=${new Date(maxTs).toISOString()})`,
+          // );
         }
       }
     });
