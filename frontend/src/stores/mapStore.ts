@@ -100,6 +100,9 @@ interface MapState {
   setActiveFilterTab: (tab: 'aircraft' | 'vessel') => void;
   setAircraftViewMode: (mode: 'all' | 'tracked') => void;
   setVesselViewMode: (mode: 'all' | 'tracked') => void;
+  // Predicted vessels toggle
+  showPredictedVessels: boolean;
+  setShowPredictedVessels: (show: boolean) => void;
   selectedFeature: FeatureData | null;
   popupPosition: [number, number] | null;
   isPopupVisible: boolean;
@@ -126,6 +129,9 @@ interface MapState {
   isDeleteMode: boolean;
   drawingTool: 'polygon' | 'circle' | null;
   regionsVisible: boolean;
+  visibleRegionIds: number[] | null;
+  setRegionsVisibility: (visible: boolean) => void;
+  setVisibleRegionIds: (ids: number[] | null) => void;
 
   // Drawing action popup state
   isDrawingActionPopupVisible: boolean;
@@ -213,6 +219,7 @@ export const useMapStore = create<MapState>()(
       activeFilterTab: 'vessel',
       aircraftViewMode: 'all',
       vesselViewMode: 'all',
+      showPredictedVessels: true, // Default: show predicted vessels
       selectedFeature: null,
       popupPosition: null,
       isPopupVisible: false,
@@ -233,7 +240,12 @@ export const useMapStore = create<MapState>()(
       isDrawingMode: false,
       isDeleteMode: false,
       drawingTool: null,
-      regionsVisible: true,
+      regionsVisible: false,
+      visibleRegionIds: null,
+      setRegionsVisibility: (visible: boolean) =>
+        set({ regionsVisible: visible }),
+      setVisibleRegionIds: (ids: number[] | null) =>
+        set({ visibleRegionIds: ids }),
 
       // Drawing action popup state
       isDrawingActionPopupVisible: false,
@@ -427,6 +439,9 @@ export const useMapStore = create<MapState>()(
         set({ aircraftViewMode: mode }),
       setVesselViewMode: (mode: 'all' | 'tracked') =>
         set({ vesselViewMode: mode }),
+
+      setShowPredictedVessels: (show: boolean) =>
+        set({ showPredictedVessels: show }),
 
       // Per-user filter persistence
       setCurrentUserId: (userId: string) => {

@@ -249,4 +249,119 @@ export class AircraftResponseDto {
 
   @ApiPropertyOptional({ description: 'Last known position' })
   lastPosition?: AircraftPositionResponseDto;
+  @ApiPropertyOptional({ description: 'Images of the aircraft' })
+  images?: AircraftImageDto[];
+}
+
+export class AircraftImageDto {
+  @ApiProperty({ description: 'Image ID', example: 1 })
+  id: number;
+  @ApiProperty({ description: 'Image URL' })
+  url: string;
+  @ApiPropertyOptional({ description: 'Caption' })
+  caption?: string | null;
+  @ApiPropertyOptional({ description: 'Source / credit' })
+  source?: string | null;
+  @ApiProperty({ description: 'Primary image flag' })
+  isPrimary: boolean;
+  @ApiProperty({ description: 'Ordering integer' })
+  order: number;
+  @ApiProperty({ description: 'Created timestamp' })
+  createdAt: Date;
+  @ApiProperty({ description: 'Updated timestamp' })
+  updatedAt: Date;
+}
+
+export class CreateAircraftImageDto {
+  @ApiProperty({ description: 'Image URL' })
+  @IsString()
+  @IsNotEmpty()
+  url: string;
+
+  @ApiPropertyOptional({ description: 'Caption' })
+  @IsOptional()
+  @IsString()
+  caption?: string;
+
+  @ApiPropertyOptional({ description: 'Source / credit' })
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @ApiPropertyOptional({ description: 'Primary image flag' })
+  @IsOptional()
+  isPrimary?: boolean;
+
+  @ApiPropertyOptional({ description: 'Ordering integer' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  order?: number;
+}
+
+export class UpdateAircraftImageDto {
+  @ApiPropertyOptional({ description: 'Image URL' })
+  @IsOptional()
+  @IsString()
+  url?: string;
+  @ApiPropertyOptional({ description: 'Caption' })
+  @IsOptional()
+  @IsString()
+  caption?: string;
+  @ApiPropertyOptional({ description: 'Source / credit' })
+  @IsOptional()
+  @IsString()
+  source?: string;
+  @ApiPropertyOptional({ description: 'Primary image flag' })
+  @IsOptional()
+  isPrimary?: boolean;
+  @ApiPropertyOptional({ description: 'Ordering integer' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  order?: number;
+}
+
+// DTO for online aircraft query (bbox filtering)
+export class OnlineAircraftQueryDto {
+  @ApiPropertyOptional({
+    description: 'Bounding box: minLon,minLat,maxLon,maxLat',
+    example: '100.0,10.0,110.0,20.0',
+  })
+  @IsOptional()
+  @IsString()
+  bbox?: string;
+
+  @ApiPropertyOptional({
+    description: 'Limit number of results (max 5000)',
+    example: 1000,
+    minimum: 1,
+    maximum: 5000,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5000)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    description: 'Max staleness in seconds',
+    example: 3600,
+    minimum: 10,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(10)
+  stalenessSec?: number;
+
+  @ApiPropertyOptional({
+    description: 'Zoom level',
+    example: 10,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  zoom?: number;
 }

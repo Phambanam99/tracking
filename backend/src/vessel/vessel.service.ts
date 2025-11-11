@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TrackingService } from '../tracking/tracking.service';
 import { CreateVesselDto, UpdateVesselDto, CreateVesselPositionDto } from './dto/vessel.dto';
+import { CreateVesselImageDto, UpdateVesselImageDto } from './dto/vessel.dto';
 
 @Injectable()
 export class VesselService {
@@ -54,7 +55,10 @@ export class VesselService {
           orderBy: { timestamp: 'desc' },
           take: 1,
         },
-      },
+        images: {
+          orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }, { id: 'asc' }],
+        },
+      } as any,
       take: derivedLimit,
     });
 
@@ -69,7 +73,8 @@ export class VesselService {
       width: vessel.width,
       createdAt: vessel.createdAt,
       updatedAt: vessel.updatedAt,
-      lastPosition: vessel.positions[0] || null,
+      lastPosition: (vessel as any).positions?.[0] || null,
+      images: (vessel as any).images || [],
     }));
   }
 
@@ -170,7 +175,10 @@ export class VesselService {
           orderBy: { timestamp: 'desc' },
           take: 1,
         },
-      },
+        images: {
+          orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }, { id: 'asc' }],
+        },
+      } as any,
       orderBy: { id: 'asc' }, // Consistent ordering for pagination
       skip,
       take: effectivePageSize,
@@ -188,7 +196,8 @@ export class VesselService {
         width: vessel.width,
         createdAt: vessel.createdAt,
         updatedAt: vessel.updatedAt,
-        lastPosition: vessel.positions[0] || null,
+        lastPosition: (vessel as any).positions?.[0] || null,
+        images: (vessel as any).images || [],
       }))
       .filter((v) => {
         if (!adv || !v.lastPosition) return true;
@@ -240,7 +249,10 @@ export class VesselService {
    */
   async addPositionWithDto(createPositionDto: CreateVesselPositionDto) {
     return await this.prisma.vesselPosition.create({
-      data: createPositionDto,
+      data: {
+        ...createPositionDto,
+        source: createPositionDto.source || 'api', // Default to 'api' if not provided
+      },
     });
   }
 
@@ -255,7 +267,10 @@ export class VesselService {
           orderBy: { timestamp: 'desc' },
           take: 1,
         },
-      },
+        images: {
+          orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }, { id: 'asc' }],
+        },
+      } as any,
     });
     if (!vessel) return null;
     return {
@@ -269,25 +284,63 @@ export class VesselService {
       width: vessel.width,
       createdAt: vessel.createdAt,
       updatedAt: vessel.updatedAt,
-      lastPosition: vessel.positions[0] || null,
+      lastPosition: (vessel as any).positions?.[0] || null,
+      images: (vessel as any).images || [],
     };
   }
-
+  async findByMmsiWithLastPosition(mmsi: string) {
+    const vessel = await this.prisma.vessel.findFirst({
+      where: { mmsi },
+      include: {
+        positions: {
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        },
+        images: {
+          orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }, { id: 'asc' }],
+        },
+      } as any,
+    });
+    if (!vessel) return null;
+    return {
+      id: vessel.id,
+      mmsi: vessel.mmsi,
+      vesselName: vessel.vesselName,
+      vesselType: vessel.vesselType,
+      flag: vessel.flag,
+      operator: vessel.operator,
+      length: vessel.length,
+      width: vessel.width,
+      createdAt: vessel.createdAt,
+      updatedAt: vessel.updatedAt,
+      lastPosition: (vessel as any).positions?.[0] || null,
+      images: (vessel as any).images || [],
+    };
+  }
   /**
    * Find vessel by ID with its complete history
    */
-  async findHistory(id: number, fromDate: Date, toDate: Date, limit: number, offset = 0) {
+  async findHistory(
+    id: number,
+    fromDate: Date | null,
+    toDate: Date | null,
+    limit: number,
+    offset = 0,
+  ) {
+    // Build where clause - only add time filter if dates provided
+    const whereClause: any = {};
+    if (fromDate || toDate) {
+      whereClause.timestamp = {};
+      if (fromDate) whereClause.timestamp.gte = fromDate;
+      if (toDate) whereClause.timestamp.lte = toDate;
+    }
+
     const vessel = await this.prisma.vessel.findUnique({
       where: { id },
       include: {
         positions: {
-          where: {
-            timestamp: {
-              gte: fromDate,
-              lte: toDate,
-            },
-          },
-          orderBy: { timestamp: 'asc' },
+          where: whereClause,
+          orderBy: { timestamp: 'desc' }, // Changed to desc (newest first)
           take: limit,
           skip: offset,
         },
@@ -309,6 +362,72 @@ export class VesselService {
       width: vessel.width,
       positions: vessel.positions,
     };
+  }
+
+  /**
+   * Find vessel by MMSI with its complete history
+   */
+  async findHistoryByMmsi(
+    mmsi: string,
+    fromDate: Date | null,
+    toDate: Date | null,
+    limit: number,
+    offset = 0,
+  ) {
+    // Build where clause - only add time filter if dates provided
+    const whereClause: any = {};
+    if (fromDate || toDate) {
+      whereClause.timestamp = {};
+      if (fromDate) whereClause.timestamp.gte = fromDate;
+      if (toDate) whereClause.timestamp.lte = toDate;
+    }
+
+    const vessel = await this.prisma.vessel.findFirst({
+      where: { mmsi },
+      include: {
+        positions: {
+          where: whereClause,
+          orderBy: { timestamp: 'desc' }, // Changed to desc (newest first)
+          take: limit,
+          skip: offset,
+        },
+      },
+    });
+
+    if (!vessel) {
+      return null;
+    }
+
+    return {
+      id: vessel.id,
+      mmsi: vessel.mmsi,
+      vesselName: vessel.vesselName,
+      vesselType: vessel.vesselType,
+      flag: vessel.flag,
+      operator: vessel.operator,
+      length: vessel.length,
+      width: vessel.width,
+      positions: vessel.positions,
+    };
+  }
+
+  /**
+   * Count total positions for a vessel within a date range
+   */
+  async countPositions(
+    vesselId: number,
+    fromDate: Date | null,
+    toDate: Date | null,
+  ): Promise<number> {
+    // Build where clause - only add time filter if dates provided
+    const where: any = { vesselId };
+    if (fromDate || toDate) {
+      where.timestamp = {};
+      if (fromDate) where.timestamp.gte = fromDate;
+      if (toDate) where.timestamp.lte = toDate;
+    }
+
+    return this.prisma.vesselPosition.count({ where });
   }
 
   /**
@@ -362,23 +481,56 @@ export class VesselService {
       source?: string;
       score?: number;
     },
+    options?: {
+      skipRegionProcessing?: boolean; // Skip region alert processing for bulk operations
+    },
   ) {
     let positionRecord;
     try {
-      positionRecord = await this.prisma.vesselPosition.create({
-        data: {
+      const timestamp = position.timestamp || new Date();
+
+      // Try to find existing position first
+      const existingPosition = await this.prisma.vesselPosition.findFirst({
+        where: {
           vesselId,
-          latitude: position.latitude,
-          longitude: position.longitude,
-          speed: position.speed,
-          course: position.course,
-          heading: position.heading,
-          status: position.status,
-          timestamp: position.timestamp || new Date(),
-          source: position.source,
-          score: position.score,
+          timestamp,
         },
       });
+
+      if (existingPosition) {
+        // Update existing position
+        positionRecord = await this.prisma.vesselPosition.update({
+          where: {
+            id: existingPosition.id,
+          },
+          data: {
+            latitude: position.latitude,
+            longitude: position.longitude,
+            speed: position.speed,
+            course: position.course,
+            heading: position.heading,
+            status: position.status,
+            source: position.source || 'unknown',
+            score: position.score,
+          },
+        });
+      } else {
+        // Create new position
+        positionRecord = await this.prisma.vesselPosition.create({
+          data: {
+            vesselId,
+            latitude: position.latitude,
+            longitude: position.longitude,
+            speed: position.speed,
+            course: position.course,
+            heading: position.heading,
+            status: position.status,
+            timestamp,
+            source: position.source || 'unknown',
+            score: position.score,
+          },
+        });
+      }
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         // Duplicate by (vesselId, timestamp, source) → return existing
@@ -394,13 +546,143 @@ export class VesselService {
       }
     }
 
-    // Trigger region alert processing
-    await this.trackingService.processVesselPositionUpdate(
-      vesselId,
-      position.latitude,
-      position.longitude,
-    );
+    // Trigger region alert processing (skip for bulk operations)
+    if (!options?.skipRegionProcessing) {
+      // Run region processing asynchronously without blocking
+      this.trackingService
+        .processVesselPositionUpdate(vesselId, position.latitude, position.longitude)
+        .catch((err) => {
+          // Log error but don't fail the position update
+          console.error('Error processing region alerts:', err);
+        });
+    }
 
     return positionRecord;
+  }
+
+  /**
+   * Vessel Images CRUD
+   */
+  async listImages(vesselId: number) {
+    return (this.prisma as any).vesselImage.findMany({
+      where: { vesselId },
+      orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  async addImage(vesselId: number, dto: CreateVesselImageDto) {
+    if (dto.isPrimary) {
+      // unset other primaries
+      await (this.prisma as any).vesselImage.updateMany({
+        where: { vesselId, isPrimary: true },
+        data: { isPrimary: false },
+      });
+    }
+    return (this.prisma as any).vesselImage.create({
+      data: {
+        vesselId,
+        url: dto.url,
+        caption: dto.caption,
+        source: dto.source,
+        isPrimary: dto.isPrimary ?? false,
+        order: dto.order ?? 0,
+      },
+    });
+  }
+
+  async updateImage(imageId: number, dto: UpdateVesselImageDto) {
+    if (dto.isPrimary) {
+      const existing = await (this.prisma as any).vesselImage.findUnique({
+        where: { id: imageId },
+      });
+      if (existing) {
+        await (this.prisma as any).vesselImage.updateMany({
+          where: { vesselId: existing.vesselId, isPrimary: true },
+          data: { isPrimary: false },
+        });
+      }
+    }
+    return (this.prisma as any).vesselImage.update({
+      where: { id: imageId },
+      data: {
+        url: dto.url,
+        caption: dto.caption,
+        source: dto.source,
+        isPrimary: dto.isPrimary,
+        order: dto.order,
+      },
+    });
+  }
+
+  async deleteImage(imageId: number) {
+    return (this.prisma as any).vesselImage.delete({ where: { id: imageId } });
+  }
+
+  /**
+   * Bulk delete vessels by IDs
+   */
+  async bulkDelete(ids: number[]) {
+    return this.prisma.vessel.deleteMany({
+      where: { id: { in: ids } },
+    });
+  }
+
+  /**
+   * Bulk create vessels
+   */
+  async bulkCreate(vessels: CreateVesselDto[]) {
+    return this.prisma.$transaction(vessels.map((data) => this.prisma.vessel.create({ data })));
+  }
+
+  /**
+   * Record vessel edit in history
+   */
+  async recordEdit(vesselId: number, userId: number, changes: Record<string, any>) {
+    return this.prisma.vesselEditHistory.create({
+      data: {
+        vesselId,
+        userId,
+        changes: JSON.stringify(changes),
+      },
+      include: {
+        user: {
+          select: { id: true, username: true },
+        },
+      },
+    });
+  }
+
+  /**
+   * Get edit history for a vessel
+   */
+  async getEditHistory(vesselId: number, limit = 50, offset = 0) {
+    const [history, total] = await Promise.all([
+      this.prisma.vesselEditHistory.findMany({
+        where: { vesselId },
+        include: {
+          user: {
+            select: { id: true, username: true },
+          },
+        },
+        orderBy: { editedAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.vesselEditHistory.count({
+        where: { vesselId },
+      }),
+    ]);
+
+    return {
+      data: history.map((h) => ({
+        id: h.id,
+        vesselId: h.vesselId,
+        userId: h.userId,
+        userName: h.user.username,
+        changes: JSON.parse(h.changes),
+        editedAt: h.editedAt,
+      })),
+      total,
+    };
   }
 }

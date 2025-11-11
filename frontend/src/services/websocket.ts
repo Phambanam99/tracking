@@ -1,6 +1,18 @@
-// Explicit WS endpoint; do NOT rely on Next.js rewrites for WebSocket
-const WS_URL =
-  process.env.NEXT_PUBLIC_WS_URL?.trim() || 'http://localhost:3000/tracking';
+// WebSocket base URL normalization
+// Accept absolute (ws:// / wss:// / http(s)://) or relative path via NEXT_PUBLIC_WS_URL.
+// Fallback to '/tracking' path on current origin.
+function buildWsUrl() {
+  const raw = process.env.NEXT_PUBLIC_WS_URL?.trim();
+  if (!raw) return '/tracking';
+  // If absolute (starts with ws://, wss://, http://, https://) return as-is after trimming trailing slash
+  if (/^(ws|wss|http|https):\/\//i.test(raw)) {
+    return raw.replace(/\/$/, '');
+  }
+  // Ensure it begins with single leading slash and no trailing slash
+  return ('/' + raw.replace(/^\/+/, '')).replace(/\/$/, '');
+}
+
+const WS_URL = buildWsUrl();
 
 type Listener<T = any> = (data: T) => void;
 
@@ -21,10 +33,16 @@ export const websocketService = {
 
     // Dynamically import socket.io-client only on client side
     import('socket.io-client').then(({ io }) => {
+      // If WS_URL is relative, socket.io will use current origin automatically
       this.socket = io(WS_URL, {
         transports: ['websocket', 'polling'],
         withCredentials: true,
       });
+      
+      // Basic debug (optional - can be removed later)
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[websocket] connecting to', WS_URL);
+      }
 
       this.socket.on('connect', () => {
         // Register any queued listeners

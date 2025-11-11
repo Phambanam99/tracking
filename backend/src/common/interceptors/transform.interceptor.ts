@@ -10,9 +10,17 @@ export class TransformInterceptor implements NestInterceptor {
     const response = http.getResponse();
     const request = http.getRequest();
 
-    // Ensure version header is present on all responses
-    if (response && typeof response.setHeader === 'function') {
+    const isSse =
+      !!request?.headers?.accept && String(request.headers.accept).includes('text/event-stream');
+
+    // Ensure version header is present on all responses (before sending)
+    if (response && typeof response.setHeader === 'function' && !response.headersSent) {
       response.setHeader('X-API-Version', API_VERSION);
+    }
+
+    // For SSE, bypass response shaping to avoid interfering with event-stream
+    if (isSse) {
+      return next.handle();
     }
 
     return next.handle().pipe(

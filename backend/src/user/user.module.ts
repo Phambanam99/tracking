@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { UserFiltersService } from './user-filters.service';
+import { UserCleanupService } from './user-cleanup.service';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
@@ -18,7 +19,7 @@ import { PrismaModule } from '../prisma/prisma.module';
     }),
   ],
   controllers: [UserController],
-  providers: [UserService, UserFiltersService],
+  providers: [UserService, UserFiltersService, UserCleanupService],
   exports: [UserService, UserFiltersService],
 })
 export class UserModule {}

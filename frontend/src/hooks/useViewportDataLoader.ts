@@ -1,14 +1,21 @@
+/**
+ * DEPRECATED: Hook kết hợp tải cả aircraft & vessel.
+ * Đã tách thành: useAircraftViewportLoader & useVesselViewportLoader.
+ * Giữ lại tạm thời để tránh break các nơi khác (nếu còn). Có thể xoá sau khi refactor xong.
+ */
 import { useEffect, useRef } from 'react';
+
 import type Map from 'ol/Map';
 import { toLonLat } from 'ol/proj';
 import api from '@/services/apiClient';
 import { useAircraftStore } from '@/stores/aircraftStore';
 import { useVesselStore } from '@/stores/vesselStore';
 import { usePortsStore } from '@/stores/portsStore';
-
+import { Aircraft } from '@/stores/aircraftStore';
 export function useViewportDataLoader(params: {
   mapInstanceRef: React.RefObject<Map | null>;
 }) {
+  
   const { mapInstanceRef } = params;
   const { setAircrafts } = useAircraftStore();
   const { setVessels } = useVesselStore();
@@ -66,36 +73,123 @@ export function useViewportDataLoader(params: {
           setTimeout(() => websocketService.subscribeViewport(bbox), 200);
         }
 
-        // Fetch initial data limited to viewport (no pagination for initial)
-        const qs = `?bbox=${encodeURIComponent(bboxStr)}&zoom=${zoom}`;
+        // Prefer fast Redis-backed online endpoints; fallback to initial endpoints
+        const qsOnline = `?bbox=${encodeURIComponent(bboxStr)}&limit=5000`;
+        const qsInitial = `?bbox=${encodeURIComponent(bboxStr)}&zoom=${zoom}`;
         try {
           const promises = [
-            api.get(`/aircrafts/initial${qs}`),
-            api.get(`/vessels/initial${qs}`),
+            api.get(`/aircrafts/online${qsOnline}`),
+            api.get(`/vessels/online${qsOnline}`),
           ];
+          
           if (showPorts) {
             promises.push(
               api.get(`/vessels/ports?bbox=${encodeURIComponent(bboxStr)}`),
             );
           }
-          const [aircraftResponse, vesselResponse, portsResponse] =
+          const [aircraftResponseRaw, vesselResponseRaw, portsResponse] =
             await Promise.all(promises as any);
-          const aircrafts = Array.isArray(aircraftResponse)
-            ? aircraftResponse.filter(
-                (a: any) =>
-                  a?.lastPosition &&
-                  typeof a.lastPosition.longitude === 'number' &&
-                  typeof a.lastPosition.latitude === 'number',
-              )
+         console.log('Unwrapping response:', vesselResponseRaw);
+          // Helper to unwrap possible nested response shapes:
+          // 1. [ {...}, {...} ]
+          // 2. { data: [ ... ] }
+          // 3. { data: { data: [ ... ], count, ... } }
+          // 4. { success: true, data: { data: [ ... ] } }
+          const unwrapArray = (raw: any): any[] => {
+            
+            if (!raw) return [];
+            if (Array.isArray(raw)) return raw;
+            if (Array.isArray(raw.data)) return raw.data; // shape 2
+            if (raw.data && Array.isArray(raw.data.data)) return raw.data.data; // shape 3/4
+            return [];
+          };
+
+          const aircraftResponse = unwrapArray(aircraftResponseRaw);
+          const vesselResponse = unwrapArray(vesselResponseRaw);
+
+          // Map online payloads to store shape
+      let aircrafts: Aircraft[] = Array.isArray(aircraftResponse)
+            ? aircraftResponse
+                .map((a: any) =>
+                  a && typeof a.longitude === 'number' && typeof a.latitude === 'number'
+                    ? {
+                        // Prefer stable backend id; fallback to aircraftId; if absent derive from hash of lon/lat/time to avoid collisions
+                        id:
+                          a.id ??
+                          a.aircraftId ??
+                          (typeof a.flightId === 'string' && a.flightId
+                            ? a.flightId
+                            : `${a.longitude}:${a.latitude}:${a.timestamp || ''}`),
+                        flightId: a.flightId ?? '',
+                        createdAt: new Date(a.timestamp ?? Date.now()),
+                        updatedAt: new Date(a.timestamp ?? Date.now()),
+                        lastPosition: {
+                          latitude: a.latitude,
+                          longitude: a.longitude,
+                          altitude: a.altitude,
+                          speed: a.speed,
+                          heading: a.heading,
+                          timestamp: new Date(a.timestamp ?? Date.now()),
+                        },
+                      }
+                    : null,
+                )
+        .filter(Boolean) as import('@/stores/aircraftStore').Aircraft[]
             : [];
-          const vessels = Array.isArray(vesselResponse)
-            ? vesselResponse.filter(
-                (v: any) =>
-                  v?.lastPosition &&
-                  typeof v.lastPosition.longitude === 'number' &&
-                  typeof v.lastPosition.latitude === 'number',
-              )
+          let vessels: import('@/stores/vesselStore').Vessel[] = Array.isArray(vesselResponse)
+            ? vesselResponse
+                .map((v: any) =>
+                  v && typeof v.longitude === 'number' && typeof v.latitude === 'number'
+                    ? {
+                        // Use backend id or vesselId; fallback to numeric MMSI if parseable; else composite key
+                        id:
+                          v.id ??
+                          v.vesselId ??
+                          (v.mmsi && /^\d+$/.test(v.mmsi)
+                            ? parseInt(v.mmsi, 10)
+                            : `${v.mmsi || ''}:${v.longitude}:${v.latitude}`),
+                        mmsi: v.mmsi ?? '',
+                        vesselName: v.vesselName ?? v.name ?? undefined,
+                        createdAt: new Date(v.timestamp ?? Date.now()),
+                        updatedAt: new Date(v.timestamp ?? Date.now()),
+                        lastPosition: {
+                          latitude: v.latitude,
+                          longitude: v.longitude,
+                          speed: v.speed,
+                          course: v.course,
+                          heading: v.heading ?? v.course, // fallback course as heading if heading absent
+                          status: v.status,
+                          timestamp: new Date(v.timestamp ?? Date.now()),
+                        },
+                      }
+                    : null,
+                )
+                .filter(Boolean) as import('@/stores/vesselStore').Vessel[]
             : [];
+
+          // Fallback to initial endpoints if online empty
+          if ((!aircrafts?.length || !vessels?.length)) {
+            const [aircraftInit, vesselInit] = await Promise.all([
+              api.get(`/aircrafts/initial${qsInitial}`),
+              api.get(`/vessels/initial${qsInitial}`),
+            ]);
+            aircrafts = Array.isArray(aircraftInit)
+              ? aircraftInit.filter(
+                  (a: any) =>
+                    a?.lastPosition &&
+                    typeof a.lastPosition.longitude === 'number' &&
+                    typeof a.lastPosition.latitude === 'number',
+                )
+              : aircrafts;
+            vessels = Array.isArray(vesselInit)
+              ? vesselInit.filter(
+                  (v: any) =>
+                    v?.lastPosition &&
+                    typeof v.lastPosition.longitude === 'number' &&
+                    typeof v.lastPosition.latitude === 'number',
+                )
+              : vessels;
+          }
           if (aircrafts.length) setAircrafts(aircrafts);
           if (vessels.length) setVessels(vessels);
           if (showPorts && Array.isArray(portsResponse))

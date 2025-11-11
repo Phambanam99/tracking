@@ -71,17 +71,6 @@ export class UserController {
   }
 
   /**
-   * Get user by ID (Admin only)
-   */
-  @Get(':id')
-  @ApiOperation({ summary: 'Get user by id (admin)' })
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.userService.findById(id);
-  }
-
-  /**
    * Create new user (Admin only)
    */
   @Post()
@@ -90,6 +79,123 @@ export class UserController {
   @Roles(UserRole.ADMIN)
   async create(@Body() createUserDto: CreateUserDto) {
     return this.userService.createUser(createUserDto);
+  }
+
+  // ============ FILTER ROUTES (must come BEFORE :id routes) ============
+
+  /**
+   * Get default filters
+   */
+  @Get('filters/default')
+  @ApiOperation({ summary: 'Get default user filters' })
+  @ApiResponse({
+    status: 200,
+    description: 'Default filters retrieved successfully',
+    type: UserFiltersResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Default filters not found' })
+  async getDefaultFilters(@Request() req: any): Promise<UserFiltersResponseDto | null> {
+    return this.userFiltersService.getDefaultFilters(req.user.id);
+  }
+
+  /**
+   * Save default filters
+   */
+  @Put('filters/default')
+  @ApiOperation({ summary: 'Save default user filters' })
+  @ApiResponse({
+    status: 200,
+    description: 'Default filters saved successfully',
+    type: UserFiltersResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid filter data' })
+  async saveDefaultFilters(
+    @Request() req: any,
+    @Body() dto: Omit<SaveUserFiltersDto, 'name'>,
+  ): Promise<UserFiltersResponseDto> {
+    return this.userFiltersService.saveDefaultFilters(req.user.id, dto);
+  }
+
+  /**
+   * Get user filters
+   */
+  @Get('filters')
+  @ApiOperation({ summary: 'Get all user filters' })
+  @ApiResponse({
+    status: 200,
+    description: 'User filters retrieved successfully',
+    type: [UserFiltersResponseDto],
+  })
+  async getFilters(@Request() req: any): Promise<UserFiltersResponseDto[]> {
+    return this.userFiltersService.getUserFilters(req.user.id);
+  }
+
+  /**
+   * Save user filters
+   */
+  @Post('filters')
+  @ApiOperation({ summary: 'Save user filters' })
+  @ApiResponse({
+    status: 201,
+    description: 'Filters saved successfully',
+    type: UserFiltersResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid filter data' })
+  @ApiResponse({ status: 409, description: 'Filter name already exists' })
+  async saveFilters(
+    @Request() req: any,
+    @Body() dto: SaveUserFiltersDto,
+  ): Promise<UserFiltersResponseDto> {
+    return this.userFiltersService.saveUserFilters(req.user.id, dto);
+  }
+
+  /**
+   * Get user filter by ID
+   */
+  @Get('filters/:id')
+  @ApiOperation({ summary: 'Get user filter by ID' })
+  @ApiParam({ name: 'id', description: 'Filter ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'User filter retrieved successfully',
+    type: UserFiltersResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Filter not found' })
+  async getFilterById(
+    @Request() req: any,
+    @Param('id', ParseIntPipe) filterId: number,
+  ): Promise<UserFiltersResponseDto> {
+    return this.userFiltersService.getUserFilterById(req.user.id, filterId);
+  }
+
+  /**
+   * Delete user filter
+   */
+  @Delete('filters/:id')
+  @ApiOperation({ summary: 'Delete user filter' })
+  @ApiParam({ name: 'id', description: 'Filter ID' })
+  @ApiResponse({ status: 200, description: 'Filter deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Filter not found' })
+  @HttpCode(HttpStatus.OK)
+  async deleteFilter(
+    @Request() req: any,
+    @Param('id', ParseIntPipe) filterId: number,
+  ): Promise<{ message: string }> {
+    await this.userFiltersService.deleteUserFilter(req.user.id, filterId);
+    return { message: 'Filter deleted successfully' };
+  }
+
+  // ============ USER ID ROUTES (must come AFTER specific routes) ============
+
+  /**
+   * Get user by ID (Admin only)
+   */
+  @Get(':id')
+  @ApiOperation({ summary: 'Get user by id (admin)' })
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.findById(id);
   }
 
   /**
@@ -112,107 +218,5 @@ export class UserController {
   @Roles(UserRole.ADMIN)
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.userService.deleteUser(id);
-  }
-
-  /**
-   * Save user filters
-   */
-  @Post('filters')
-  @ApiOperation({ summary: 'Save user filters' })
-  @ApiResponse({
-    status: 201,
-    description: 'Filters saved successfully',
-    type: UserFiltersResponseDto,
-  })
-  @ApiResponse({ status: 400, description: 'Invalid filter data' })
-  @ApiResponse({ status: 409, description: 'Filter name already exists' })
-  async saveFilters(
-    @Request() req: any,
-    @Body() dto: SaveUserFiltersDto,
-  ): Promise<UserFiltersResponseDto> {
-    return this.userFiltersService.saveUserFilters(req.user.sub, dto);
-  }
-
-  /**
-   * Get user filters
-   */
-  @Get('filters')
-  @ApiOperation({ summary: 'Get all user filters' })
-  @ApiResponse({
-    status: 200,
-    description: 'User filters retrieved successfully',
-    type: [UserFiltersResponseDto],
-  })
-  async getFilters(@Request() req: any): Promise<UserFiltersResponseDto[]> {
-    return this.userFiltersService.getUserFilters(req.user.sub);
-  }
-
-  /**
-   * Get user filter by ID
-   */
-  @Get('filters/:id')
-  @ApiOperation({ summary: 'Get user filter by ID' })
-  @ApiParam({ name: 'id', description: 'Filter ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'User filter retrieved successfully',
-    type: UserFiltersResponseDto,
-  })
-  @ApiResponse({ status: 404, description: 'Filter not found' })
-  async getFilterById(
-    @Request() req: any,
-    @Param('id', ParseIntPipe) filterId: number,
-  ): Promise<UserFiltersResponseDto> {
-    return this.userFiltersService.getUserFilterById(req.user.sub, filterId);
-  }
-
-  /**
-   * Delete user filter
-   */
-  @Delete('filters/:id')
-  @ApiOperation({ summary: 'Delete user filter' })
-  @ApiParam({ name: 'id', description: 'Filter ID' })
-  @ApiResponse({ status: 200, description: 'Filter deleted successfully' })
-  @ApiResponse({ status: 404, description: 'Filter not found' })
-  @HttpCode(HttpStatus.OK)
-  async deleteFilter(
-    @Request() req: any,
-    @Param('id', ParseIntPipe) filterId: number,
-  ): Promise<{ message: string }> {
-    await this.userFiltersService.deleteUserFilter(req.user.sub, filterId);
-    return { message: 'Filter deleted successfully' };
-  }
-
-  /**
-   * Get default filters
-   */
-  @Get('filters/default')
-  @ApiOperation({ summary: 'Get default user filters' })
-  @ApiResponse({
-    status: 200,
-    description: 'Default filters retrieved successfully',
-    type: UserFiltersResponseDto,
-  })
-  @ApiResponse({ status: 404, description: 'Default filters not found' })
-  async getDefaultFilters(@Request() req: any): Promise<UserFiltersResponseDto | null> {
-    return this.userFiltersService.getDefaultFilters(req.user.sub);
-  }
-
-  /**
-   * Save default filters
-   */
-  @Put('filters/default')
-  @ApiOperation({ summary: 'Save default user filters' })
-  @ApiResponse({
-    status: 200,
-    description: 'Default filters saved successfully',
-    type: UserFiltersResponseDto,
-  })
-  @ApiResponse({ status: 400, description: 'Invalid filter data' })
-  async saveDefaultFilters(
-    @Request() req: any,
-    @Body() dto: Omit<SaveUserFiltersDto, 'name'>,
-  ): Promise<UserFiltersResponseDto> {
-    return this.userFiltersService.saveDefaultFilters(req.user.sub, dto);
   }
 }

@@ -17,26 +17,23 @@ export default function HistoryTable({ aircraftId }: { aircraftId: number }) {
   const [rows, setRows] = useState<PositionRow[]>([]);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
+  const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [from, setFrom] = useState<string>(() =>
-    new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-  );
-  const [to, setTo] = useState<string>(() => new Date().toISOString());
+  // Remove time filter; rely on backend defaults
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
         const params = new URLSearchParams();
-        if (from) params.append('from', from);
-        if (to) params.append('to', to);
-        params.append('limit', String(pageSize));
-        params.append('offset', String(page * pageSize));
+        params.append('page', String(page + 1));
+        params.append('pageSize', String(pageSize));
         const data = await api.get(
           `/aircrafts/${aircraftId}/history?${params.toString()}`,
         );
         const positions = Array.isArray(data.positions) ? data.positions : [];
         setRows(positions);
+        setTotal(typeof data.total === 'number' ? data.total : positions.length);
       } catch (e) {
         // ignore
       } finally {
@@ -44,26 +41,11 @@ export default function HistoryTable({ aircraftId }: { aircraftId: number }) {
       }
     };
     load();
-  }, [aircraftId, page, pageSize, from, to]);
+  }, [aircraftId, page, pageSize]);
 
   return (
     <div className="mt-4">
-      <div className="flex items-center gap-2 mb-3">
-        <label className="text-sm text-gray-600">Từ:</label>
-        <input
-          type="datetime-local"
-          className="border rounded px-2 py-1 text-sm"
-          value={from.slice(0, 16)}
-          onChange={(e) => setFrom(new Date(e.target.value).toISOString())}
-        />
-        <label className="text-sm text-gray-600">Đến:</label>
-        <input
-          type="datetime-local"
-          className="border rounded px-2 py-1 text-sm"
-          value={to.slice(0, 16)}
-          onChange={(e) => setTo(new Date(e.target.value).toISOString())}
-        />
-      </div>
+      {/* Time filter removed; paging will fetch from backend defaults */}
       <div className="overflow-auto border rounded">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -112,7 +94,10 @@ export default function HistoryTable({ aircraftId }: { aircraftId: number }) {
         </table>
       </div>
       <div className="flex items-center justify-between mt-3">
-        <div className="text-sm text-gray-600">Trang {page + 1}</div>
+        <div className="text-sm text-gray-600">
+          Trang {page + 1}
+          {total != null ? ` / ${Math.max(1, Math.ceil(total / pageSize))}` : ''}
+        </div>
         <div className="space-x-2">
           <button
             disabled={page === 0 || loading}
@@ -122,7 +107,7 @@ export default function HistoryTable({ aircraftId }: { aircraftId: number }) {
             Trước
           </button>
           <button
-            disabled={rows.length < pageSize || loading}
+            disabled={loading || (total != null ? (page + 1) * pageSize >= total : rows.length < pageSize)}
             onClick={() => setPage(page + 1)}
             className="px-3 py-1 border rounded disabled:opacity-50"
           >

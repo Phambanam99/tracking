@@ -24,17 +24,18 @@ interface TrackingState {
   trackedItems: TrackingItem[];
   loading: boolean;
   error: string | null;
+  lastFetched: number | null; // Timestamp của lần fetch cuối
 
   // Actions
-  fetchTrackedItems: () => Promise<void>;
+  fetchTrackedItems: (force?: boolean) => Promise<void>;
   trackItem: (
     type: 'aircraft' | 'vessel',
-    id: number,
+    id: number | string,
     alias?: string,
     notes?: string,
   ) => Promise<void>;
-  untrackItem: (type: 'aircraft' | 'vessel', id: number) => Promise<void>;
-  isTracking: (type: 'aircraft' | 'vessel', id: number) => boolean;
+  untrackItem: (type: 'aircraft' | 'vessel', id: number | string) => Promise<void>;
+  isTracking: (type: 'aircraft' | 'vessel', id: number | string) => boolean;
   getTrackingStats: () => {
     total: number;
     aircraftCount: number;
@@ -42,12 +43,26 @@ interface TrackingState {
   };
 }
 
+const CACHE_DURATION_MS = 2 * 60 * 1000; // 2 minutes
+
 export const useTrackingStore = create<TrackingState>((set, get) => ({
   trackedItems: [],
   loading: false,
   error: null,
+  lastFetched: null,
 
-  fetchTrackedItems: async () => {
+  fetchTrackedItems: async (force = false) => {
+    const { lastFetched, loading } = get();
+    
+    // Nếu đang loading, bỏ qua
+    if (loading) return;
+    
+    // Nếu có cache còn mới và không force, bỏ qua
+    if (!force && lastFetched && Date.now() - lastFetched < CACHE_DURATION_MS) {
+      console.log('[TrackingStore] Using cached data');
+      return;
+    }
+
     set({ loading: true, error: null });
     try {
       const authState = useAuthStore.getState();
@@ -62,6 +77,7 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
           createdAt: new Date(item.createdAt),
         })),
         loading: false,
+        lastFetched: Date.now(),
       });
     } catch (error) {
       set({
@@ -76,7 +92,7 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
 
   trackItem: async (
     type: 'aircraft' | 'vessel',
-    id: number,
+    id: number | string,
     alias?: string,
     notes?: string,
   ) => {
@@ -89,8 +105,8 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
       const endpoint = type === 'aircraft' ? `aircraft/${id}` : `vessel/${id}`;
       await api.post(`/tracking/${endpoint}`, { alias, notes });
 
-      // Refresh the tracked items list
-      await get().fetchTrackedItems();
+      // Force refresh để có data mới nhất
+      await get().fetchTrackedItems(true);
     } catch (error) {
       set({
         error:
@@ -100,7 +116,7 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
     }
   },
 
-  untrackItem: async (type: 'aircraft' | 'vessel', id: number) => {
+  untrackItem: async (type: 'aircraft' | 'vessel', id: number | string) => {
     try {
       const authState = useAuthStore.getState();
       if (!authState.token) {
@@ -110,12 +126,8 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
       const endpoint = type === 'aircraft' ? `aircraft/${id}` : `vessel/${id}`;
       await api.delete(`/tracking/${endpoint}`);
 
-      // Remove from local state
-      set((state) => ({
-        trackedItems: state.trackedItems.filter(
-          (item) => !(item.type === type && item.data.id === id),
-        ),
-      }));
+      // Force refresh để có data mới nhất
+      await get().fetchTrackedItems(true);
     } catch (error) {
       set({
         error:
@@ -125,11 +137,25 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
     }
   },
 
-  isTracking: (type: 'aircraft' | 'vessel', id: number) => {
+  isTracking: (type: 'aircraft' | 'vessel', id: number | string) => {
     const { trackedItems } = get();
-    return trackedItems.some(
-      (item) => item.type === type && item.data.id === id,
-    );
+    const idStr = String(id);
+    const idNum = typeof id === 'number' ? id : parseInt(idStr, 10);
+
+    return trackedItems.some((item) => {
+      if (item.type !== type) return false;
+
+      // Check by database ID
+      if (item.data.id === idNum) return true;
+
+      // For vessels, also check by MMSI
+      if (type === 'vessel' && item.data.mmsi === idStr) return true;
+
+      // For aircraft, also check by flightId
+      if (type === 'aircraft' && item.data.flightId === idStr) return true;
+
+      return false;
+    });
   },
 
   getTrackingStats: () => {

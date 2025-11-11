@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgis/postgis:16-3.4
@@ -13,14 +11,27 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-      # Any .sql or .sh here runs on first init:
       - ./postgres/initdb:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d tracking"]
       interval: 10s
       timeout: 5s
       retries: 10
-
+# add pgadmin service
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: tracking-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80" # Truy cập pgAdmin tại http://localhost:5050
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin # Volume để lưu trữ cài đặt pgAdmin
+    depends_on:
+      db:
+        condition: service_healthy # Chờ cho đến khi 'db' sẵn sàng
   redis:
     image: redis:7-alpine
     container_name: tracking-redis
@@ -36,6 +47,18 @@ services:
       timeout: 5s
       retries: 10
 
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: redisinsight
+    restart: unless-stopped
+    ports:
+      - "5540:5540"        # UI chạy trên 5540
+    volumes:
+      - redisinsight_data:/data
+    # không cần env gì thêm
+
 volumes:
   pg_data:
   redis_data:
+  redisinsight_data:
+  pgadmin_data:

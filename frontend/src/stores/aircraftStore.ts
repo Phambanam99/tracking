@@ -19,6 +19,14 @@ export interface Aircraft {
     heading?: number;
     timestamp: Date;
   };
+  images?: Array<{
+    id: number;
+    url: string;
+    caption?: string | null;
+    source?: string | null;
+    isPrimary: boolean;
+    order: number;
+  }>;
 }
 
 interface AircraftStore {
@@ -57,15 +65,37 @@ export const useAircraftStore = create<AircraftStore>((set) => ({
   pageSize: 20,
   loading: false,
   error: null,
-  setAircrafts: (aircrafts) => set({ aircrafts }),
+  setAircrafts: (aircrafts) =>
+    set({
+      aircrafts: aircrafts.map((a: any) => ({
+        ...a,
+        images: Array.isArray(a.images) ? a.images : undefined,
+      })),
+    }),
   updateAircraft: (incoming) =>
     set((state) => {
       const idx = state.aircrafts.findIndex((a) => a.id === incoming.id);
       if (idx === -1) {
-        return { aircrafts: [...state.aircrafts, incoming] };
+        return {
+          aircrafts: [
+            ...state.aircrafts,
+            {
+              ...incoming,
+              images: Array.isArray((incoming as any).images)
+                ? (incoming as any).images
+                : undefined,
+            },
+          ],
+        };
       }
       const next = [...state.aircrafts];
-      next[idx] = { ...next[idx], ...incoming };
+      next[idx] = {
+        ...next[idx],
+        ...incoming,
+        images: Array.isArray((incoming as any).images)
+          ? (incoming as any).images
+          : next[idx].images,
+      };
       return { aircrafts: next };
     }),
 
@@ -115,7 +145,12 @@ export const useAircraftStore = create<AircraftStore>((set) => ({
         pageSize: currentPageSize,
       } = result ?? {};
       set({
-        aircrafts: Array.isArray(data) ? data : [],
+        aircrafts: Array.isArray(data)
+          ? data.map((a: any) => ({
+              ...a,
+              images: Array.isArray(a.images) ? a.images : undefined,
+            }))
+          : [],
         total: typeof total === 'number' ? total : 0,
         page: typeof currentPage === 'number' ? currentPage : page,
         pageSize:

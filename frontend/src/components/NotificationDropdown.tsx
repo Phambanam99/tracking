@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useRegionStore } from '@/stores/regionStore';
 
 interface NotificationDropdownProps {
@@ -14,6 +15,7 @@ export default function NotificationDropdown({
 }: NotificationDropdownProps) {
   const { alerts, fetchAlerts, markAlertAsRead } = useRegionStore();
   const [unreadCount, setUnreadCount] = useState(0);
+  const router = useRouter();
 
   useEffect(() => {
     if (isOpen) {
@@ -35,8 +37,13 @@ export default function NotificationDropdown({
     setUnreadCount(unread);
   }, [dedupedAlerts]);
 
-  const handleMarkAsRead = async (alertId: number) => {
-    await markAlertAsRead(alertId);
+  const handleOpenAlert = async (alert: any) => {
+    try {
+      if (!alert.isRead) await markAlertAsRead(alert.id);
+    } catch {}
+    const path = alert.objectType === 'AIRCRAFT' ? `/aircraft/${alert.objectId}` : `/vessels/${alert.objectId}`;
+    onClose?.();
+    router.push(path);
   };
 
   const formatDate = (dateString: string) => {
@@ -98,7 +105,7 @@ export default function NotificationDropdown({
                 className={`px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
                   !alert.isRead ? 'bg-blue-50' : ''
                 }`}
-                onClick={() => handleMarkAsRead(alert.id)}
+                onClick={() => handleOpenAlert(alert)}
               >
                 <div className="flex items-start space-x-3">
                   <div className="text-lg">

@@ -1,10 +1,10 @@
 // Enhanced API service for handling HTTP requests with authentication
 import { useAuthStore } from '../stores/authStore';
+import { performanceMonitor } from '../utils/performanceMonitor';
 
 // Prefer same-origin proxy via Next.js to backend
 // Default base path is '/api' which next.config.ts rewrites to backend '/api'
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.trim() || 'http://localhost:3000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim() || '/api';
 const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || '1.0.0';
 
 class ApiService {
@@ -18,6 +18,7 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {},
   ): Promise<Response> {
+    const startTime = performance.now();
     const token = this.getAuthToken();
 
     const config: RequestInit = {
@@ -30,35 +31,70 @@ class ApiService {
       ...options,
     };
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
 
-    // Try to parse JSON body for both success and error
-    const payload = await response.json().catch(() => ({}));
+      const text = await response.text();
+      let payload: any = {};
+      try {
+        payload = text ? JSON.parse(text) : {};
+      } catch {
+        payload = { raw: text };
+      }
 
-    if (!response.ok) {
-      // Standardized error envelope: { success: false, error: { message } }
-      const errorMessage =
-        (payload && (payload.error?.message || payload.message)) ||
-        `HTTP ${response.status}`;
-      // Attach status for downstream handling
-      const error = new Error(errorMessage) as Error & { status?: number };
-      error.status = response.status;
-      throw error;
-    }
+      const duration = performance.now() - startTime;
 
-    // Standardized success envelope: { success: true, data }
-    if (payload && typeof payload === 'object' && 'success' in payload) {
-      return new Response(JSON.stringify(payload.data), {
+      if (!response.ok) {
+        performanceMonitor.trackApiCall(endpoint, duration, false, true);
+
+        // Handle 401 Unauthorized - token expired or invalid
+        if (response.status === 401) {
+          console.warn('[ApiClient] 401 Unauthorized - Auto logout');
+
+          // Clear auth state and redirect to login
+          const { logout } = useAuthStore.getState();
+          logout();
+
+          // Redirect to login page if not already there
+          if (
+            typeof window !== 'undefined' &&
+            !window.location.pathname.includes('/login')
+          ) {
+            console.log('[ApiClient] Redirecting to login page...');
+            window.location.href = '/login?expired=true';
+          }
+        }
+
+        const errorMessage =
+          (payload && (payload.error?.message || payload.message)) ||
+          response.statusText ||
+          `HTTP ${response.status}`;
+        const error = new Error(errorMessage) as Error & {
+          status?: number;
+          body?: any;
+        };
+        error.status = response.status;
+        (error as any).body = payload;
+        throw error;
+      }
+
+      performanceMonitor.trackApiCall(endpoint, duration, false, false);
+
+      if (payload && typeof payload === 'object' && 'success' in payload) {
+        return new Response(JSON.stringify(payload.data), {
+          status: response.status,
+          headers: response.headers,
+        });
+      }
+      return new Response(JSON.stringify(payload), {
         status: response.status,
         headers: response.headers,
       });
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      performanceMonitor.trackApiCall(endpoint, duration, false, true);
+      throw error;
     }
-
-    // Fallback: return original payload
-    return new Response(JSON.stringify(payload), {
-      status: response.status,
-      headers: response.headers,
-    });
   }
 
   async get(endpoint: string): Promise<any> {
@@ -72,6 +108,45 @@ class ApiService {
       body: data ? JSON.stringify(data) : undefined,
     });
     return response.json();
+  }
+
+  async postMultipart(endpoint: string, formData: FormData): Promise<any> {
+    const token = this.getAuthToken();
+    const headers: Record<string, string> = {
+      'X-API-Version': API_VERSION,
+    };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      body: formData,
+      headers, // DO NOT set Content-Type; browser will set multipart boundary
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      // Handle 401 Unauthorized
+      if (response.status === 401) {
+        console.warn('[ApiClient] 401 Unauthorized (multipart) - Auto logout');
+        const { logout } = useAuthStore.getState();
+        logout();
+        if (
+          typeof window !== 'undefined' &&
+          !window.location.pathname.includes('/login')
+        ) {
+          window.location.href = '/login?expired=true';
+        }
+      }
+
+      const errorMessage =
+        (payload && (payload.error?.message || payload.message)) ||
+        `HTTP ${response.status}`;
+      const error = new Error(errorMessage) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+    if (payload && typeof payload === 'object' && 'success' in payload) {
+      return payload.data;
+    }
+    return payload;
   }
 
   async put(endpoint: string, data?: any): Promise<any> {

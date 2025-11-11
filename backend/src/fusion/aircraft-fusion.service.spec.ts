@@ -78,4 +78,3 @@ describe('AircraftFusionService', () => {
     expect(decision.publish).toBe(false);
   });
 });
-

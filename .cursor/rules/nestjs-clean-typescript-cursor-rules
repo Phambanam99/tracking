@@ -78,16 +78,7 @@ Generate code, corrections, and refactorings that comply with the basic principl
   - Add context.
   - Otherwise, use a global handler.
 
-### Testing
 
-- Follow the Arrange-Act-Assert convention for tests.
-- Name test variables clearly.
-  - Follow the convention: inputX, mockX, actualX, expectedX, etc.
-- Write unit tests for each public function.
-  - Use test doubles to simulate dependencies.
-    - Except for third-party dependencies that are not expensive to execute.
-- Write acceptance tests for each module.
-  - Follow the Given-When-Then convention.
 
 
   ## Specific to NestJS
@@ -125,10 +116,3 @@ Generate code, corrections, and refactorings that comply with the basic principl
     - Guards for permission management.
     - Interceptors for request processing.
 
-### Testing
-
-- Use the standard Jest framework for testing.
-- Write tests for each controller and service.
-- Write end to end tests for each api module.
-- Add a admin/test method to each controller as a smoke test.
- 

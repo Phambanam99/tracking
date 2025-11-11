@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
-import { useRegionStore, RegionAlert } from '../stores/regionStore';
-import { Bell, X, MapPin, Plane, Ship, LogIn, LogOut,  BellRing } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useRegionStore } from '../stores/regionStore';
+import { Bell, X, MapPin, Plane, Ship, LogIn, LogOut } from 'lucide-react';
 
 const RegionAlerts: React.FC = () => {
   const {
@@ -12,6 +13,7 @@ const RegionAlerts: React.FC = () => {
     markAlertAsRead,
     markAllAlertsAsRead,
   } = useRegionStore();
+  const router = useRouter();
 
   useEffect(() => {
     fetchAlerts();
@@ -139,7 +141,26 @@ const RegionAlerts: React.FC = () => {
         {alerts?.map((alert) => (
           <div
             key={alert.id}
-            className={`p-3 rounded-lg border transition-colors ${
+            role="button"
+            tabIndex={0}
+            onClick={async () => {
+              try {
+                if (!alert.isRead) await markAlertAsRead(alert.id);
+              } catch {}
+              const path = alert.objectType === 'AIRCRAFT' ? `/aircraft/${alert.objectId}` : `/vessels/${alert.objectId}`;
+              router.push(path);
+            }}
+            onKeyDown={async (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                try {
+                  if (!alert.isRead) await markAlertAsRead(alert.id);
+                } catch {}
+                const path = alert.objectType === 'AIRCRAFT' ? `/aircraft/${alert.objectId}` : `/vessels/${alert.objectId}`;
+                router.push(path);
+              }
+            }}
+            className={`p-3 rounded-lg border transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 ${
               alert.isRead
                 ? 'border-gray-200 bg-gray-50'
                 : 'border-blue-200 bg-blue-50'

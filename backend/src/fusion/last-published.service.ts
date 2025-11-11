@@ -18,4 +18,3 @@ export class LastPublishedService {
     await this.redis.set(this.keyFor(entityType, entityKey), tsIso);
   }
 }
-

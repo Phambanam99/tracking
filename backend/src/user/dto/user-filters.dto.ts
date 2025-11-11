@@ -124,6 +124,25 @@ export class SaveUserFiltersDto {
   vessel: VesselFiltersDto;
 }
 
+// Response DTOs for filters (without validation, for responses only)
+export class AircraftFiltersResponseDto {
+  searchQuery?: string;
+  operator?: string;
+  aircraftType?: string;
+  minSpeed?: number;
+  maxSpeed?: number;
+  minAltitude?: number;
+  maxAltitude?: number;
+}
+
+export class VesselFiltersResponseDto {
+  searchQuery?: string;
+  operator?: string;
+  vesselType?: string;
+  minSpeed?: number;
+  maxSpeed?: number;
+}
+
 export class UserFiltersResponseDto {
   @ApiProperty({ description: 'Filter ID', example: 1 })
   id: number;
@@ -147,10 +166,10 @@ export class UserFiltersResponseDto {
   vesselViewMode: 'all' | 'tracked';
 
   @ApiProperty({ description: 'Aircraft filters' })
-  aircraft: AircraftFiltersDto;
+  aircraft: AircraftFiltersResponseDto;
 
   @ApiProperty({ description: 'Vessel filters' })
-  vessel: VesselFiltersDto;
+  vessel: VesselFiltersResponseDto;
 
   @ApiProperty({ description: 'Created timestamp' })
   createdAt: Date;

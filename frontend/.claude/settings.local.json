@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//mnt/c/Users/NamP7/Documents/workspace/tracking/tracking/backend/src/vessel/**)",
+      "Read(//mnt/c/Users/NamP7/Documents/workspace/tracking/tracking/backend/src/aircraft/**)",
+      "Read(//mnt/c/Users/NamP7/Documents/workspace/tracking/tracking/backend/src/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

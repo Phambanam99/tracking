@@ -153,6 +153,13 @@ export function useFeatureUpdater({
     // Clear existing features then batch add
     vesselSource.clear();
 
+    console.log(
+      '[Vessel Render] Total vessels:',
+      vessels.length,
+      'Visible:',
+      vesselVisible,
+    );
+
     // Only add vessels if visible
     if (vesselVisible && vessels.length > 0) {
       // Build filtered list applying view mode and advanced filters
@@ -167,25 +174,37 @@ export function useFeatureUpdater({
         );
       }
 
+      console.log(
+        '[Vessel Render] Current filters:',
+        JSON.stringify(filters.vessel, null, 2),
+      );
+      console.log('[Vessel Render] Sample vessel (first):', targetVessels[0]);
+
+      const vf = filters.vessel;
+      const noAdvancedFilters =
+        !vf.searchQuery &&
+        !vf.operator &&
+        !vf.vesselType &&
+        !vf.flag &&
+        vf.minSpeed == null &&
+        vf.maxSpeed == null;
+
+      console.log('[Vessel Render] No advanced filters?', noAdvancedFilters);
+
+      let debugCount = 0;
       const filteredVessels = targetVessels.filter((vessel) => {
-        const vf = filters.vessel;
-        const noAdvancedFilters =
-          !vf.searchQuery &&
-          !vf.operator &&
-          !vf.vesselType &&
-          !vf.flag &&
-          vf.minSpeed == null &&
-          vf.maxSpeed == null;
         if (noAdvancedFilters) return true;
 
-        const searchLower = (vf.searchQuery || '').toLowerCase();
+        const searchLower = (vf.searchQuery || '').toLowerCase().trim();
         const matchesSearch =
           !searchLower ||
-          vessel.mmsi.toLowerCase().includes(searchLower) ||
-          vessel.vesselName?.toLowerCase().includes(searchLower) ||
-          vessel.operator?.toLowerCase().includes(searchLower) ||
-          vessel.flag?.toLowerCase().includes(searchLower) ||
-          vessel.vesselType?.toLowerCase().includes(searchLower);
+          String(vessel.mmsi || '')
+            .toLowerCase()
+            .includes(searchLower) ||
+          (vessel.vesselName || '').toLowerCase().includes(searchLower) ||
+          (vessel.operator || '').toLowerCase().includes(searchLower) ||
+          (vessel.flag || '').toLowerCase().includes(searchLower) ||
+          (vessel.vesselType || '').toLowerCase().includes(searchLower);
 
         const matchesOperator =
           !vf.operator ||
@@ -207,19 +226,46 @@ export function useFeatureUpdater({
         const matchesSpeedMax =
           vf.maxSpeed == null || (speed != null && speed <= vf.maxSpeed);
 
-        return (
+        const passes =
           matchesSearch &&
           matchesOperator &&
           matchesType &&
           matchesFlag &&
           matchesSpeedMin &&
-          matchesSpeedMax
-        );
+          matchesSpeedMax;
+
+        // Debug first few rejections
+        if (!passes && debugCount < 3) {
+          console.log(`[Vessel Render] Vessel ${vessel.mmsi} filtered out:`, {
+            matchesSearch,
+            matchesOperator,
+            matchesType,
+            matchesFlag,
+            matchesSpeedMin,
+            matchesSpeedMax,
+            vessel,
+          });
+          debugCount++;
+        }
+
+        return passes;
       });
 
+      console.log('[Vessel Render] After filters:', filteredVessels.length);
+
       const features: Feature<Point>[] = [];
+      let skippedNoPosition = 0;
+      const skippedVessels: string[] = [];
       for (const vessel of filteredVessels) {
-        if (!vessel.lastPosition) continue;
+        if (!vessel.lastPosition) {
+          skippedNoPosition++;
+          if (skippedVessels.length < 5) {
+            skippedVessels.push(
+              `${vessel.mmsi} (${vessel.vesselName || 'N/A'})`,
+            );
+          }
+          continue;
+        }
         const coordinates = fromLonLat([
           vessel.lastPosition.longitude,
           vessel.lastPosition.latitude,
@@ -232,7 +278,27 @@ export function useFeatureUpdater({
           }),
         );
       }
-      if (features.length > 0) vesselSource.addFeatures(features);
+      console.log(
+        '[Vessel Render] Features created:',
+        features.length,
+        'Skipped (no position):',
+        skippedNoPosition,
+      );
+      if (skippedNoPosition > 0) {
+        console.log('[Vessel Render] Sample skipped vessels:', skippedVessels);
+      }
+      if (features.length > 0) {
+        vesselSource.addFeatures(features);
+        console.log(
+          '[Vessel Render] ✓ Added',
+          features.length,
+          'features to map layer',
+        );
+        console.log('[Vessel Render] Sample coordinates:', {
+          first: features[0]?.getGeometry()?.getCoordinates(),
+          last: features[features.length - 1]?.getGeometry()?.getCoordinates(),
+        });
+      }
     }
   }, [
     vessels,

@@ -1,0 +1,28 @@
+groups:
+  - name: ais_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: rate(ais_messages_failed_db_total[5m]) > 10
+        for: 2m
+        annotations:
+          summary: 'High error rate detected'
+          description: 'Error rate is {{ $value }} errors/sec'
+
+      - alert: HighLatency
+        expr: ais_latency_p99_ms > 500
+        for: 5m
+        annotations:
+          summary: 'High latency detected'
+          description: 'p99 latency is {{ $value }}ms'
+
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state == 2
+        for: 1m
+        annotations:
+          summary: 'Circuit breaker is OPEN'
+
+      - alert: DLQBacklog
+        expr: ais_dlq_size > 100
+        for: 10m
+        annotations:
+          summary: 'DLQ backlog growing'

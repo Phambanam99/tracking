@@ -27,7 +27,7 @@ export class DataFetcherService {
    * Scheduled task to fetch aircraft and vessel data every 10 seconds
    * Currently simulates API calls - can be replaced with real API integration later
    */
-  @Cron(CronExpression.EVERY_10_SECONDS)
+  // @Cron(CronExpression.EVERY_10_SECONDS)
   async handleCron() {
     this.logger.debug('Running scheduled data fetch...');
 

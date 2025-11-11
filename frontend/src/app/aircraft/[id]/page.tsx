@@ -9,6 +9,7 @@ import { useMapStore } from '@/stores/mapStore';
 import { useTrackingStore } from '@/stores/trackingStore';
 import api from '@/services/apiClient';
 import HistoryTable from './HistoryTable';
+import EditHistoryTable from '@/components/aircraft/EditHistoryTable';
 
 interface Aircraft {
   id: number;
@@ -20,7 +21,7 @@ interface Aircraft {
   createdAt: Date;
   updatedAt: Date;
   lastPosition?: {
-    id: number;
+    id?: number;
     latitude: number;
     longitude: number;
     altitude?: number;
@@ -33,12 +34,22 @@ interface Aircraft {
 export default function AircraftDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { aircrafts, fetchAircrafts } = useAircraftStore();
+  const { aircrafts, fetchAircrafts, updateAircraft } = useAircraftStore();
   const { setFocusTarget } = useMapStore();
   const { isTracking, trackItem, untrackItem, fetchTrackedItems } = useTrackingStore();
   const [aircraft, setAircraft] = useState<Aircraft | null>(null);
   const [loading, setLoading] = useState(true);
   const [trackingBusy, setTrackingBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [saveOk, setSaveOk] = useState(false);
+  const [form, setForm] = useState<{
+    callSign?: string;
+    registration?: string;
+    aircraftType?: string;
+    operator?: string;
+  }>({});
 
   const SIGNAL_STALE_MINUTES = Number(
     process.env.NEXT_PUBLIC_SIGNAL_STALE_MINUTES || 10,
@@ -73,6 +84,49 @@ export default function AircraftDetailPage() {
   useEffect(() => {
     fetchTrackedItems().catch(() => undefined);
   }, [fetchTrackedItems]);
+
+  const startEditing = () => {
+    if (!aircraft) return;
+    setForm({
+      callSign: aircraft.callSign || '',
+      registration: aircraft.registration || '',
+      aircraftType: aircraft.aircraftType || '',
+      operator: aircraft.operator || '',
+    });
+    setErrorMsg(null);
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setEditing(false);
+    setErrorMsg(null);
+  };
+
+  const saveEdits = async () => {
+    if (!aircraft) return;
+    setSaving(true);
+    setErrorMsg(null);
+    try {
+      const payload: any = {
+        callSign: form.callSign?.trim() || undefined,
+        registration: form.registration?.trim() || undefined,
+        aircraftType: form.aircraftType?.trim() || undefined,
+        operator: form.operator?.trim() || undefined,
+      };
+
+      const updated = await api.put(`/aircrafts/${aircraft.id}`, payload);
+      // Update local state and global store
+      setAircraft((prev) => (prev ? { ...prev, ...updated } : updated));
+      updateAircraft(updated);
+      setEditing(false);
+      setSaveOk(true);
+      setTimeout(() => setSaveOk(false), 2500);
+    } catch (e: any) {
+      setErrorMsg(e?.message || 'Không thể lưu thay đổi');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -160,9 +214,33 @@ export default function AircraftDetailPage() {
                 >
                   Quay lại
                 </button>
-                <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
-                  Chỉnh sửa
-                </button>
+                {editing ? (
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={saveEdits}
+                      disabled={saving}
+                      className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
+                        saving ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                      }`}
+                    >
+                      {saving ? 'Đang lưu...' : 'Lưu'}
+                    </button>
+                    <button
+                      onClick={cancelEditing}
+                      disabled={saving}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      Hủy
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={startEditing}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    Chỉnh sửa
+                  </button>
+                )}
               </div>
             </div>
 
@@ -175,7 +253,82 @@ export default function AircraftDetailPage() {
                       Thông tin cơ bản
                     </h3>
 
-                    <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                    {errorMsg && (
+                      <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{errorMsg}</div>
+                    )}
+                    {!errorMsg && saveOk && (
+                      <div className="mb-4 rounded-md bg-green-50 p-3 text-sm text-green-700">Đã lưu thay đổi</div>
+                    )}
+
+                    {editing ? (
+                      <div
+                        className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') cancelEditing();
+                          if (e.key === 'Enter' && !saving) saveEdits();
+                        }}
+                      >
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Call Sign</label>
+                          <input
+                            type="text"
+                            value={form.callSign || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, callSign: e.target.value }))}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            placeholder="VD: VNA123"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Số đăng ký</label>
+                          <input
+                            type="text"
+                            value={form.registration || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, registration: e.target.value }))}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            placeholder="VD: VN-A123"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Loại máy bay</label>
+                          <input
+                            type="text"
+                            value={form.aircraftType || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, aircraftType: e.target.value }))}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            placeholder="VD: A320, B738"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Hãng vận hành</label>
+                          <input
+                            type="text"
+                            value={form.operator || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, operator: e.target.value }))}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            placeholder="VD: Vietnam Airlines"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Flight ID</label>
+                          <input
+                            type="text"
+                            value={aircraft.flightId}
+                            disabled
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-100"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Ngày tạo</label>
+                          <input
+                            type="text"
+                            value={new Date(aircraft.createdAt).toLocaleDateString('vi-VN')}
+                            disabled
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-100"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
                       <div>
                         <dt className="text-sm font-medium text-gray-500">
                           Flight ID
@@ -240,6 +393,7 @@ export default function AircraftDetailPage() {
                         </dd>
                       </div>
                     </dl>
+                    )}
                   </div>
                 </div>
 
@@ -334,6 +488,16 @@ export default function AircraftDetailPage() {
 
                     {/* Paginated history table */}
                     <HistoryTable aircraftId={aircraft.id} />
+                  </div>
+                </div>
+
+                {/* Edit History */}
+                <div className="mt-6 bg-white shadow rounded-lg">
+                  <div className="px-4 py-5 sm:p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      Lịch sử chỉnh sửa
+                    </h3>
+                    <EditHistoryTable aircraftId={aircraft.id} />
                   </div>
                 </div>
               </div>

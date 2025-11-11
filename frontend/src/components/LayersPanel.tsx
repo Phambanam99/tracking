@@ -20,10 +20,15 @@ import {
   Eye,
   Star,
   CloudRain,
+  Thermometer,
+  Wind,
+  Cloud,
+  Droplets,
 } from 'lucide-react';
 import api from '@/services/apiClient';
 import { useSystemSettingsStore } from '@/stores/systemSettingsStore';
 import { useUserPreferencesStore } from '@/stores/userPreferencesStore';
+import { useWeatherStore } from '@/stores/weatherStore';
 
 interface LayersPanelProps {
   aircraftCount: number;
@@ -75,6 +80,14 @@ export default function LayersPanel({
   const { user } = useAuthStore();
   const { fetchTrackedItems } = useTrackingStore();
   const { showPorts, setShowPorts } = usePortsStore();
+  const {
+    activeLayer,
+    weatherVisible,
+    windArrowsVisible,
+    setActiveLayer,
+    setWeatherVisible,
+    setWindArrowsVisible,
+  } = useWeatherStore();
   // These stores are available if we need future per-layer counts
   // const { vessels } = useVesselStore();
   // const { aircrafts } = useAircraftStore();
@@ -266,12 +279,83 @@ export default function LayersPanel({
                   <input type="checkbox" checked={showPorts} onChange={(e) => setShowPorts(e.target.checked)} />
                 </div>
 
-                <div className="flex items-center justify-between bg-gray-50 rounded-md px-3 py-2 border opacity-60">
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
-                    <CloudRain className="w-4 h-4 text-sky-600" />
-                    <span>Lớp thời tiết (sắp có)</span>
+                {/* Weather Layer */}
+                <div className="space-y-2 border border-gray-200 rounded-lg p-3 bg-gradient-to-br from-sky-50 to-blue-50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <CloudRain className="w-4 h-4 text-sky-600" />
+                      <span>Lớp thời tiết</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={weatherVisible}
+                      onChange={(e) => {
+                        console.log('[Weather] Toggle clicked:', e.target.checked);
+                        setWeatherVisible(e.target.checked);
+                        if (!e.target.checked) {
+                          setActiveLayer('none');
+                        } else if (activeLayer === 'none') {
+                          console.log('[Weather] Setting default layer to temperature');
+                          setActiveLayer('temperature');
+                        }
+                      }}
+                    />
                   </div>
-                  <input type="checkbox" disabled />
+
+                  {weatherVisible && (
+                    <>
+                      <div className="space-y-1.5 pt-2 border-t border-sky-200">
+                        <label className="flex items-center justify-between bg-white rounded px-2 py-1.5 cursor-pointer hover:bg-sky-50">
+                          <div className="flex items-center gap-2 text-xs">
+                            <Thermometer className="w-3.5 h-3.5 text-red-500" />
+                            <span>Nhiệt độ</span>
+                          </div>
+                          <input
+                            type="radio"
+                            name="weather-layer"
+                            checked={activeLayer === 'temperature'}
+                            onChange={() => setActiveLayer('temperature')}
+                          />
+                        </label>
+                        <label className="flex items-center justify-between bg-white rounded px-2 py-1.5 cursor-pointer hover:bg-sky-50">
+                          <div className="flex items-center gap-2 text-xs">
+                            <Droplets className="w-3.5 h-3.5 text-blue-500" />
+                            <span>Lượng mưa</span>
+                          </div>
+                          <input
+                            type="radio"
+                            name="weather-layer"
+                            checked={activeLayer === 'precipitation'}
+                            onChange={() => setActiveLayer('precipitation')}
+                          />
+                        </label>
+                        <label className="flex items-center justify-between bg-white rounded px-2 py-1.5 cursor-pointer hover:bg-sky-50">
+                          <div className="flex items-center gap-2 text-xs">
+                            <Cloud className="w-3.5 h-3.5 text-gray-500" />
+                            <span>Độ che phủ mây</span>
+                          </div>
+                          <input
+                            type="radio"
+                            name="weather-layer"
+                            checked={activeLayer === 'clouds'}
+                            onChange={() => setActiveLayer('clouds')}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="flex items-center justify-between bg-white rounded px-2 py-1.5 border-t border-sky-200 pt-2">
+                        <div className="flex items-center gap-2 text-xs text-gray-700">
+                          <Wind className="w-3.5 h-3.5 text-green-600" />
+                          <span>Mũi tên gió</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={windArrowsVisible}
+                          onChange={(e) => setWindArrowsVisible(e.target.checked)}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}

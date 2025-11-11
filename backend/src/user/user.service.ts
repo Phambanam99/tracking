@@ -260,4 +260,17 @@ export class UserService {
       },
     });
   }
+
+  /**
+   * Clean up sessions older than a specific date
+   */
+  async cleanupOldSessions(olderThan: Date) {
+    return this.prisma.userSession.deleteMany({
+      where: {
+        createdAt: {
+          lt: olderThan,
+        },
+      },
+    });
+  }
 }
