@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useMapStore } from '@/stores/mapStore';
 import { useTrackingStore } from '@/stores/trackingStore';
 import { useVesselStore } from '@/stores/vesselStore';
 import api from '@/services/apiClient';
+import RouteMapSmall from '@/components/vessel/RouteMapSmall';
 import HistoryTable from './HistoryTable';
 import EditHistoryTable from '@/components/vessel/EditHistoryTable';
 
@@ -72,6 +73,34 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
   const [imgOrder, setImgOrder] = useState('0');
   const [imgBusy, setImgBusy] = useState(false);
 
+  // Weather state
+  const [weather, setWeather] = useState<{
+    temperature?: number;
+    windSpeed?: number;
+    windDirection?: number;
+    pressure?: number;
+    humidity?: number;
+    cloudCoverage?: number;
+  } | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+
+  // Voyage statistics
+  const [voyageStats, setVoyageStats] = useState<{
+    timeTravelled?: string;
+    remainingTime?: string;
+    distanceTravelled?: number;
+    remainingDistance?: string;
+    avgSpeed?: number;
+    maxSpeed?: number;
+    avgWind?: number;
+    maxWind?: number;
+    minTemp?: number;
+    maxTemp?: number;
+    draught?: number;
+    destination?: string;
+    eta?: string;
+  } | null>(null);
+
   const [form, setForm] = useState<{
     vesselName?: string;
     vesselType?: string;
@@ -84,6 +113,35 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
   const SIGNAL_STALE_MINUTES = Number(
     process.env.NEXT_PUBLIC_SIGNAL_STALE_MINUTES || 10,
   );
+
+  // Fetch weather data when vessel position is available
+  useEffect(() => {
+    const fetchWeather = async () => {
+      if (!vessel.lastPosition) return;
+      
+      setWeatherLoading(true);
+      try {
+        const { latitude, longitude } = vessel.lastPosition;
+        const response = await api.get(`/weather/current?lat=${latitude}&lon=${longitude}`);
+        if (response && !response.error) {
+          setWeather({
+            temperature: response.temperature,
+            windSpeed: response.windSpeed ? response.windSpeed * 0.539957 : undefined, // km/h to knots
+            windDirection: response.windDirection,
+            pressure: response.pressure,
+            humidity: response.humidity,
+            cloudCoverage: response.cloudCover,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch weather:', error);
+      } finally {
+        setWeatherLoading(false);
+      }
+    };
+
+    fetchWeather();
+  }, [vessel.lastPosition?.latitude, vessel.lastPosition?.longitude]);
 
   const startEditing = () => {
     setForm({
@@ -108,18 +166,37 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
   };
 
   const addImage = async () => {
-    if (!imgFile && !imgUrl.trim()) return;
+    if (!imgFile && !imgUrl.trim()) {
+      console.warn('[VesselDetailClient] addImage: No file or URL provided');
+      return;
+    }
+    
+    // Validate vessel ID exists
+    if (!vessel?.id) {
+      console.error('[VesselDetailClient] addImage: No vessel ID available');
+      alert('Error: Unable to add image - vessel information is missing');
+      return;
+    }
+    
     setImgBusy(true);
     try {
       if (imgFile) {
+        // Validate file before creating FormData
+        if (!(imgFile instanceof File)) {
+          throw new Error('Invalid file: must be a File instance');
+        }
+        
         const formData = new FormData();
         formData.append('file', imgFile);
         if (imgCaption.trim()) formData.append('caption', imgCaption.trim());
         if (imgSource.trim()) formData.append('source', imgSource.trim());
         if (imgPrimary) formData.append('isPrimary', 'true');
         if (imgOrder) formData.append('order', imgOrder);
+        
+        console.log('[VesselDetailClient] Uploading image file for vessel:', vessel.id);
         await api.postMultipart(`/vessels/${vessel.id}/images/upload`, formData);
       } else {
+        console.log('[VesselDetailClient] Adding image URL for vessel:', vessel.id);
         await api.post(`/vessels/${vessel.id}/images`, {
           url: imgUrl.trim(),
           caption: imgCaption.trim() || undefined,
@@ -128,6 +205,8 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
           order: imgOrder ? Number(imgOrder) : undefined,
         });
       }
+      
+      // Clear form on success
       setImgUrl('');
       setImgFile(null);
       setImgCaption('');
@@ -135,6 +214,12 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
       setImgPrimary(false);
       setImgOrder('0');
       await refreshImages();
+      
+      console.log('[VesselDetailClient] Image added successfully');
+    } catch (error) {
+      console.error('[VesselDetailClient] Failed to add image:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to add image: ${errorMessage}`);
     } finally {
       setImgBusy(false);
     }
@@ -209,16 +294,16 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          {/* Header */}
-          <div className="mb-8 flex justify-between items-start">
+    <div className="min-h-screen" style={{ backgroundColor: '#F2F6FC' }}>
+      {/* Sticky Header */}
+      <div className="sticky top-16 z-40 w-full shadow-sm" style={{ backgroundColor: '#244A9A' }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-white">
                 {vessel.vesselName || vessel.mmsi}
               </h1>
-              <p className="mt-2 text-gray-600">
+              <p className="mt-1 text-sm text-white/80">
                 Chi tiết thông tin tàu thuyền
               </p>
             </div>
@@ -247,7 +332,7 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
               </button>
               <button
                 onClick={() => router.push('/vessels')}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                className="inline-flex items-center px-4 py-2 border border-white/30 shadow-sm text-sm font-medium rounded-md text-white bg-white/10 hover:bg-white/20"
               >
                 Quay lại
               </button>
@@ -265,7 +350,7 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
                   <button
                     onClick={cancelEditing}
                     disabled={saving}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                    className="inline-flex items-center px-4 py-2 border border-white/30 shadow-sm text-sm font-medium rounded-md text-white bg-white/10 hover:bg-white/20"
                   >
                     Hủy
                   </button>
@@ -280,10 +365,16 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="px-4 py-6 sm:px-0">
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Main Info */}
-            <div className="lg:col-span-2">
+            {/* Main Info - Split into 2 columns */}
+            <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Basic Information */}
               <div className="bg-white shadow rounded-lg">
                 <div className="px-4 py-5 sm:p-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">
@@ -390,7 +481,7 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
                       </div>
                     </div>
                   ) : (
-                    <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                    <dl className="grid grid-cols-1 gap-x-4 gap-y-6">
                       <div>
                         <dt className="text-sm font-medium text-gray-500">
                           MMSI
@@ -479,8 +570,154 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
                 </div>
               </div>
 
-              {/* Position History */}
-              <div className="mt-6 bg-white shadow rounded-lg">
+              {/* Images Gallery - Now in second column */}
+              <div className="bg-white shadow rounded-lg">
+                <div className="px-4 py-5 sm:p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-medium text-gray-900">Hình ảnh</h3>
+                    <button
+                      onClick={refreshImages}
+                      disabled={imgBusy}
+                      className="text-sm text-indigo-600 hover:underline disabled:opacity-50"
+                    >
+                      Làm mới
+                    </button>
+                  </div>
+                  {images && images.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                      {images.map((img) => (
+                        <div key={img.id} className="group relative border rounded overflow-hidden">
+                          <div className="w-full h-32 relative">
+                            <Image
+                              src={img.url}
+                              alt={img.caption || 'image'}
+                              fill
+                              sizes="128px"
+                              className="object-cover"
+                              placeholder="empty"
+                              unoptimized={false}
+                            />
+                          </div>
+                          {img.isPrimary && (
+                            <span className="absolute top-1 left-1 bg-indigo-600 text-white text-xs px-2 py-0.5 rounded">
+                              Primary
+                            </span>
+                          )}
+                          {editing && (
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2 text-xs">
+                              {!img.isPrimary && (
+                                <button
+                                  onClick={() => setPrimary(img.id)}
+                                  disabled={imgBusy}
+                                  className="bg-white/80 hover:bg-white text-gray-800 px-2 py-1 rounded"
+                                >
+                                  Primary
+                                </button>
+                              )}
+                              <button
+                                onClick={() => deleteImage(img.id)}
+                                disabled={imgBusy}
+                                className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
+                              >
+                                Xóa
+                              </button>
+                            </div>
+                          )}
+                          {img.caption && (
+                            <div className="p-1 text-[11px] text-gray-600 truncate">
+                              {img.caption}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mb-6">
+                      <div className="w-full h-40 flex items-center justify-center border-2 border-dashed rounded text-gray-400 text-sm bg-gray-50">
+                        <div>
+                          <div className="text-4xl text-gray-300 mb-2">🖼️</div>
+                          <p>Chưa có hình ảnh</p>
+                          {!editing && (
+                            <p className="text-xs text-gray-400 mt-1">
+                              Vào chế độ chỉnh sửa để thêm ảnh
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {editing && (
+                    <div className="border-t pt-4">
+                      <h4 className="font-medium text-sm mb-2">Thêm ảnh</h4>
+                      <div className="grid grid-cols-1 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <input
+                            className="border rounded px-2 py-1 text-sm"
+                            placeholder="Image URL (nếu không upload file)"
+                            value={imgUrl}
+                            onChange={(e) => setImgUrl(e.target.value)}
+                            disabled={!!imgFile}
+                          />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="border rounded px-2 py-1 text-sm"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0] || null;
+                              setImgFile(f);
+                              if (f) setImgUrl('');
+                            }}
+                          />
+                        </div>
+                        <input
+                          className="border rounded px-2 py-1 text-sm"
+                          placeholder="Caption"
+                          value={imgCaption}
+                          onChange={(e) => setImgCaption(e.target.value)}
+                        />
+                        <input
+                          className="border rounded px-2 py-1 text-sm"
+                          placeholder="Source"
+                          value={imgSource}
+                          onChange={(e) => setImgSource(e.target.value)}
+                        />
+                        <input
+                          className="border rounded px-2 py-1 text-sm"
+                          placeholder="Order"
+                          value={imgOrder}
+                          onChange={(e) => setImgOrder(e.target.value)}
+                        />
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={imgPrimary}
+                            onChange={(e) => setImgPrimary(e.target.checked)}
+                          />{' '}
+                          Primary
+                        </label>
+                        <div className="flex justify-end">
+                          <button
+                            onClick={addImage}
+                            disabled={imgBusy || (!imgUrl.trim() && !imgFile)}
+                            className={`px-4 py-1.5 rounded text-sm text-white ${
+                              imgBusy || (!imgUrl.trim() && !imgFile)
+                                ? 'bg-indigo-300'
+                                : 'bg-indigo-600 hover:bg-indigo-700'
+                            }`}
+                          >
+                            {imgBusy ? 'Đang thêm...' : imgFile ? 'Upload ảnh' : 'Thêm ảnh'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Position History - Full width below */}
+            <div className="lg:col-span-2">
+              <div className="bg-white shadow rounded-lg">
                 <div className="px-4 py-5 sm:p-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">
                     Lịch sử vị trí
@@ -580,6 +817,14 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
                           )}
                         </dl>
                       </div>
+
+                      {/* Route Map */}
+                      <div className="mt-4">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">
+                          Lộ trình di chuyển
+                        </h4>
+                        <RouteMapSmall vesselId={vessel.id} height="450px" />
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-6">
@@ -595,160 +840,6 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
 
                   {/* Paginated history table */}
                   <HistoryTable vesselId={vessel.id} />
-                </div>
-              </div>
-
-              {/* Edit History */}
-              <div className="bg-white shadow rounded-lg mt-6">
-                <div className="px-4 py-5 sm:p-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">
-                    Lịch sử chỉnh sửa
-                  </h3>
-                  <EditHistoryTable vesselId={vessel.id} />
-                </div>
-              </div>
-
-              {/* Images Gallery */}
-              <div className="bg-white shadow rounded-lg mt-6">
-                <div className="px-4 py-5 sm:p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-medium text-gray-900">Hình ảnh</h3>
-                    <button
-                      onClick={refreshImages}
-                      disabled={imgBusy}
-                      className="text-sm text-indigo-600 hover:underline disabled:opacity-50"
-                    >
-                      Làm mới
-                    </button>
-                  </div>
-                  {images && images.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-                      {images.map((img) => (
-                        <div key={img.id} className="group relative border rounded overflow-hidden">
-                          <div className="w-full h-32 relative">
-                            <Image
-                              src={img.url}
-                              alt={img.caption || 'image'}
-                              fill
-                              sizes="128px"
-                              className="object-cover"
-                              placeholder="empty"
-                              unoptimized={false}
-                            />
-                          </div>
-                          {img.isPrimary && (
-                            <span className="absolute top-1 left-1 bg-indigo-600 text-white text-xs px-2 py-0.5 rounded">
-                              Primary
-                            </span>
-                          )}
-                          {editing && (
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2 text-xs">
-                              {!img.isPrimary && (
-                                <button
-                                  onClick={() => setPrimary(img.id)}
-                                  disabled={imgBusy}
-                                  className="bg-white/80 hover:bg-white text-gray-800 px-2 py-1 rounded"
-                                >
-                                  Primary
-                                </button>
-                              )}
-                              <button
-                                onClick={() => deleteImage(img.id)}
-                                disabled={imgBusy}
-                                className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
-                              >
-                                Xóa
-                              </button>
-                            </div>
-                          )}
-                          {img.caption && (
-                            <div className="p-1 text-[11px] text-gray-600 truncate">
-                              {img.caption}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mb-6">
-                      <div className="w-full h-40 flex items-center justify-center border-2 border-dashed rounded text-gray-400 text-sm bg-gray-50">
-                        <div>
-                          <div className="text-4xl text-gray-300 mb-2">🖼️</div>
-                          <p>Chưa có hình ảnh</p>
-                          {!editing && (
-                            <p className="text-xs text-gray-400 mt-1">
-                              Vào chế độ chỉnh sửa để thêm ảnh
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {editing && (
-                    <div className="border-t pt-4">
-                      <h4 className="font-medium text-sm mb-2">Thêm ảnh</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                        <div className="md:col-span-2 flex flex-col gap-1">
-                          <input
-                            className="border rounded px-2 py-1 text-sm"
-                            placeholder="Image URL (nếu không upload file)"
-                            value={imgUrl}
-                            onChange={(e) => setImgUrl(e.target.value)}
-                            disabled={!!imgFile}
-                          />
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="border rounded px-2 py-1 text-sm"
-                            onChange={(e) => {
-                              const f = e.target.files?.[0] || null;
-                              setImgFile(f);
-                              if (f) setImgUrl('');
-                            }}
-                          />
-                        </div>
-                        <input
-                          className="border rounded px-2 py-1 text-sm"
-                          placeholder="Caption"
-                          value={imgCaption}
-                          onChange={(e) => setImgCaption(e.target.value)}
-                        />
-                        <input
-                          className="border rounded px-2 py-1 text-sm"
-                          placeholder="Source"
-                          value={imgSource}
-                          onChange={(e) => setImgSource(e.target.value)}
-                        />
-                        <input
-                          className="border rounded px-2 py-1 text-sm"
-                          placeholder="Order"
-                          value={imgOrder}
-                          onChange={(e) => setImgOrder(e.target.value)}
-                        />
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={imgPrimary}
-                            onChange={(e) => setImgPrimary(e.target.checked)}
-                          />{' '}
-                          Primary
-                        </label>
-                        <div className="md:col-span-5 flex justify-end">
-                          <button
-                            onClick={addImage}
-                            disabled={imgBusy || (!imgUrl.trim() && !imgFile)}
-                            className={`px-4 py-1.5 rounded text-sm text-white ${
-                              imgBusy || (!imgUrl.trim() && !imgFile)
-                                ? 'bg-indigo-300'
-                                : 'bg-indigo-600 hover:bg-indigo-700'
-                            }`}
-                          >
-                            {imgBusy ? 'Đang thêm...' : imgFile ? 'Upload ảnh' : 'Thêm ảnh'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -844,6 +935,121 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
                 </div>
               </div>
 
+              {/* Weather */}
+              <div className="mt-6 bg-white shadow rounded-lg">
+                <div className="px-4 py-5 sm:p-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4" style={{ color: '#204390' }}>
+                    Thời tiết
+                  </h3>
+
+                  {weatherLoading ? (
+                    <div className="flex justify-center items-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    </div>
+                  ) : weather ? (
+                    <div className="space-y-3">
+                      {weather.temperature !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Nhiệt độ</span>
+                          <span className="text-sm text-gray-900">
+                            {weather.temperature.toFixed(1)}°C / {(weather.temperature * 9/5 + 32).toFixed(2)}°F
+                          </span>
+                        </div>
+                      )}
+
+                      {weather.windSpeed !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Tốc độ gió</span>
+                          <span className="text-sm text-gray-900">{weather.windSpeed.toFixed(0)} knots</span>
+                        </div>
+                      )}
+
+                      {weather.windDirection !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Hướng gió</span>
+                          <span className="text-sm text-gray-900">{weather.windDirection.toFixed(0)}° ENE</span>
+                        </div>
+                      )}
+
+                      {weather.pressure !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Áp suất</span>
+                          <span className="text-sm text-gray-900">{weather.pressure.toFixed(2)} hPa</span>
+                        </div>
+                      )}
+
+                      {weather.humidity !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Humidity</span>
+                          <span className="text-sm text-gray-900">{weather.humidity.toFixed(1)} %</span>
+                        </div>
+                      )}
+
+                      {weather.cloudCoverage !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Độ che phủ mây</span>
+                          <span className="text-sm text-gray-900">{weather.cloudCoverage.toFixed(0)} %</span>
+                        </div>
+                      )}
+
+                      {/* Wind direction visualization */}
+                      <div className="mt-4 pt-4 border-t">
+                        <div className="relative w-full h-32 bg-sky-100 rounded-lg overflow-hidden">
+                          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 200">
+                            {weather.windDirection !== undefined && (
+                              <g transform={`translate(100, 150)`}>
+                                <line 
+                                  x1="0" 
+                                  y1="0" 
+                                  x2={Math.cos((weather.windDirection - 90) * Math.PI / 180) * 60}
+                                  y2={Math.sin((weather.windDirection - 90) * Math.PI / 180) * 60}
+                                  stroke="#1f2937" 
+                                  strokeWidth="3"
+                                  markerEnd="url(#arrowhead)"
+                                />
+                                <circle cx="0" cy="0" r="5" fill="#1f2937" />
+                                <defs>
+                                  <marker
+                                    id="arrowhead"
+                                    markerWidth="10"
+                                    markerHeight="10"
+                                    refX="9"
+                                    refY="3"
+                                    orient="auto"
+                                  >
+                                    <polygon points="0 0, 10 3, 0 6" fill="#1f2937" />
+                                  </marker>
+                                </defs>
+                              </g>
+                            )}
+                          </svg>
+                        </div>
+                        <p className="text-xs text-gray-500 text-center mt-2">
+                          Dữ liệu thời tiết được dựa trên mô hình GFS
+                        </p>
+                      </div>
+                    </div>
+                  ) : vessel.lastPosition ? (
+                    <div className="text-center py-8 text-gray-500 text-sm">
+                      <div className="text-4xl mb-2">🌤️</div>
+                      <p>Không có dữ liệu thời tiết</p>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500 text-sm">
+                      <p>Cần vị trí để hiển thị thời tiết</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+  {/* Edit History */}
+              <div className="bg-white shadow rounded-lg mt-6">
+                <div className="px-4 py-5 sm:p-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    Lịch sử chỉnh sửa
+                  </h3>
+                  <EditHistoryTable vesselId={vessel.id} />
+                </div>
+              </div>
               {/* Vessel Specifications */}
               {(vessel.length || vessel.width) && (
                 <div className="mt-6 bg-white shadow rounded-lg">

@@ -1,25 +1,33 @@
 export default function Loading() {
   return (
     <div className="min-h-screen">
-      <main className="section">
-        <div className="mb-8">
-          <div className="h-7 w-48 bg-gray-200 rounded animate-pulse" />
-          <div className="mt-2 h-4 w-80 bg-gray-200 rounded animate-pulse" />
+      <main>
+        {/* Title section skeleton */}
+        <div className="w-full py-6" style={{ backgroundColor: '#244A9A' }}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="h-8 w-64 bg-white/20 rounded animate-pulse" />
+            <div className="mt-2 h-5 w-96 bg-white/20 rounded animate-pulse" />
+          </div>
         </div>
 
-        <div className="card mb-6">
-          <div className="card-body">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <div className="h-10 w-full bg-gray-200 rounded animate-pulse" />
+        {/* Sticky search skeleton */}
+        <div className="sticky top-16 z-40 w-full shadow-sm" style={{ backgroundColor: '#244A9A' }}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="h-10 w-full bg-gray-200 rounded animate-pulse" />
+                </div>
+                <div className="w-48 h-10 bg-gray-200 rounded animate-pulse" />
+                <div className="w-40 h-10 bg-gray-200 rounded animate-pulse" />
               </div>
-              <div className="w-48 h-10 bg-gray-200 rounded animate-pulse" />
-              <div className="w-40 h-10 bg-gray-200 rounded animate-pulse" />
             </div>
           </div>
         </div>
 
-        <div className="card overflow-hidden sm:rounded-md">
+        {/* Table skeleton */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="bg-white shadow overflow-hidden sm:rounded-md">
           <div className="overflow-x-auto">
             <table className="min-w-full table-fixed">
               <thead className="bg-gray-50">
@@ -69,6 +77,7 @@ export default function Loading() {
             <div className="h-8 w-24 bg-gray-200 rounded" />
             <div className="h-4 w-32 bg-gray-200 rounded" />
           </div>
+        </div>
         </div>
       </main>
     </div>

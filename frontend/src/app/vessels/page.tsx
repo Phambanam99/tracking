@@ -59,17 +59,21 @@ export default function VesselsPage() {
     <ProtectedRoute>
       <div className="min-h-screen">
         <Header />
-        <main className="section">
-          <div className="">
-            <div className="mb-8">
-              <h1 className="page-title">Quản lý tàu thuyền</h1>
-              <p className="page-subtitle">
-                Danh sách và quản lý tất cả tàu thuyền trong hệ thống
-              </p>
-            </div>
+        
+        {/* Title Section - Not sticky */}
+        <div className="w-full py-6" style={{ backgroundColor: '#244A9A' }}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h1 className="text-3xl font-bold text-white">Quản lý tàu thuyền</h1>
+            <p className="mt-2 text-white/80">
+              Danh sách và quản lý tất cả tàu thuyền trong hệ thống
+            </p>
+          </div>
+        </div>
 
-            {/* Search and Filter */}
-            <div className="card mb-6">
+        {/* Search and Filter - Sticky below header */}
+        <div className="sticky top-16 z-40 w-full shadow-sm" style={{ backgroundColor: '#244A9A' }}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="card">
               <div className="card-body">
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex-1">
@@ -149,9 +153,12 @@ export default function VesselsPage() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
 
-            {/* Vessels Table */}
-            <div className="card overflow-hidden sm:rounded-md">
+        {/* Vessels Table - Scrollable content */}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="card overflow-hidden sm:rounded-md">
               {loading ? (
                 <div className="flex justify-center items-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -321,7 +328,6 @@ export default function VesselsPage() {
                 </>
               )}
             </div>
-          </div>
         </main>
       </div>
     </ProtectedRoute>

@@ -84,9 +84,9 @@ async function main() {
 
   // Seed ports from ports.json if not already imported (basic heuristic)
   // Use raw query to avoid type mismatch if client not regenerated
-  const existingPortsRows = (await prisma.$queryRawUnsafe<any[]>(
-    'SELECT COUNT(*)::int AS count FROM "ports"',
-  )) as Array<{ count: number }>;
+ const existingPortsRows = (await prisma.$queryRawUnsafe(
+   'SELECT COUNT(*)::int AS count FROM "ports"',
+ )) as Array<{ count: number }>;
   const existingPorts = existingPortsRows?.[0]?.count || 0;
   if (existingPorts === 0) {
     try {

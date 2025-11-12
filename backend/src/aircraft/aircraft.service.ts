@@ -453,7 +453,7 @@ export class AircraftService {
         },
       });
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      if (e.code === 'P2002') {
         positionRecord = await this.prisma.aircraftPosition.findFirst({
           where: {
             aircraftId,

@@ -68,18 +68,21 @@ export default function AircraftPage() {
     <ProtectedRoute>
       <div className="min-h-screen">
         <Header />
-        <main className="section">
-          <div className="">
-            <div className="mb-8">
-              <h1 className="page-title">Quản lý máy bay</h1>
-              <p className="page-subtitle">
+        <main>
+          {/* Title section */}
+          <div className="w-full py-6" style={{ backgroundColor: '#244A9A' }}>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <h1 className="text-3xl font-bold text-white">Quản lý máy bay</h1>
+              <p className="mt-2 text-white/80">
                 Danh sách và quản lý tất cả máy bay trong hệ thống
               </p>
             </div>
+          </div>
 
-            {/* Search and Filter */}
-            <div className="card mb-6">
-              <div className="card-body">
+          {/* Sticky search and filter section */}
+          <div className="sticky top-16 z-40 w-full shadow-sm" style={{ backgroundColor: '#244A9A' }}>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <div className="bg-white rounded-lg shadow-sm p-4">
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex-1">
                     <input
@@ -185,9 +188,11 @@ export default function AircraftPage() {
                 )}
               </div>
             </div>
+          </div>
 
-            {/* Aircraft Table */}
-            <div className="card overflow-hidden sm:rounded-md">
+          {/* Aircraft Table */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="bg-white shadow overflow-hidden sm:rounded-md">
               {loading ? (
                 <div className="flex justify-center items-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>

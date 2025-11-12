@@ -532,7 +532,7 @@ export class VesselService {
         });
       }
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      if (e.code === 'P2002') {
         // Duplicate by (vesselId, timestamp, source) → return existing
         positionRecord = await this.prisma.vesselPosition.findFirst({
           where: {

@@ -1,4 +1,5 @@
 export { useDataLoader } from './useDataLoader';
+// Migrated to new refactored architecture with plugin system
 export { useMapInitialization } from './useMapInitialization';
 export { useMapClickHandler } from './useMapClickHandler';
 export { useDrawingMode } from './useDrawingMode';

@@ -9,7 +9,7 @@
     "build": "nest build",
     "format": "prettier --write .",
     "start": "node --max-old-space-size=8192 dist/main",
-    "start:dev": "node --max-old-space-size=8192 node_modules/.bin/nest start --watch",
+    "start:dev": "npx nest start --watch",
     "start:debug": "node --max-old-space-size=8192 node_modules/.bin/nest start --debug --watch",
     "start:prod": "node --max-old-space-size=8192 dist/main",
     "lint": "eslint . --ext .ts --fix",

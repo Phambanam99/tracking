@@ -1,17 +1,29 @@
 @import 'tailwindcss';
 
 :root {
-  --background: #ffffff;
+  --background: #F2F6FC;
   --foreground: #171717;
   --card: #ffffff;
   --muted: #6b7280;
   --border: #e5e7eb;
   --ring: #2563eb;
-  --primary: #2563eb;
+  --primary: #244A9A;
   --primary-foreground: #ffffff;
   --success: #16a34a;
   --warning: #d97706;
   --danger: #dc2626;
+
+  /* Theme colors from HTML */
+  --background-light: #f1f5f9;
+  --background-dark: #0f172a;
+  --card-light: #ffffff;
+  --card-dark: #1e293b;
+  --text-light-primary: #1e293b;
+  --text-dark-primary: #e2e8f0;
+  --text-light-secondary: #64748b;
+  --text-dark-secondary: #94a3b8;
+  --border-light: #e2e8f0;
+  --border-dark: #334155;
 }
 
 @theme inline {
@@ -142,4 +154,73 @@ body {
 /* Header height token */
 .app-header {
   height: 64px;
+}
+
+/* Custom theme utilities */
+.bg-primary {
+  background-color: var(--primary);
+}
+
+.bg-background-light {
+  background-color: var(--background-light);
+}
+
+.bg-background-dark {
+  background-color: var(--background-dark);
+}
+
+.bg-card-light {
+  background-color: var(--card-light);
+}
+
+.bg-card-dark {
+  background-color: var(--card-dark);
+}
+
+.text-text-light-primary {
+  color: var(--text-light-primary);
+}
+
+.text-text-dark-primary {
+  color: var(--text-dark-primary);
+}
+
+.text-text-light-secondary {
+  color: var(--text-light-secondary);
+}
+
+.text-text-dark-secondary {
+  color: var(--text-dark-secondary);
+}
+
+.border-border-light {
+  border-color: var(--border-light);
+}
+
+.border-border-dark {
+  border-color: var(--border-dark);
+}
+
+.divide-border-light > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border-light);
+}
+
+.divide-border-dark > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border-dark);
+}
+
+/* Material Icons support */
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+  vertical-align: middle;
 }

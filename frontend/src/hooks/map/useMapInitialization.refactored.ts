@@ -12,12 +12,12 @@ import { Style, Fill, Stroke } from 'ol/style';
 import { fromLonLat } from 'ol/proj';
 import { useSystemSettingsStore } from '@/stores/systemSettingsStore';
 import { useUserPreferencesStore } from '@/stores/userPreferencesStore';
-import { getClusterDistance } from '../utils/mapUtils';
-import { useBaseMapLayer } from './map/useBaseMapLayer';
-import { VehicleLayerFactory } from './map/VehicleLayerPlugin';
-import { VehicleConfigFactory } from './map/vehicleConfigFactory';
-import { VehicleStyleFactory } from './map/VehicleStyleFactory.class';
-import { MapInitializationResult } from './map/types';
+import { getClusterDistance } from '../../utils/mapUtils';
+import { useBaseMapLayer } from './useBaseMapLayer';
+import { VehicleLayerFactory } from './VehicleLayerPlugin';
+import { VehicleConfigFactory } from './vehicleConfigFactory';
+import { VehicleStyleFactory } from './VehicleStyleFactory.class';
+import { MapInitializationResult } from './types';
 
 interface UseMapInitializationProps {
   mapRef: React.RefObject<HTMLDivElement | null>;
