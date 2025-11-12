@@ -5,7 +5,7 @@ import { serverFetchVessel } from '@/utils/serverFetch';
 import VesselDetailClient from './VesselDetailClient';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export default async function VesselDetailPage({ params }: PageProps) {
@@ -17,7 +17,7 @@ export default async function VesselDetailPage({ params }: PageProps) {
     redirect('/login');
   }
 
-  const vesselId = Number(params.id);
+  const vesselId = Number((await params).id);
 
   if (!Number.isFinite(vesselId)) {
     notFound();

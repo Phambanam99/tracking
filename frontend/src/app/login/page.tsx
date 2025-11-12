@@ -27,7 +27,7 @@ export default function LoginPage() {
 
     try {
       await login(username, password);
-      router.push('/dashboard');
+      router.push('/'); // Redirect to map page
     } catch (err) {
       // Error is handled by the store
       console.error('Login error:', err);

@@ -8,7 +8,7 @@ export type SystemSettings = {
   signalStaleMinutes: number;
   vesselFlagColors: Record<string, string>;
   aircraftOperatorColors: Record<string, string>;
-  mapProvider: 'osm' | 'maptiler';
+  mapProvider: 'osm' | 'maptiler' | 'openseamap';
   maptilerApiKey?: string;
   maptilerStyle: string;
   // Optional admin-configured custom XYZ sources

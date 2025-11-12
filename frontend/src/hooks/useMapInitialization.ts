@@ -27,6 +27,7 @@ import {
 import { useSystemSettingsStore } from '@/stores/systemSettingsStore';
 import { useUserPreferencesStore } from '@/stores/userPreferencesStore';
 
+
 interface UseMapInitializationProps {
   mapRef: React.RefObject<HTMLDivElement | null>;
   mapInstanceRef: React.RefObject<Map | null>;
@@ -111,13 +112,22 @@ export function useMapInitialization(
         if (!baseAircraftImgRef.current) {
           const img = new Image();
           img.crossOrigin = 'anonymous';
-          img.src = '/aircraft-icon.svg';
+          img.onload = () => {
+            console.log('[Map] Aircraft icon loaded, clearing cache');
+            // Clear cache to force re-render with new icon
+            Object.keys(iconCacheAircraft).forEach(key => delete iconCacheAircraft[key]);
+            // Trigger layer update
+            if (aircraftLayerRef?.current) {
+              aircraftLayerRef.current.changed();
+            }
+          };
+          img.src = './aircraft-icon.svg';
           baseAircraftImgRef.current = img;
         }
         if (!baseVesselImgRef.current) {
           const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.src = '/vessel-icon.svg';
+          // Use inline data URL for instant availability
+          img.src = './vessel-icon.svg';
           baseVesselImgRef.current = img;
         }
       };
@@ -132,7 +142,8 @@ export function useMapInitialization(
         const cached = cache[key];
         if (cached) return cached;
         if (!img || !img.complete || img.naturalWidth === 0) return null;
-        const size = Math.max(img.naturalWidth, img.naturalHeight) || 24;
+        // For SVG images, use a fixed size to prevent distortion
+        const size = 24;
         const canvas = document.createElement('canvas');
         canvas.width = size;
         canvas.height = size;
@@ -142,7 +153,15 @@ export function useMapInitialization(
         } as any) as CanvasRenderingContext2D | null;
         if (!ctx) return null;
         ctx.clearRect(0, 0, size, size);
-        ctx.drawImage(img, 0, 0, size, size);
+        // Scale the image to fit the canvas while maintaining aspect ratio
+        const imgWidth = img.naturalWidth || size;
+        const imgHeight = img.naturalHeight || size;
+        const scale = Math.min(size / imgWidth, size / imgHeight);
+        const drawWidth = imgWidth * scale;
+        const drawHeight = imgHeight * scale;
+        const offsetX = (size - drawWidth) / 2;
+        const offsetY = (size - drawHeight) / 2;
+        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
         ctx.globalCompositeOperation = 'source-in';
         (ctx as CanvasRenderingContext2D).fillStyle = color;
         ctx.fillRect(0, 0, size, size);
@@ -174,21 +193,6 @@ export function useMapInitialization(
         }
         return clusterStyleCacheAircraft[key];
       };
-
-      // const getSingleDotStyleAircraft = (): Style => {
-      //   const key = 'dot';
-      //   if (!singleDotStyleAircraft[key]) {
-      //     singleDotStyleAircraft[key] = new Style({
-      //       image: new CircleStyle({
-      //         radius: 4,
-      //         fill: new Fill({ color: 'rgba(59,130,246,0.9)' }),
-      //         stroke: new Stroke({ color: 'white', width: 1 }),
-      //       }),
-      //     });
-      //   }
-      //   return singleDotStyleAircraft[key];
-      // };
-
       const getIconStyleAircraft = (
         headingDeg: number,
         operator?: string,
@@ -204,16 +208,31 @@ export function useMapInitialization(
 
         // Try to build tinted canvas based on user's SVG icon
         const baseImg = baseAircraftImgRef.current;
-        const tinted = baseImg
+        
+        // Check if image is actually loaded and ready
+        const isImageReady = baseImg && baseImg.complete && baseImg.naturalWidth > 0;
+        
+        const tinted = isImageReady
           ? getTintedCanvas(baseImg, color, aircraftTintCacheRef.current)
           : null;
+          
         if (!tinted) {
-          // Fallback to vector shape until image is ready
+          // If SVG is loading, schedule a retry
+          if (baseImg && !baseImg.complete) {
+            baseImg.addEventListener('load', () => {
+              // Clear this cache entry when image loads
+              delete iconCacheAircraft[key];
+              // Force layer refresh
+              if (aircraftLayerRef?.current) {
+                aircraftLayerRef.current.changed();
+              }
+            }, { once: true });
+          }
+          
+          // Return a simple dot as temporary fallback
           return new Style({
-            image: new RegularShape({
-              points: 3,
-              radius: 10,
-              rotation: (headingBucket * Math.PI) / 180,
+            image: new CircleStyle({
+              radius: 5,
               fill: new Fill({ color }),
               stroke: new Stroke({ color: 'white', width: 1.5 }),
             }),
@@ -338,27 +357,46 @@ export function useMapInitialization(
       const getIconStyleVessel = (headingDeg: number, flag?: string): Style => {
         const headingBucket = Math.round(headingDeg / 15) * 15;
         const color =
-          (flag && settings.vesselFlagColors[flag.toUpperCase()]) || '#10b981';
+          (flag && settings.vesselFlagColors[flag.toUpperCase()]) || 'rgba(246, 250, 6, 1)'; // Yellow color
         const key = `${headingBucket}-${color}`;
         if (iconCacheVessel[key]) return iconCacheVessel[key];
 
         const baseImg = baseVesselImgRef.current;
-        const tinted = baseImg
+        
+        // Check if image is actually loaded and ready
+        const isImageReady = baseImg && baseImg.complete && baseImg.naturalWidth > 0;
+        
+        console.log('[VesselIcon] Creating style - heading:', headingBucket, 'color:', color, 'imageReady:', isImageReady, 'imgComplete:', baseImg?.complete, 'naturalWidth:', baseImg?.naturalWidth);
+        
+        const tinted = isImageReady
           ? getTintedCanvas(baseImg, color, vesselTintCacheRef.current)
           : null;
+          
         if (!tinted) {
-          // Fallback to vector shape until image is ready
+          console.log('[VesselIcon] No tinted canvas available, using fallback dot');
+          // If SVG is loading, schedule a retry
+          if (baseImg && !baseImg.complete) {
+            baseImg.addEventListener('load', () => {
+              console.log('[VesselIcon] Image loaded via listener, clearing cache for:', key);
+              // Clear this cache entry when image loads
+              delete iconCacheVessel[key];
+              // Force layer refresh
+              if (vesselLayerRef?.current) {
+                vesselLayerRef.current.changed();
+              }
+            }, { once: true });
+          }
+          
+          // Return a simple dot as temporary fallback
           return new Style({
-            image: new RegularShape({
-              points: 4,
-              radius: 9,
-              angle: Math.PI / 4,
-              rotation: (headingBucket * Math.PI) / 180,
+            image: new CircleStyle({
+              radius: 5,
               fill: new Fill({ color }),
               stroke: new Stroke({ color: 'white', width: 1.5 }),
             }),
           });
         }
+        console.log('[VesselIcon] Using tinted canvas icon');
         const style = new Style({
           image: new Icon({
             img: tinted,
@@ -481,7 +519,7 @@ export function useMapInitialization(
 
       // WebGL disabled completely due to persistent renderer issues - using vector layers only
 
-      // Base layer selection (OSM, MapTiler, or custom) with user preference override
+      // Base layer selection (OSM, MapTiler, OpenSeaMap, or custom) with user preference override
       const maptilerStyleMap: Record<string, string> = {
         streets: 'streets-v2',
         outdoor: 'outdoor-v2',
@@ -497,6 +535,10 @@ export function useMapInitialization(
       const styleId =
         maptilerStyleMap[styleKey] || settings.maptilerStyle || 'streets-v2';
       const makeBaseSource = () => {
+        if (effectiveProvider === 'openseamap') {
+          // OpenSeaMap now requires OSM as base + seamark overlay
+          return new OSM();
+        }
         if (effectiveProvider === 'maptiler' && settings.maptilerApiKey) {
           return new XYZ({
             url: `https://api.maptiler.com/maps/${styleId}/256/{z}/{x}/{y}.png?key=${settings.maptilerApiKey}`,
@@ -508,13 +550,23 @@ export function useMapInitialization(
         return new OSM();
       };
       const baseLayer = new TileLayer({ source: makeBaseSource() });
+      
+      // OpenSeaMap overlay layer (only visible when openseamap is selected)
+      const openSeaMapOverlay = new TileLayer({
+        source: new XYZ({
+          url: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+          attributions: 'Map data © OpenSeaMap contributors',
+          maxZoom: 18,
+        }),
+        visible: effectiveProvider === 'openseamap',
+      });
 
       // Map (giữ Attribution hợp lệ cho OSM)
       const map = new Map({
         target: mapRef.current!,
         pixelRatio: 1,
 
-        layers: [baseLayer, aircraftLayer, vesselLayer, regionLayer],
+        layers: [baseLayer, openSeaMapOverlay, aircraftLayer, vesselLayer, regionLayer],
         view: new View({
           center: fromLonLat([108.2194, 16.0544]), // VN center
           zoom: Math.max(settings.minZoom, Math.min(settings.maxZoom, 6)),
@@ -554,6 +606,7 @@ export function useMapInitialization(
       try {
         if (typeof (map as any).set === 'function') {
           (map as any).set('baseLayer', baseLayer);
+          (map as any).set('openSeaMapOverlay', openSeaMapOverlay);
         }
       } catch {}
 
@@ -598,6 +651,7 @@ export function useMapInitialization(
     const map = mapInstanceRef.current;
     if (!map) return;
     const baseLayer: any = (map as any).get?.('baseLayer');
+    const openSeaMapOverlay: any = (map as any).get?.('openSeaMapOverlay');
     if (!baseLayer) return;
 
     const maptilerStyleMap: Record<string, string> = {
@@ -624,6 +678,10 @@ export function useMapInitialization(
       maptilerStyleMap[styleKey] || settings.maptilerStyle || 'streets-v2';
 
     const getSource = () => {
+      if (effectiveProvider === 'openseamap') {
+        // OpenSeaMap now requires OSM as base + seamark overlay
+        return new OSM();
+      }
       if (effectiveProvider === 'maptiler' && settings.maptilerApiKey) {
         return new XYZ({
           url: `https://api.maptiler.com/maps/${styleId}/256/{z}/{x}/{y}.png?key=${settings.maptilerApiKey}`,
@@ -650,6 +708,11 @@ export function useMapInitialization(
     };
 
     baseLayer.setSource(getSource());
+    
+    // Toggle OpenSeaMap overlay visibility
+    if (openSeaMapOverlay) {
+      openSeaMapOverlay.setVisible(effectiveProvider === 'openseamap');
+    }
   }, [
     settings.mapProvider,
     settings.maptilerApiKey,

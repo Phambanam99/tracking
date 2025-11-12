@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware';
 export type BaseMapChoice =
   | 'default' // follow system setting
   | 'osm'
+  | 'openseamap'
   | 'maptiler'
   | `custom:${string}`; // id from admin-configured list
 

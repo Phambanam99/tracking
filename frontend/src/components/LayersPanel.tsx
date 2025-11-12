@@ -83,10 +83,8 @@ export default function LayersPanel({
   const {
     activeLayer,
     weatherVisible,
-    windArrowsVisible,
     setActiveLayer,
     setWeatherVisible,
-    setWindArrowsVisible,
   } = useWeatherStore();
   // These stores are available if we need future per-layer counts
   // const { vessels } = useVesselStore();
@@ -204,6 +202,15 @@ export default function LayersPanel({
                         name="basemap"
                         checked={baseMapProvider === 'osm'}
                         onChange={() => setBaseMapProvider('osm')}
+                      />
+                    </label>
+                    <label className="flex items-center justify-between bg-gray-50 rounded-md px-3 py-2 border cursor-pointer">
+                      <span className="text-sm">OpenSeaMap</span>
+                      <input
+                        type="radio"
+                        name="basemap"
+                        checked={baseMapProvider === 'openseamap'}
+                        onChange={() => setBaseMapProvider('openseamap')}
                       />
                     </label>
                     <div className="bg-gray-50 rounded-md px-3 py-2 border">
@@ -331,6 +338,18 @@ export default function LayersPanel({
                         </label>
                         <label className="flex items-center justify-between bg-white rounded px-2 py-1.5 cursor-pointer hover:bg-sky-50">
                           <div className="flex items-center gap-2 text-xs">
+                            <Wind className="w-3.5 h-3.5 text-green-600" />
+                            <span>Gió</span>
+                          </div>
+                          <input
+                            type="radio"
+                            name="weather-layer"
+                            checked={activeLayer === 'wind'}
+                            onChange={() => setActiveLayer('wind')}
+                          />
+                        </label>
+                        <label className="flex items-center justify-between bg-white rounded px-2 py-1.5 cursor-pointer hover:bg-sky-50">
+                          <div className="flex items-center gap-2 text-xs">
                             <Cloud className="w-3.5 h-3.5 text-gray-500" />
                             <span>Độ che phủ mây</span>
                           </div>
@@ -341,18 +360,6 @@ export default function LayersPanel({
                             onChange={() => setActiveLayer('clouds')}
                           />
                         </label>
-                      </div>
-
-                      <div className="flex items-center justify-between bg-white rounded px-2 py-1.5 border-t border-sky-200 pt-2">
-                        <div className="flex items-center gap-2 text-xs text-gray-700">
-                          <Wind className="w-3.5 h-3.5 text-green-600" />
-                          <span>Mũi tên gió</span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={windArrowsVisible}
-                          onChange={(e) => setWindArrowsVisible(e.target.checked)}
-                        />
                       </div>
                     </>
                   )}

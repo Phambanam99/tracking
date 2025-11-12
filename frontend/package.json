@@ -12,11 +12,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@microsoft/signalr": "^9.0.6",
     "@tanstack/react-query": "^5.90.7",
+    "autoprefixer": "^10.4.22",
+    "axios": "^1.13.2",
     "lucide-react": "^0.537.0",
     "next": "15.4.6",
     "ol": "^10.6.1",
     "ol-ext": "^4.0.33",
+    "ol-wind": "^1.1.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "socket.io-client": "^4.8.1",

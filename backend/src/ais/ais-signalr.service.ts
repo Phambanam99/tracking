@@ -6,7 +6,7 @@ import {
   HttpTransportType,
   LogLevel,
 } from '@microsoft/signalr';
-import { first, Subject } from 'rxjs';
+import { Subject, share } from 'rxjs';
 import axios from 'axios';
 import aisConfig from '../config/ais.config';
 import { AisModel, QueryResultState } from './ais.types';
@@ -16,15 +16,15 @@ export class AisSignalrService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AisSignalrService.name);
   private connection: HubConnection | null = null;
 
-  // Subjects để phát sự kiện ra cho SSE/WebSocket
+  // Subjects với share() để tránh memory leak khi không có subscribers
   private start$ = new Subject<{ state: QueryResultState.Start; count: number }>();
   private data$ = new Subject<{ state: QueryResultState.Query; data: AisModel[] }>();
   private end$ = new Subject<{ state: QueryResultState.End }>();
 
-  // public observables
-  startStream$ = this.start$.asObservable();
-  dataStream$ = this.data$.asObservable();
-  endStream$ = this.end$.asObservable();
+  // public observables với share để auto-cleanup khi không có subscribers
+  startStream$ = this.start$.asObservable().pipe(share());
+  dataStream$ = this.data$.asObservable().pipe(share());
+  endStream$ = this.end$.asObservable().pipe(share());
 
   // cache cấu hình
   private cfg = aisConfig();
@@ -95,7 +95,25 @@ export class AisSignalrService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    // Clear all timers first
+    if (this.autoTimer) {
+      clearInterval(this.autoTimer);
+      this.autoTimer = null;
+    }
+    if (this.pendingNoEventTimer) {
+      clearTimeout(this.pendingNoEventTimer);
+      this.pendingNoEventTimer = null;
+    }
+    
+    // Complete all subjects to release memory
+    this.start$.complete();
+    this.data$.complete();
+    this.end$.complete();
+    
+    // Disconnect SignalR
     await this.disconnect();
+    
+    this.logger.log('AisSignalrService destroyed, all resources cleaned up');
   }
 
   /** Kết nối tới Hub SignalR */
@@ -179,6 +197,14 @@ export class AisSignalrService implements OnModuleInit, OnModuleDestroy {
           // this.logger.debug(`First item sample: ${JSON.stringify(sample)}`);
         }
       }
+      
+      // Memory protection: limit batch size to prevent memory overflow
+      const MAX_BATCH_SIZE = 10000;
+      if (len > MAX_BATCH_SIZE) {
+        this.logger.warn(`QueryData batch too large (${len}), truncating to ${MAX_BATCH_SIZE}`);
+        data = data.slice(0, MAX_BATCH_SIZE);
+      }
+      
       // this.logger.log(`QueryData batch: ${len}`);
       this.data$.next({ state: QueryResultState.Query, data: data ?? [] });
       this.metrics.queryDataBatches++;

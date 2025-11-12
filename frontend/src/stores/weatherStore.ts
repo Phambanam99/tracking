@@ -28,7 +28,6 @@ interface WeatherState {
   // Layer visibility
   activeLayer: WeatherLayerType;
   weatherVisible: boolean;
-  windArrowsVisible: boolean;
 
   // Loading states
   isLoading: boolean;
@@ -39,7 +38,6 @@ interface WeatherState {
   setCurrentWeather: (data: WeatherData | null) => void;
   setActiveLayer: (layer: WeatherLayerType) => void;
   setWeatherVisible: (visible: boolean) => void;
-  setWindArrowsVisible: (visible: boolean) => void;
   setIsLoading: (loading: boolean) => void;
   setLastUpdated: (date: Date) => void;
 }
@@ -50,7 +48,6 @@ export const useWeatherStore = create<WeatherState>((set) => ({
   currentWeather: null,
   activeLayer: 'none',
   weatherVisible: false,
-  windArrowsVisible: false,
   isLoading: false,
   lastUpdated: null,
 
@@ -58,8 +55,14 @@ export const useWeatherStore = create<WeatherState>((set) => ({
   setWeatherGrid: (data) => set({ weatherGrid: data }),
   setCurrentWeather: (data) => set({ currentWeather: data }),
   setActiveLayer: (layer) => set({ activeLayer: layer }),
-  setWeatherVisible: (visible) => set({ weatherVisible: visible }),
-  setWindArrowsVisible: (visible) => set({ windArrowsVisible: visible }),
+  setWeatherVisible: (visible: boolean) =>
+    set((state) => {
+      // When turning on weather, if no layer is selected, default to 'wind'
+      if (visible && state.activeLayer === 'none') {
+        return { weatherVisible: visible, activeLayer: 'wind' };
+      }
+      return { weatherVisible: visible };
+    }),
   setIsLoading: (loading) => set({ isLoading: loading }),
   setLastUpdated: (date) => set({ lastUpdated: date }),
 }));
