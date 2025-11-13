@@ -343,7 +343,7 @@ export default function MapComponentClustered() {
             stroke: new Stroke({ color: '#1e40af', width: 1 }),
           }),
           text: new Text({
-            text: `Bắt đầu ${formatTime(startTime)}`,
+            text: `Kết thúc ${formatTime(startTime)}`,
             offsetY: -14,
             font: '12px sans-serif',
             fill: new Fill({ color: '#1f2937' }),
@@ -364,7 +364,7 @@ export default function MapComponentClustered() {
             stroke: new Stroke({ color: '#991b1b', width: 1 }),
           }),
           text: new Text({
-            text: `Kết thúc ${formatTime(endTime)}`,
+            text: `Bắt đầu ${formatTime(endTime)}`,
             offsetY: -14,
             font: '12px sans-serif',
             fill: new Fill({ color: '#1f2937' }),

@@ -183,7 +183,7 @@ export default function RouteMapSmall({ vesselId, height = '400px' }: RouteMapSm
           stroke: new Stroke({ color: '#1e40af', width: 2 }),
         }),
         text: new Text({
-          text: `Bắt đầu\n${formatTime(positions[0].timestamp)}`,
+          text: `Kết thúc ${formatTime(positions[0].timestamp)}`,
           offsetY: -18,
           font: '11px sans-serif',
           fill: new Fill({ color: '#1f2937' }),
@@ -208,7 +208,7 @@ export default function RouteMapSmall({ vesselId, height = '400px' }: RouteMapSm
           stroke: new Stroke({ color: '#991b1b', width: 2 }),
         }),
         text: new Text({
-          text: `Kết thúc\n${formatTime(endPos.timestamp)}`,
+          text: `Bắt đầu ${formatTime(endPos.timestamp)}`,
           offsetY: -18,
           font: '11px sans-serif',
           fill: new Fill({ color: '#1f2937' }),

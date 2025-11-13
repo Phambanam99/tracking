@@ -133,20 +133,53 @@ export function useVesselViewportLoader(params: {
             );
             if (Array.isArray(init)) {
               const beforeFilter = init.length;
-              vessels = init.filter(
-                (v: any) =>
-                  v?.lastPosition &&
-                  typeof v.lastPosition.longitude === 'number' &&
-                  typeof v.lastPosition.latitude === 'number',
-              );
+              const [minLon, minLat, maxLon, maxLat] = bbox;
+              const freshnessMs = 48 * 60 * 60 * 1000; // keep last 48h to avoid stale vessels
+              const cutoffTs = Date.now() - freshnessMs;
+
+              const normalizeTimestamp = (value: unknown): number | null => {
+                if (!value) return null;
+                if (value instanceof Date) return value.getTime();
+                if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+                if (typeof value === 'string') {
+                  const parsed = Date.parse(value);
+                  return Number.isFinite(parsed) ? parsed : null;
+                }
+                return null;
+              };
+
+              const filtered = init.filter((v: any) => {
+                const pos = v?.lastPosition;
+                if (!pos) return false;
+
+                const lon = typeof pos.longitude === 'number' ? pos.longitude : Number(pos.longitude);
+                const lat = typeof pos.latitude === 'number' ? pos.latitude : Number(pos.latitude);
+                if (!Number.isFinite(lon) || !Number.isFinite(lat)) return false;
+                if (lon < minLon || lon > maxLon || lat < minLat || lat > maxLat) return false;
+
+                const tsValue = normalizeTimestamp(pos.timestamp);
+                if (tsValue != null && tsValue < cutoffTs) return false;
+
+                return true;
+              });
+
+              const sortedByRecency = filtered.sort((a, b) => {
+                const tsA = normalizeTimestamp(a?.lastPosition?.timestamp);
+                const tsB = normalizeTimestamp(b?.lastPosition?.timestamp);
+                return (tsB ?? 0) - (tsA ?? 0);
+              });
+
+              const MAX_FALLBACK_VESSELS = 1500;
+              vessels = sortedByRecency.slice(0, MAX_FALLBACK_VESSELS);
+
               console.log(
-                '[VesselLoader] Filtered vessels:',
+                '[VesselLoader] Filtered fallback vessels:',
                 vessels.length,
                 'of',
                 beforeFilter,
                 '(removed',
                 beforeFilter - vessels.length,
-                'without valid position)',
+                'outside viewport or stale)',
               );
             }
           }

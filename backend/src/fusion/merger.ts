@@ -1,10 +1,12 @@
 import { NormVesselMsg, NormAircraftMsg, VesselSource, AircraftSource } from './types';
 import { scoreBySource } from './utils';
+import { ConflictMonitorService } from './conflict-monitor.service';
 
 // ========== INTERNAL CONSTANTS ==========
 const TIME_WINDOW_MS = 60_000; // 1 minute for timestamp priority
 const MIN_SOURCE_SCORE = 0.1; // Minimum source weight to be considered
-const CONFLICT_LOG_THRESHOLD = 5; // Log when N+ sources have different values (reduced noise)
+const CONFLICT_LOG_THRESHOLD = 3; // Reduced threshold for more sensitive logging
+const SIGNIFICANT_DIFF_THRESHOLD = 0.5; // 50% difference instead of 20%
 
 // ========== EXISTING EXPORTS (KEEP FOR COMPATIBILITY) ==========
 export interface FieldScore {
@@ -39,6 +41,8 @@ function selectBestFieldGeneric<T extends Record<string, any>, K extends keyof T
   messages: T[],
   field: K,
   now: number,
+  conflictMonitor?: ConflictMonitorService,
+  mmsi?: string,
 ): T[K] | undefined {
   type MessageWithField = T & { [key in K]: NonNullable<T[K]> };
 
@@ -61,7 +65,7 @@ function selectBestFieldGeneric<T extends Record<string, any>, K extends keyof T
   // Conflict detection - only log significant conflicts
   const uniqueValues = new Set(candidates.map((c) => JSON.stringify(c.value)));
   if (uniqueValues.size >= CONFLICT_LOG_THRESHOLD) {
-    // For numeric fields, check if difference is significant (> 20%)
+    // For numeric fields, check if difference is significant (> 50%)
     const isSignificant = (() => {
       if (typeof candidates[0].value === 'number' && candidates.length >= 2) {
         const values = candidates.map((c) => c.value as number).filter((v) => v > 0);
@@ -69,17 +73,32 @@ function selectBestFieldGeneric<T extends Record<string, any>, K extends keyof T
         const max = Math.max(...values);
         const min = Math.min(...values);
         const diff = (max - min) / max;
-        return diff > 0.2; // > 20% difference
+        return diff > SIGNIFICANT_DIFF_THRESHOLD; // > 50% difference
       }
       return true; // Log non-numeric conflicts
     })();
 
     if (isSignificant) {
+      // Log to console for backward compatibility
       console.warn(
         `[FieldFusion] Conflict detected for "${String(field)}": ${JSON.stringify(
-          candidates.map((c) => ({ source: c.source, value: c.value })),
+          candidates.map((c) => ({
+            source: c.source,
+            value: c.value,
+            timestamp: new Date(c.timestamp).toISOString(),
+            age: ((now - c.timestamp) / 1000).toFixed(1) + 's'
+          })),
         )}`,
       );
+
+      // Also record in conflict monitor if available
+      if (conflictMonitor) {
+        conflictMonitor.recordConflict(
+          String(field),
+          candidates.map(c => ({ source: c.source, value: c.value, timestamp: c.timestamp })),
+          mmsi
+        );
+      }
     }
   }
 
@@ -116,6 +135,8 @@ function mergeMessagesInternal<T extends { source?: string; ts: string }>(
     dynamic: readonly (keyof T)[];
   },
   now: number,
+  conflictMonitor?: ConflictMonitorService,
+  mmsi?: string,
 ): T | undefined {
   // Edge case validation
   if (messages.length === 0) return undefined;
@@ -140,7 +161,7 @@ function mergeMessagesInternal<T extends { source?: string; ts: string }>(
 
   // Merge static fields (best available)
   for (const field of fields.static) {
-    const bestValue = selectBestFieldGeneric(messages, field, now);
+    const bestValue = selectBestFieldGeneric(messages, field, now, conflictMonitor, mmsi);
     if (bestValue !== undefined) {
       merged[field] = bestValue;
     }
@@ -157,7 +178,7 @@ function mergeMessagesInternal<T extends { source?: string; ts: string }>(
     if (newestValue !== null && newestValue !== undefined) {
       merged[field] = newestValue;
     } else {
-      const bestValue = selectBestFieldGeneric(messages, field, now);
+      const bestValue = selectBestFieldGeneric(messages, field, now, conflictMonitor, mmsi);
       if (bestValue !== undefined) {
         merged[field] = bestValue;
       }
@@ -179,9 +200,11 @@ export function selectBestField<T extends NormVesselMsg | NormAircraftMsg>(
   messages: T[],
   field: keyof T,
   _now: number, // Keep parameter for signature compatibility
+  conflictMonitor?: ConflictMonitorService,
 ): any {
   const now = Date.now();
-  return selectBestFieldGeneric(messages, field, now);
+  const mmsi = (messages[0] as any)?.mmsi;
+  return selectBestFieldGeneric(messages, field, now, conflictMonitor, mmsi);
 }
 
 /**
@@ -190,6 +213,7 @@ export function selectBestField<T extends NormVesselMsg | NormAircraftMsg>(
 export function mergeVesselMessages(
   messages: NormVesselMsg[],
   now = Date.now(),
+  conflictMonitor?: ConflictMonitorService,
 ): NormVesselMsg | undefined {
   const fields = {
     static: ['mmsi', 'imo', 'callsign', 'name'] as const,
@@ -197,7 +221,8 @@ export function mergeVesselMessages(
     dynamic: ['speed', 'course', 'heading', 'status'] as const,
   };
 
-  return mergeMessagesInternal(messages, fields, now);
+  const mmsi = messages[0]?.mmsi;
+  return mergeMessagesInternal(messages, fields, now, conflictMonitor, mmsi);
 }
 
 /**
@@ -206,6 +231,7 @@ export function mergeVesselMessages(
 export function mergeAircraftMessages(
   messages: NormAircraftMsg[],
   now = Date.now(),
+  conflictMonitor?: ConflictMonitorService,
 ): NormAircraftMsg | undefined {
   const fields = {
     static: ['icao24', 'registration', 'callsign'] as const,
@@ -213,7 +239,7 @@ export function mergeAircraftMessages(
     dynamic: ['altitude', 'groundSpeed', 'heading', 'verticalRate'] as const,
   };
 
-  return mergeMessagesInternal(messages, fields, now);
+  return mergeMessagesInternal(messages, fields, now, conflictMonitor);
 }
 
 /**

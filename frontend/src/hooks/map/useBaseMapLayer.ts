@@ -80,7 +80,13 @@ export function useBaseMapLayer(config: BaseMapConfig) {
       // Default to OSM
       return new OSM();
     },
-    [config]
+    [
+      config.provider,
+      config.maptilerApiKey,
+      config.maptilerStyle,
+      config.maxZoom,
+      config.customMapSources,
+    ]
   );
 
   /**

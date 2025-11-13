@@ -95,14 +95,11 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           console.log('[AuthStore] Validating token with backend...');
-          // Add timeout to profile fetch
+          // Add shorter timeout to profile fetch
           const userData = await Promise.race([
             api.get('/users/profile'),
             new Promise((_, reject) =>
-              setTimeout(
-                () => reject(new Error('Profile fetch timeout')),
-                3000,
-              ),
+              setTimeout(() => reject(new Error('Profile fetch timeout')), 2000),
             ),
           ]);
           console.log('[AuthStore] ✓ Token valid, user:', userData);
@@ -132,7 +129,11 @@ export const useAuthStore = create<AuthState>()(
         try {
           if (state.token) {
             console.log('[AuthStore] Has token, validating...');
-            await state.validateToken();
+            // Do not block on token validation for too long
+            await Promise.race([
+              state.validateToken(),
+              new Promise((resolve) => setTimeout(resolve, 2500)),
+            ]);
           } else {
             console.log('[AuthStore] No token found');
             set({

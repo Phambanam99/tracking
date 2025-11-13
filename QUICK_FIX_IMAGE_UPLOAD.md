@@ -3,6 +3,7 @@
 ## ⚡ 2-Minute Fix
 
 ### Problem
+
 ```
 Error: Failed to add image: [postMultipart] url must be a string, url should not be empty
 Endpoint: http://localhost:3001/api/vessels/104911/images/upload
@@ -30,7 +31,7 @@ npm run start:dev
 ```typescript
 // New DTO for file uploads (url is optional)
 export class UploadVesselImageDto {
-  @IsOptional()  // Changed from @IsNotEmpty()
+  @IsOptional() // Changed from @IsNotEmpty()
   @IsString()
   url?: string;
 
@@ -55,16 +56,19 @@ export class UploadVesselImageDto {
 **Edit:** `backend/src/vessel/vessel.controller.ts`
 
 **Change line 529 from:**
+
 ```typescript
 @Body() dto: CreateVesselImageDto,
 ```
 
 **To:**
+
 ```typescript
 @Body() dto: UploadVesselImageDto,
 ```
 
 **Then restart backend:**
+
 ```bash
 cd backend
 npm run start:dev
@@ -77,27 +81,31 @@ npm run start:dev
 ### Add Logging
 
 **Frontend (`apiClient.ts` - in `buildUrl` method):**
+
 ```typescript
-console.log('[DEBUG] API_BASE_URL:', API_BASE_URL);
-console.log('[DEBUG] endpoint:', endpoint);
-console.log('[DEBUG] fullUrl:', fullUrl);
+console.log("[DEBUG] API_BASE_URL:", API_BASE_URL);
+console.log("[DEBUG] endpoint:", endpoint);
+console.log("[DEBUG] fullUrl:", fullUrl);
 ```
 
 **Frontend (`VesselDetailClient.tsx` - in `addImage` function):**
+
 ```typescript
-console.log('[DEBUG] vessel.id:', vessel?.id);
-console.log('[DEBUG] FormData:', Array.from(formData.entries()));
+console.log("[DEBUG] vessel.id:", vessel?.id);
+console.log("[DEBUG] FormData:", Array.from(formData.entries()));
 ```
 
 **Backend (`vessel.controller.ts` - in `uploadImage` method):**
+
 ```typescript
-console.log('[DEBUG] id:', id);
-console.log('[DEBUG] file:', file);
-console.log('[DEBUG] dto:', dto);
-console.log('[DEBUG] PUBLIC_BASE_URL:', process.env.PUBLIC_BASE_URL);
+console.log("[DEBUG] id:", id);
+console.log("[DEBUG] file:", file);
+console.log("[DEBUG] dto:", dto);
+console.log("[DEBUG] PUBLIC_BASE_URL:", process.env.PUBLIC_BASE_URL);
 ```
 
 ### Test Steps
+
 1. Open browser DevTools (F12) → Console tab
 2. Navigate to vessel page (e.g., `/vessels/104911`)
 3. Try uploading an image
@@ -140,6 +148,7 @@ curl -X POST http://localhost:3001/api/vessels/104911/images/upload \
 See: `DEBUGGING_IMAGE_UPLOAD.md` for comprehensive analysis
 
 **Key Sections:**
+
 - Root Cause Analysis (4 hypotheses)
 - Diagnostic Steps (3 phases)
 - Solutions & Fixes (5 options)
@@ -148,6 +157,7 @@ See: `DEBUGGING_IMAGE_UPLOAD.md` for comprehensive analysis
 ---
 
 **Quick Help:**
+
 - Frontend files: `frontend/src/services/apiClient.ts`, `frontend/src/app/vessels/[id]/VesselDetailClient.tsx`
 - Backend files: `backend/src/vessel/vessel.controller.ts`, `backend/src/vessel/vessel.service.ts`
 - Config: `frontend/.env`, `backend/.env`

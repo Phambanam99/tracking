@@ -53,56 +53,59 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             const { setCurrentUserId, hydrateFromServer } = useMapStore.getState();
             setCurrentUserId(user ? String(user.id) : 'guest');
             console.log('[AuthProvider] User:', user ? `${user.username} (ID: ${user.id})` : 'Not logged in');
-
+            // Kick off filter and settings fetches asynchronously (do not block initialization)
             if (user) {
-              try {
-                console.log('[AuthProvider] Step 2: Fetching user filters...');
-                const list = await Promise.race([
-                  api.get('/users/filters'),
-                  new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Filters timeout')), 5000)
-                  ),
-                ]);
-                if (Array.isArray(list)) {
-                  const def = list.find((it: any) => it?.name === 'default');
-                  if (def) {
-                    const payload = {
-                      activeFilterTab: def.activeFilterTab,
-                      aircraftViewMode: def.aircraftViewMode,
-                      vesselViewMode: def.vesselViewMode,
-                      aircraft:
-                        typeof def.aircraft === 'string'
-                          ? JSON.parse(def.aircraft)
-                          : def.aircraft,
-                      vessel:
-                        typeof def.vessel === 'string'
-                          ? JSON.parse(def.vessel)
-                          : def.vessel,
-                    } as const;
-                    hydrateFromServer(payload);
-                    console.log('[AuthProvider] ✓ Filters loaded');
+              console.log('[AuthProvider] Step 2: Fetching user filters (async)...');
+              (async () => {
+                try {
+                  const list = await Promise.race([
+                    api.get('/users/filters'),
+                    new Promise((_, reject) =>
+                      setTimeout(() => reject(new Error('Filters timeout')), 3000),
+                    ),
+                  ]);
+                  if (Array.isArray(list)) {
+                    const def = list.find((it: any) => it?.name === 'default');
+                    if (def) {
+                      const payload = {
+                        activeFilterTab: def.activeFilterTab,
+                        aircraftViewMode: def.aircraftViewMode,
+                        vesselViewMode: def.vesselViewMode,
+                        aircraft:
+                          typeof def.aircraft === 'string'
+                            ? JSON.parse(def.aircraft)
+                            : def.aircraft,
+                        vessel:
+                          typeof def.vessel === 'string'
+                            ? JSON.parse(def.vessel)
+                            : def.vessel,
+                      } as const;
+                      hydrateFromServer(payload);
+                      console.log('[AuthProvider] ✓ Filters loaded');
+                    }
                   }
+                } catch (e) {
+                  console.warn('[AuthProvider] Failed to fetch filters:', e);
                 }
-              } catch (e) {
-                console.warn('[AuthProvider] Failed to fetch filters:', e);
-              }
+              })();
             }
 
-            // Fetch system settings (only for ADMIN users)
             if (user && user.role === 'ADMIN') {
-              try {
-                console.log('[AuthProvider] Step 3: Fetching system settings (user is ADMIN)...');
-                const settings = await Promise.race([
-                  api.get('/admin/settings'),
-                  new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Settings timeout')), 5000)
-                  ),
-                ]);
-                setSettings(settings);
-                console.log('[AuthProvider] ✓ Settings loaded');
-              } catch (e) {
-                console.warn('[AuthProvider] Failed to fetch settings:', e);
-              }
+              console.log('[AuthProvider] Step 3: Fetching system settings (async, ADMIN)...');
+              (async () => {
+                try {
+                  const settings = await Promise.race([
+                    api.get('/admin/settings'),
+                    new Promise((_, reject) =>
+                      setTimeout(() => reject(new Error('Settings timeout')), 3000),
+                    ),
+                  ]);
+                  setSettings(settings);
+                  console.log('[AuthProvider] ✓ Settings loaded');
+                } catch (e) {
+                  console.warn('[AuthProvider] Failed to fetch settings:', e);
+                }
+              })();
             } else {
               console.log('[AuthProvider] Step 3: Skipping settings fetch (user is not ADMIN)');
               // Set default settings for non-admin users

@@ -198,7 +198,9 @@ export function useMapInitialization(props: UseMapInitializationProps) {
   useEffect(() => {
     if (!mapInstanceRef.current) return;
 
-    const provider = baseMapProvider === 'default' ? settings.mapProvider : baseMapProvider;
+    const provider =
+      baseMapProvider === 'default' ? settings.mapProvider : baseMapProvider;
+    // Only update when provider or style/key actually change
     baseMapLayer.updateBaseLayer(provider);
   }, [
     settings.mapProvider,
@@ -209,6 +211,6 @@ export function useMapInitialization(props: UseMapInitializationProps) {
     baseMapProvider,
     userMaptilerStyle,
     mapInstanceRef,
-    baseMapLayer,
+    baseMapLayer.updateBaseLayer,
   ]);
 }

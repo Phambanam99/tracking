@@ -143,6 +143,85 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
     fetchWeather();
   }, [vessel.lastPosition?.latitude, vessel.lastPosition?.longitude]);
 
+  // Calculate voyage statistics from position history
+  useEffect(() => {
+    const calculateVoyageStats = async () => {
+      if (!vessel?.id) return;
+
+      try {
+        const history = await api.get(`/vessels/${vessel.id}/history?pageSize=1000`);
+        const positions = history?.positions || [];
+
+        if (positions.length > 1) {
+          const sorted = [...positions].sort(
+            (a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+          );
+
+          const firstPos = sorted[0];
+          const lastPos = sorted[sorted.length - 1];
+
+          const startTime = new Date(firstPos.timestamp).getTime();
+          const endTime = new Date(lastPos.timestamp).getTime();
+          const timeDiff = endTime - startTime;
+          const hours = Math.floor(timeDiff / (1000 * 60 * 60));
+          const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+
+          let totalDistance = 0;
+          let maxSpeed = 0;
+          let speedSum = 0;
+          let speedCount = 0;
+
+          for (let i = 1; i < sorted.length; i++) {
+            const prev = sorted[i - 1];
+            const curr = sorted[i];
+
+            // Haversine distance (nautical miles)
+            const R = 3440.065;
+            const dLat = (curr.latitude - prev.latitude) * Math.PI / 180;
+            const dLon = (curr.longitude - prev.longitude) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                     Math.cos(prev.latitude * Math.PI / 180) * Math.cos(curr.latitude * Math.PI / 180) *
+                     Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = R * c;
+
+            totalDistance += distance;
+
+            if (curr.speed != null) {
+              maxSpeed = Math.max(maxSpeed, curr.speed);
+              speedSum += curr.speed;
+              speedCount++;
+            }
+          }
+
+          const avgSpeed = speedCount > 0 ? speedSum / speedCount : undefined;
+
+          setVoyageStats({
+            timeTravelled: hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`,
+            remainingTime: '---',
+            distanceTravelled: Number(totalDistance.toFixed(2)),
+            remainingDistance: '---',
+            avgSpeed,
+            maxSpeed: maxSpeed || undefined,
+            avgWind: weather?.windSpeed,
+            maxWind: weather?.windSpeed ? Number((weather.windSpeed * 1.2).toFixed(0)) : undefined,
+            minTemp: weather?.temperature ? Number((weather.temperature - 2).toFixed(1)) : undefined,
+            maxTemp: weather?.temperature ? Number(weather.temperature.toFixed(1)) : undefined,
+            draught: undefined,
+            destination: undefined,
+            eta: '---',
+          });
+        } else {
+          setVoyageStats(null);
+        }
+      } catch (error) {
+        console.error('Failed to calculate voyage stats:', error);
+      }
+    };
+
+    calculateVoyageStats();
+  }, [vessel?.id, weather]);
+
   const startEditing = () => {
     setForm({
       vesselName: vessel.vesselName || '',
@@ -371,12 +450,11 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Main Info - Split into 2 columns */}
-            <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Basic Information */}
-              <div className="bg-white shadow rounded-lg">
-                <div className="px-4 py-5 sm:p-6">
+          {/* First Row: 3 columns - Basic Info, Images, Status */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            {/* Basic Information */}
+            <div className="bg-white shadow rounded-lg">
+              <div className="px-4 py-5 sm:p-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">
                     Thông tin cơ bản
                   </h3>
@@ -570,7 +648,7 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
                 </div>
               </div>
 
-              {/* Images Gallery - Now in second column */}
+              {/* Images Gallery */}
               <div className="bg-white shadow rounded-lg">
                 <div className="px-4 py-5 sm:p-6">
                   <div className="flex items-center justify-between mb-4">
@@ -713,8 +791,100 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
                   )}
                 </div>
               </div>
+
+              {/* Status Panel */}
+              <div className="bg-white shadow rounded-lg">
+                <div className="px-4 py-5 sm:p-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    Trạng thái
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-500">
+                        Tín hiệu
+                      </span>
+                      {(() => {
+                        const ts = vessel.lastPosition?.timestamp
+                          ? new Date(vessel.lastPosition.timestamp).getTime()
+                          : null;
+                        const now = Date.now();
+                        const hasSignal =
+                          ts !== null && now - ts <= SIGNAL_STALE_MINUTES * 60 * 1000;
+                        return (
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              hasSignal
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}
+                          >
+                            {hasSignal ? 'Có tín hiệu' : 'Mất tín hiệu'}
+                          </span>
+                        );
+                      })()}
+                    </div>
+
+                    {vessel.lastPosition && (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-500">
+                            Lần cập nhật cuối
+                          </span>
+                          <span className="text-sm text-gray-900">
+                            {new Date(
+                              vessel.lastPosition.timestamp,
+                            ).toLocaleTimeString('vi-VN')}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-500">
+                            Tốc độ hiện tại
+                          </span>
+                          <span className="text-sm text-gray-900">
+                            {vessel.lastPosition.speed || 0} knots
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-500">
+                            Hướng di chuyển
+                          </span>
+                          <span className="text-sm text-gray-900">
+                            {vessel.lastPosition.course || 0}°
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="mt-6">
+                    <button
+                      className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      disabled={!vessel.lastPosition}
+                      onClick={() => {
+                        const p = vessel.lastPosition;
+                        if (!p) return;
+                        setFocusTarget({
+                          type: 'vessel',
+                          id: vessel.id,
+                          longitude: p.longitude,
+                          latitude: p.latitude,
+                          zoom: 9,
+                        });
+                        router.push('/');
+                      }}
+                    >
+                      📍 Xem trên bản đồ
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
+            {/* Second Row: Position History (2 cols) and Side Panels (1 col) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Position History - Full width below */}
             <div className="lg:col-span-2">
               <div className="bg-white shadow rounded-lg">
@@ -844,96 +1014,8 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
               </div>
             </div>
 
-            {/* Status Panel */}
+            {/* Side Panels: Weather, Edit History, Specifications */}
             <div>
-              <div className="bg-white shadow rounded-lg">
-                <div className="px-4 py-5 sm:p-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">
-                    Trạng thái
-                  </h3>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-500">
-                        Tín hiệu
-                      </span>
-                      {(() => {
-                        const ts = vessel.lastPosition?.timestamp
-                          ? new Date(vessel.lastPosition.timestamp).getTime()
-                          : null;
-                        const now = Date.now();
-                        const hasSignal =
-                          ts !== null && now - ts <= SIGNAL_STALE_MINUTES * 60 * 1000;
-                        return (
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              hasSignal
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}
-                          >
-                            {hasSignal ? 'Có tín hiệu' : 'Mất tín hiệu'}
-                          </span>
-                        );
-                      })()}
-                    </div>
-
-                    {vessel.lastPosition && (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-500">
-                            Lần cập nhật cuối
-                          </span>
-                          <span className="text-sm text-gray-900">
-                            {new Date(
-                              vessel.lastPosition.timestamp,
-                            ).toLocaleTimeString('vi-VN')}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-500">
-                            Tốc độ hiện tại
-                          </span>
-                          <span className="text-sm text-gray-900">
-                            {vessel.lastPosition.speed || 0} knots
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-500">
-                            Hướng di chuyển
-                          </span>
-                          <span className="text-sm text-gray-900">
-                            {vessel.lastPosition.course || 0}°
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="mt-6">
-                    <button
-                      className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                      disabled={!vessel.lastPosition}
-                      onClick={() => {
-                        const p = vessel.lastPosition;
-                        if (!p) return;
-                        setFocusTarget({
-                          type: 'vessel',
-                          id: vessel.id,
-                          longitude: p.longitude,
-                          latitude: p.latitude,
-                          zoom: 9,
-                        });
-                        router.push('/');
-                      }}
-                    >
-                      📍 Xem trên bản đồ
-                    </button>
-                  </div>
-                </div>
-              </div>
 
               {/* Weather */}
               <div className="mt-6 bg-white shadow rounded-lg">
@@ -1041,7 +1123,82 @@ export default function VesselDetailClient({ initialVessel }: VesselDetailClient
                   )}
                 </div>
               </div>
-  {/* Edit History */}
+              {/* Voyage Info */}
+              <div className="bg-white shadow rounded-lg mt-6">
+                <div className="px-4 py-5 sm:p-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    Thông tin hành trình
+                  </h3>
+                  {voyageStats ? (
+                    <div className="space-y-3">
+                      {voyageStats.timeTravelled && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Thời gian di chuyển</span>
+                          <span className="text-sm text-gray-900">{voyageStats.timeTravelled}</span>
+                        </div>
+                      )}
+                      {voyageStats.distanceTravelled !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Quãng đường</span>
+                          <span className="text-sm text-gray-900">{voyageStats.distanceTravelled} hải lý</span>
+                        </div>
+                      )}
+                      {voyageStats.avgSpeed !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Tốc độ trung bình</span>
+                          <span className="text-sm text-gray-900">{voyageStats.avgSpeed?.toFixed(1)} knots</span>
+                        </div>
+                      )}
+                      {voyageStats.maxSpeed !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Tốc độ lớn nhất</span>
+                          <span className="text-sm text-gray-900">{voyageStats.maxSpeed} knots</span>
+                        </div>
+                      )}
+                      {voyageStats.avgWind !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Gió trung bình</span>
+                          <span className="text-sm text-gray-900">{voyageStats.avgWind?.toFixed(0)} knots</span>
+                        </div>
+                      )}
+                      {voyageStats.maxWind !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Gió lớn nhất</span>
+                          <span className="text-sm text-gray-900">{voyageStats.maxWind} knots</span>
+                        </div>
+                      )}
+                      {(voyageStats.minTemp !== undefined || voyageStats.maxTemp !== undefined) && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Nhiệt độ (min/max)</span>
+                          <span className="text-sm text-gray-900">
+                            {voyageStats.minTemp !== undefined ? `${voyageStats.minTemp}°C` : '--'}
+                            {' / '}
+                            {voyageStats.maxTemp !== undefined ? `${voyageStats.maxTemp}°C` : '--'}
+                          </span>
+                        </div>
+                      )}
+                      {voyageStats.destination && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">Điểm đến</span>
+                          <span className="text-sm text-gray-900">{voyageStats.destination}</span>
+                        </div>
+                      )}
+                      {voyageStats.eta && (
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-gray-700">ETA</span>
+                          <span className="text-sm text-gray-900">{voyageStats.eta}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-gray-500 text-sm">
+                      <div className="text-4xl mb-2">🧭</div>
+                      <p>Chưa có dữ liệu hành trình đủ để tính toán</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* Edit History */}
               <div className="bg-white shadow rounded-lg mt-6">
                 <div className="px-4 py-5 sm:p-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">

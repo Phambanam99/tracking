@@ -7,6 +7,8 @@ import { LastPublishedService } from './last-published.service';
 import { mergeVesselMessages } from './merger';
 import { FilterManager, type PredictedPosition } from './smoothing';
 import { isValidTimestamp, isWithinLatenessWindow } from '../utils/timestamp-validator';
+import { DataValidationService } from './data-validation.service';
+import { ConflictMonitorService } from './conflict-monitor.service';
 
 export interface FusionDecision<T> {
   best?: T;
@@ -20,14 +22,20 @@ export class VesselFusionService {
   private readonly lastPoint = new Map<string, { lat: number; lon: number; ts: number }>();
   private readonly filterManager = new FilterManager();
 
-  constructor(private readonly lastPublishedStore: LastPublishedService) {}
+  constructor(
+    private readonly lastPublishedStore: LastPublishedService,
+    private readonly dataValidationService: DataValidationService,
+    private readonly conflictMonitor: ConflictMonitorService
+  ) {}
 
   ingest(messages: NormVesselMsg[], now = Date.now()): void {
     for (const m of messages) {
-      if (!saneVessel(m, now)) continue;
-      const key = keyOfVessel(m);
+      // Validate và normalize message trước khi xử lý
+      const validatedMsg = this.dataValidationService.validateAndNormalize(m);
+      if (!saneVessel(validatedMsg, now)) continue;
+      const key = keyOfVessel(validatedMsg);
       if (!key) continue;
-      this.windows.push(key, m, now);
+      this.windows.push(key, validatedMsg, now);
     }
   }
 
@@ -63,13 +71,13 @@ export class VesselFusionService {
     if (newer.length > 0) {
       // ✅ FIELD-LEVEL FUSION: Merge multiple messages into best composite
       // Instead of picking one message, combine best fields from all sources
-      best = mergeVesselMessages(newer, now);
+      best = mergeVesselMessages(newer, now, this.conflictMonitor);
       return { best, publish: true, backfillOnly: false };
     }
 
     // For backfill, also merge if multiple messages available
     if (win.length > 0) {
-      best = mergeVesselMessages(win, now);
+      best = mergeVesselMessages(win, now, this.conflictMonitor);
     }
 
     if (best && last && Date.parse(best.ts) <= Date.parse(last)) {

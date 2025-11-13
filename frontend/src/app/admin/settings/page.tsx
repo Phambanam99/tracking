@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { useAuthStore } from '@/stores/authStore';
 import Header from '@/components/Header';
 import api from '@/services/apiClient';
 import { useSystemSettingsStore } from '@/stores/systemSettingsStore';
@@ -28,6 +29,7 @@ interface FormState {
 
 export default function AdminSettingsPage() {
   const { setSettings } = useSystemSettingsStore();
+  const { isAuthenticated, user, isLoading } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -35,7 +37,7 @@ export default function AdminSettingsPage() {
   const vesselTextareaRef = useRef<HTMLTextAreaElement>(null);
   const aircraftTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [form, setForm] = useState<FormState>({
-    clusterEnabled: true,
+    clusterEnabled: false,
     minZoom: 4,
     maxZoom: 16,
     signalStaleMinutes: 10,
@@ -64,10 +66,14 @@ export default function AdminSettingsPage() {
 }`;
 
   useEffect(() => {
+    // Only fetch after auth is ready and user is ADMIN
+    if (isLoading || !isAuthenticated || user?.role !== 'ADMIN') {
+      return;
+    }
+
     (async () => {
       console.log('[Settings] Loading settings...');
-      
-      // Add timeout protection
+
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Settings fetch timeout')), 5000);
       });
@@ -75,7 +81,7 @@ export default function AdminSettingsPage() {
       try {
         const settingsPromise = api.get('/admin/settings');
         const s = await Promise.race([settingsPromise, timeoutPromise]) as any;
-        
+
         console.log('[Settings] ✓ Settings loaded:', s);
         setSettings(s);
         setForm({
@@ -98,7 +104,7 @@ export default function AdminSettingsPage() {
         console.log('[Settings] Loading complete');
       }
     })();
-  }, [setSettings]);
+  }, [isLoading, isAuthenticated, user?.role, setSettings]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -469,5 +475,3 @@ export default function AdminSettingsPage() {
     </ProtectedRoute>
   );
 }
-
-
