@@ -3,13 +3,35 @@
 // Fallback to current origin.
 function buildWsUrl() {
   const raw = process.env.NEXT_PUBLIC_WS_URL?.trim();
-  if (!raw) return 'http://localhost:3001';
+  if (!raw) {
+    // Use current origin if in browser, otherwise localhost for dev
+    if (typeof window !== 'undefined') {
+      return window.location.origin;
+    }
+    return 'http://localhost:3001';
+  }
   // If absolute (starts with ws://, wss://, http://, https://) return as-is after trimming trailing slash
   if (/^(ws|wss|http|https):\/\//i.test(raw)) {
     return raw.replace(/\/$/, '');
   }
   // If relative, use current origin
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
   return 'http://localhost:3001';
+}
+
+// Get token from cookie
+function getTokenFromCookie(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+    const [key, value] = cookie.trim().split('=');
+    acc[key] = value;
+    return acc;
+  }, {} as Record<string, string>);
+
+  return cookies.token || null;
 }
 
 const NAMESPACE = '/tracking'; // Socket.IO namespace from backend
@@ -32,7 +54,7 @@ export const websocketService = {
    */
   async connect() {
     if (typeof window === 'undefined') return; // SSR protection
-    
+
     // If already connected, return
     if (this.socket?.connected) {
       return;
@@ -49,7 +71,7 @@ export const websocketService = {
       import('socket.io-client')
         .then(({ io }) => {
           const WS_URL = buildWsUrl();
-          
+
           console.log('[WebSocket] Attempting connection to:', `${WS_URL}${NAMESPACE}`);
           console.log('[WebSocket] Configuration:', {
             url: `${WS_URL}${NAMESPACE}`,
@@ -57,7 +79,7 @@ export const websocketService = {
             withCredentials: true,
             reconnectionAttempts: 10,
           });
-          
+
           this.socket = io(`${WS_URL}${NAMESPACE}`, {
             transports: ['polling', 'websocket'], // Polling first, then WebSocket upgrade
             withCredentials: true,
@@ -69,7 +91,7 @@ export const websocketService = {
             path: '/socket.io/',
             auth: {
               // Send token if available - handle case where no token exists
-              token: typeof window !== 'undefined' ? localStorage.getItem('token') || null : null,
+              token: getTokenFromCookie(),
             },
           });
 
@@ -82,7 +104,7 @@ export const websocketService = {
             clearTimeout(connectTimeout);
             const transport = this.socket.io.engine.transport.name;
             console.log(`[WebSocket] ✅ Connected successfully via ${transport}`);
-            
+
             // Register any queued listeners
             this.aircraftListeners.forEach((cb) =>
               this.socket.on('aircraftPositionUpdate', cb),
@@ -96,7 +118,7 @@ export const websocketService = {
             this.configListeners.forEach((cb) =>
               this.socket.on('configUpdate', cb),
             );
-            
+
             resolve();
           });
 
@@ -123,14 +145,14 @@ export const websocketService = {
               type: error?.type,
               data: error?.data,
             });
-            
+
             // Retry logic with exponential backoff
             const retryCount = this.socket?._reconnectionAttempts || 0;
             if (retryCount < 5) {
               console.warn(`[WebSocket] Retrying connection (attempt ${retryCount + 1}/5)`);
-            setTimeout(() => {
-              this.socket?.connect();
-            }, Math.min(1000 * Math.pow(2, retryCount), 30000));
+              setTimeout(() => {
+                this.socket?.connect();
+              }, Math.min(1000 * Math.pow(2, retryCount), 30000));
             } else {
               console.error('[WebSocket] Max retry attempts reached');
             }

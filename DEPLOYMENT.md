@@ -1,259 +1,196 @@
 # Production Deployment Guide
 
-## 📋 Prerequisites
+## Cấu trúc Nginx
 
-1. **Docker & Docker Compose**: Ensure Docker Desktop or Docker Engine is installed
+Project đã được cấu hình với Nginx reverse proxy để:
+- Routing traffic đến frontend và backend
+- SSL/TLS termination
+- Rate limiting
+- Caching static files
+- WebSocket support
 
-   - Docker version 20.10 or higher
-   - Docker Compose version 2.0 or higher
+## Cách deploy
 
-2. **System Requirements**:
-   - Minimum 4GB RAM
-   - 20GB free disk space
-   - Open ports: 3001 (backend), 4000 (frontend), 5432 (PostgreSQL), 6379 (Redis)
-
-## 🚀 Deployment Steps
-
-### 1. Configure Environment Variables
+### 1. Chuẩn bị
 
 ```bash
-# Copy the example environment file
-cp .env.prod.example .env.prod
+# Tạo các thư mục cần thiết
+mkdir -p data/{postgres,redis,uploads,logs,nginx-logs}
+mkdir -p nginx/{ssl,certbot}
 
-# Edit .env.prod with your production values
-# IMPORTANT: Change all passwords and secrets!
+# Phân quyền
+chmod +x deploy.sh
+chmod +x setup-ssl.sh
 ```
 
-**Critical settings to update:**
+### 2. Cấu hình Environment
 
-- `POSTGRES_PASSWORD`: Strong database password
-- `REDIS_PASSWORD`: Strong Redis password
-- `JWT_SECRET`: Minimum 32 characters, cryptographically secure
-- `CORS_ORIGIN`: Your production domain
-- `NEXT_PUBLIC_API_URL`: Your production API URL
-- `NEXT_PUBLIC_WS_URL`: Your production WebSocket URL
+Chỉnh sửa file `.env` ở root:
 
-### 2. Deploy Using Script
+```env
+# Database
+POSTGRES_USER=admin
+POSTGRES_PASSWORD=<strong-password>
+POSTGRES_DB=tracking
 
-**On Linux/Mac:**
+# Redis
+REDIS_PASSWORD=<strong-password>
+
+# JWT
+JWT_SECRET=<generate-with-openssl-rand-base64-32>
+
+# Domain (nếu có)
+CORS_ORIGIN=https://yourdomain.com
+```
+
+### 3. Deploy
 
 ```bash
-chmod +x deploy.sh
+# Build và start tất cả services
 ./deploy.sh
 ```
 
-**On Windows (PowerShell):**
+Services sẽ chạy:
+- **Nginx**: ports 80, 443
+- **Backend**: internal port 3001 (qua Nginx)
+- **Frontend**: internal port 4000 (qua Nginx)
+- **PostgreSQL**: port 5432
+- **Redis**: port 6379
 
-```powershell
-.\deploy.ps1
-```
-
-### 3. Manual Deployment (Alternative)
+### 4. Setup SSL (Production)
 
 ```bash
-# Create data directories
-mkdir -p data/postgres data/redis data/uploads data/logs backups
+# Với domain thật
+./setup-ssl.sh yourdomain.com
 
-# Build and start services
-docker-compose -f docker-compose.prod.yml up -d --build
+# Hoặc tự generate self-signed certificate (development)
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout nginx/ssl/key.pem \
+  -out nginx/ssl/cert.pem
 
-# Run database migrations
-docker-compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
-
-# Optional: Seed initial data
-docker-compose -f docker-compose.prod.yml exec backend npm run seed
+# Enable SSL trong nginx config
+sed -i 's/# ssl_certificate/ssl_certificate/g' nginx/conf.d/default.conf
+docker compose -f docker-compose.prod.yml restart nginx
 ```
 
-## 📊 Monitoring & Management
+## Truy cập
 
-### View Logs
+- **Frontend**: http://localhost hoặc https://yourdomain.com
+- **API**: http://localhost/api
+- **Swagger**: http://localhost/api/docs
+- **WebSocket**: ws://localhost/socket.io
 
+## Quản lý
+
+### View logs
 ```bash
 # All services
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml logs -f
 
 # Specific service
-docker-compose -f docker-compose.prod.yml logs -f backend
-docker-compose -f docker-compose.prod.yml logs -f frontend
+docker compose -f docker-compose.prod.yml logs -f nginx
+docker compose -f docker-compose.prod.yml logs -f backend
+docker compose -f docker-compose.prod.yml logs -f frontend
 ```
 
-### Check Service Status
-
+### Restart services
 ```bash
-docker-compose -f docker-compose.prod.yml ps
+# All
+docker compose -f docker-compose.prod.yml restart
+
+# Specific
+docker compose -f docker-compose.prod.yml restart nginx
 ```
 
-### Restart Services
-
+### Stop
 ```bash
-# Restart all
-docker-compose -f docker-compose.prod.yml restart
-
-# Restart specific service
-docker-compose -f docker-compose.prod.yml restart backend
+docker compose -f docker-compose.prod.yml down
 ```
 
-### Stop Services
-
+### Database backup
 ```bash
-docker-compose -f docker-compose.prod.yml down
-```
-
-### Stop and Remove All Data (⚠️ DESTRUCTIVE)
-
-```bash
-docker-compose -f docker-compose.prod.yml down -v
-```
-
-## 💾 Backup & Recovery
-
-### Create Backup
-
-**Linux/Mac:**
-
-```bash
-chmod +x backup-database.sh
-./backup-database.sh
-```
-
-**Windows:**
-
-```powershell
-.\backup-database.ps1
-```
-
-Backups are stored in `./backups` directory with automatic 7-day retention.
-
-### Restore Backup
-
-**Linux/Mac:**
-
-```bash
-# Extract backup
-gunzip backups/backup_YYYYMMDD_HHMMSS.sql.gz
+# Backup
+docker exec tracking-postgis-prod pg_dump -U admin -d tracking > backup_$(date +%Y%m%d).sql
 
 # Restore
-docker exec -i tracking-postgis-prod psql -U admin -d tracking < backups/backup_YYYYMMDD_HHMMSS.sql
+docker exec -i tracking-postgis-prod psql -U admin -d tracking < backup_20250121.sql
 ```
 
-**Windows:**
-
-```powershell
-# Extract backup
-Expand-Archive backups/backup_YYYYMMDD_HHMMSS.sql.zip
-
-# Restore
-Get-Content backups/backup_YYYYMMDD_HHMMSS.sql | docker exec -i tracking-postgis-prod psql -U admin -d tracking
-```
-
-## 🔒 Security Best Practices
-
-1. **Change Default Passwords**: Never use default passwords in production
-2. **Use Strong Secrets**: Generate JWT_SECRET with cryptographically secure methods
-3. **Enable HTTPS**: Use reverse proxy (nginx/traefik) with SSL certificates
-4. **Firewall Rules**: Restrict database and Redis ports to localhost only
-5. **Regular Updates**: Keep Docker images and dependencies updated
-6. **Backup Strategy**: Automate daily backups with off-site storage
-7. **Log Monitoring**: Set up centralized logging (ELK stack, CloudWatch, etc.)
-
-## 🌐 Production URLs
-
-After deployment, access your application at:
-
-- **Frontend**: http://localhost:4000
-- **Backend API**: http://localhost:3001
-- **API Documentation**: http://localhost:3001/api
-
-## 🐛 Troubleshooting
-
-### Database Connection Issues
-
-```bash
-# Check database health
-docker-compose -f docker-compose.prod.yml exec db pg_isready -U admin
-
-# View database logs
-docker-compose -f docker-compose.prod.yml logs db
-```
-
-### Backend Not Starting
-
-```bash
-# Check backend logs
-docker-compose -f docker-compose.prod.yml logs backend
-
-# Verify environment variables
-docker-compose -f docker-compose.prod.yml exec backend env
-
-# Rebuild backend
-docker-compose -f docker-compose.prod.yml up -d --build backend
-```
-
-### Redis Connection Issues
-
-```bash
-# Check Redis health
-docker-compose -f docker-compose.prod.yml exec redis redis-cli -a YOUR_PASSWORD ping
-
-# View Redis logs
-docker-compose -f docker-compose.prod.yml logs redis
-```
-
-### Performance Issues
-
-```bash
-# Check resource usage
-docker stats
-
-# View database connections
-docker-compose -f docker-compose.prod.yml exec db psql -U admin -d tracking -c "SELECT count(*) FROM pg_stat_activity;"
-```
-
-## 📈 Scaling Considerations
-
-1. **Database**: Consider managed PostgreSQL (AWS RDS, Azure Database, etc.)
-2. **Redis**: Use Redis Cluster for high availability
-3. **Backend**: Scale horizontally with load balancer
-4. **Frontend**: Use CDN for static assets
-5. **Monitoring**: Implement Prometheus + Grafana for metrics
-
-## 🔄 Updates & Migrations
-
+### Update application
 ```bash
 # Pull latest code
-git pull origin main
+git pull
 
 # Rebuild and restart
-docker-compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml up -d --build
 
-# Run new migrations
-docker-compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
+# Run migrations
+docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
 ```
 
-## 📦 Data Persistence
+## Nginx Configuration
 
-All persistent data is stored in the `./data` directory:
+### Rate Limiting
+- API: 10 requests/second
+- Login: 5 requests/minute
 
-- `data/postgres`: PostgreSQL database files
-- `data/redis`: Redis persistence files
-- `data/uploads`: User uploaded files
-- `data/logs`: Application logs
+### Caching
+- Static files: 1 year
+- Next.js static: 1 year
 
-**Backup these directories regularly!**
+### Security Headers
+- X-Frame-Options
+- X-Content-Type-Options
+- X-XSS-Protection
+- Referrer-Policy
 
-## 🆘 Support
+## Monitoring
 
-For issues and questions:
+### Health checks
+```bash
+curl http://localhost/health
+curl http://localhost/api/health
+```
 
-1. Check application logs
-2. Review Docker container status
-3. Verify environment variables
-4. Consult troubleshooting section above
+### Resource usage
+```bash
+docker stats
+```
 
-## ⚠️ Important Notes
+## Troubleshooting
 
-- Never commit `.env.prod` to version control
-- Keep regular backups before major updates
-- Test migrations in staging environment first
-- Monitor disk space usage regularly
-- Set up alerts for service failures
+### Nginx không start
+```bash
+# Check config
+docker compose -f docker-compose.prod.yml exec nginx nginx -t
+
+# View logs
+docker compose -f docker-compose.prod.yml logs nginx
+```
+
+### WebSocket không connect
+- Kiểm tra CORS_ORIGIN trong .env
+- Kiểm tra Nginx WebSocket config
+- Check browser console
+
+### Database connection failed
+```bash
+# Check database status
+docker compose -f docker-compose.prod.yml ps db
+
+# Check logs
+docker compose -f docker-compose.prod.yml logs db
+```
+
+## Production Checklist
+
+- [ ] Đổi tất cả password mặc định
+- [ ] Generate JWT secret mới
+- [ ] Setup SSL certificate
+- [ ] Configure firewall
+- [ ] Setup database backup cron job
+- [ ] Configure monitoring/alerting
+- [ ] Update CORS_ORIGIN với domain thật
+- [ ] Review và adjust rate limits
+- [ ] Setup log rotation
+- [ ] Test disaster recovery procedure

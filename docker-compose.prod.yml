@@ -46,7 +46,6 @@ services:
       --appendfsync everysec
       --maxmemory 512mb
       --maxmemory-policy allkeys-lru
-      --requirepass ${REDIS_PASSWORD:-changeme}
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
@@ -54,7 +53,7 @@ services:
     networks:
       - tracking-network
     healthcheck:
-      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -72,31 +71,13 @@ services:
       dockerfile: Dockerfile
     container_name: tracking-backend-prod
     restart: always
+    env_file:
+      - ./backend/.env.production
     environment:
       NODE_ENV: production
       PORT: 3001
-      # Database Configuration
-      DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-tracking}?schema=public&connection_limit=50&pool_timeout=10
-      DIRECT_DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-tracking}?schema=public
-      # Redis Configuration
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme}
-      # JWT Configuration
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      # CORS Configuration
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4000}
-      # Application Settings
-      MAX_TRACKED_AIRCRAFT: ${MAX_TRACKED_AIRCRAFT:-100}
-      MAX_TRACKED_VESSEL: ${MAX_TRACKED_VESSEL:-100}
-      # API Rate Limiting
-      RATE_LIMIT_TTL: ${RATE_LIMIT_TTL:-60}
-      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
-      # Node.js Memory
-      NODE_OPTIONS: "--max-old-space-size=8192"
-    ports:
-      - "${BACKEND_PORT:-3001}:3001"
+    expose:
+      - "3001"
     volumes:
       - backend_uploads:/app/uploads  # Persistent storage for uploaded files
       - backend_logs:/app/logs        # Application logs
@@ -107,12 +88,12 @@ services:
         condition: service_healthy
     networks:
       - tracking-network
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+    # healthcheck:
+    #   test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 60s
     logging:
       driver: "json-file"
       options:
@@ -129,21 +110,52 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
-      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:3001}
-    ports:
-      - "${FRONTEND_PORT:-4000}:4000"
+      NEXT_PUBLIC_API_URL: http://localhost/api
+      NEXT_PUBLIC_WS_URL: http://localhost/tracking
+      BACKEND_URL: http://backend:3001/api
+    expose:
+      - "4000"
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     networks:
       - tracking-network
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    # healthcheck:
+    #   test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Nginx Reverse Proxy
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: tracking-nginx-prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/certbot:/var/www/certbot:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - tracking-network
+    # healthcheck:
+    #   test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+    #   interval: 30s
+    #   timeout: 3s
+    #   retries: 3
+    #   start_period: 10s
     logging:
       driver: "json-file"
       options:
@@ -220,6 +232,12 @@ volumes:
       type: none
       o: bind
       device: ./data/logs      # Stores application logs
+  nginx_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/nginx-logs  # Stores nginx logs
   # pgadmin_data_prod:
   # redisinsight_data_prod:
 

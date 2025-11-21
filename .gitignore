@@ -83,3 +83,7 @@ data/
 backups/*.sql
 backups/*.sql.gz
 backups/*.zip
+production-backups/
+# Ignore large database backups
+production-backups/*.sql.gz
+production-backups/*.sql

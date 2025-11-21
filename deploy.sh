@@ -1,90 +1,67 @@
 #!/bin/bash
 
-# Production Deployment Script for Tracking Application
-# This script handles the complete deployment process
+# Script to deploy tracking application in production
 
-set -e # Exit on error
+set -e
 
-echo "🚀 Starting production deployment..."
-
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-# Check if .env.prod exists
-if [ ! -f .env.prod ]; then
-echo -e "${RED}❌ Error: .env.prod file not found!${NC}"
-echo -e "${YELLOW}Please copy .env.prod.example to .env.prod and configure it${NC}"
-exit 1
-fi
-
-# Load environment variables
-export $(cat .env.prod | grep -v '^#' | xargs)
-
-echo -e "${GREEN}✓ Environment variables loaded${NC}"
+echo "🚀 Starting Tracking System Production Deployment..."
 
 # Create necessary directories
 echo "📁 Creating data directories..."
-mkdir -p data/postgres data/redis data/uploads data/logs backups
-chmod 755 data/postgres data/redis data/uploads data/logs backups
+mkdir -p data/postgres
+mkdir -p data/redis
+mkdir -p data/uploads
+mkdir -p data/logs
+mkdir -p data/nginx-logs
+mkdir -p nginx/ssl
+mkdir -p nginx/certbot
 
-echo -e "${GREEN}✓ Directories created${NC}"
+# Check if .env.production file exists for backend
+if [ ! -f backend/.env.production ]; then
+    echo "⚠️  backend/.env.production file not found!"
+    echo "Creating from backend/.env..."
+    cp backend/.env backend/.env.production
+    echo "⚠️  Please review and update backend/.env.production for production settings"
+fi
 
-# Stop existing containers
-echo "🛑 Stopping existing containers..."
-docker-compose -f docker-compose.prod.yml down
+# Build and start services
+echo "🏗️  Building Docker images..."
+docker compose -f docker-compose.prod.yml build
 
-echo -e "${GREEN}✓ Containers stopped${NC}"
-
-# Build images
-echo "🔨 Building Docker images..."
-docker-compose -f docker-compose.prod.yml build --no-cache
-
-echo -e "${GREEN}✓ Images built${NC}"
-
-# Start services
 echo "🚀 Starting services..."
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d
 
-echo -e "${GREEN}✓ Services started${NC}"
+echo "⏳ Waiting for services to be ready..."
+sleep 15
 
-# Wait for database to be ready
-echo "⏳ Waiting for database to be ready..."
-sleep 10
+# Check service health
+echo "🔍 Checking service health..."
+docker compose -f docker-compose.prod.yml ps
 
 # Run database migrations
-echo "🔄 Running database migrations..."
-docker-compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy
+echo "📊 Running database migrations..."
+docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy
 
-echo -e "${GREEN}✓ Migrations completed${NC}"
+# Generate Prisma client
+echo "🔧 Generating Prisma client..."
+docker compose -f docker-compose.prod.yml exec -T backend npx prisma generate
 
-# Optional: Run database seed (uncomment if needed)
-# echo "🌱 Seeding database..."
-# docker-compose -f docker-compose.prod.yml exec -T backend npm run seed
-
-# Show status
+echo "✅ Deployment complete!"
 echo ""
-echo "📊 Container Status:"
-docker-compose -f docker-compose.prod.yml ps
-
-# Show logs
+echo "📍 Your application is now running:"
+echo "   - Application: http://localhost"
+echo "   - API: http://localhost/api"
+echo "   - Swagger Docs: http://localhost/api/docs"
+echo "   - WebSocket: ws://localhost/socket.io (namespace: /tracking)"
 echo ""
-echo "📝 Recent Logs (last 50 lines):"
-docker-compose -f docker-compose.prod.yml logs --tail=50
-
+echo "📝 Useful commands:"
+echo "   - View logs: docker compose -f docker-compose.prod.yml logs -f"
+echo "   - View specific service: docker compose -f docker-compose.prod.yml logs -f nginx"
+echo "   - Stop services: docker compose -f docker-compose.prod.yml down"
+echo "   - Restart: docker compose -f docker-compose.prod.yml restart"
+echo "   - Rebuild: docker compose -f docker-compose.prod.yml up -d --build"
 echo ""
-echo -e "${GREEN}✅ Deployment completed successfully!${NC}"
+echo "🔐 Security reminder:"
+echo "   - Change default passwords in .env files"
+echo "   - Setup SSL certificate with: ./setup-ssl.sh yourdomain.com"
 echo ""
-echo "🌐 Application URLs:"
-echo " Frontend: http://localhost:${FRONTEND_PORT:-4000}"
-echo " Backend API: http://localhost:${BACKEND_PORT:-3001}"
-echo " API Docs: http://localhost:${BACKEND_PORT:-3001}/api"
-echo ""
-echo "📊 Monitoring:"
-echo " View logs: docker-compose -f docker-compose.prod.yml logs -f"
-echo " Check status: docker-compose -f docker-compose.prod.yml ps"
-echo ""
-echo "🛑 To stop:"
-echo " docker-compose -f docker-compose.prod.yml down"

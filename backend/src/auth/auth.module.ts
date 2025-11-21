@@ -16,7 +16,7 @@ import { LocalStrategy } from './strategies/local.strategy';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET', 'change-me'),
-        signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN', '24h') },
+        signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN', '24h') as any },
       }),
     }),
   ],
@@ -24,4 +24,4 @@ import { LocalStrategy } from './strategies/local.strategy';
   providers: [AuthService, JwtStrategy, LocalStrategy],
   exports: [AuthService, JwtModule],
 })
-export class AuthModule {}
+export class AuthModule { }

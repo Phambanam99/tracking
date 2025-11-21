@@ -64,12 +64,7 @@ export class AisAistreamService implements OnModuleInit, OnModuleDestroy {
   private readonly MAX_RECONNECT_DELAY = 60000; // 60 seconds max delay
 
   constructor() {
-    // Override logger methods to disable logging
-    this.logger.log = () => {};
-    this.logger.debug = () => {};
-    this.logger.warn = () => {};
-    // Keep error logging
-    // this.logger.error = () => {};
+    // Logger enabled for monitoring AISStream.io connection status
   }
 
   // Data stream subject
@@ -213,7 +208,7 @@ export class AisAistreamService implements OnModuleInit, OnModuleDestroy {
     if (this.metrics.messagesReceived % 100 === 0) {
       this.logger.log(
         `📊 AISStream: ${this.metrics.messagesReceived} msgs, ` +
-          `${this.metrics.positionReports} positions`,
+        `${this.metrics.positionReports} positions`,
       );
     }
 

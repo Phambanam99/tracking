@@ -14,7 +14,7 @@ import { PrismaModule } from '../prisma/prisma.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET', 'change-me'),
-        signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN', '24h') },
+        signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN', '24h') as any },
       }),
     }),
   ],
@@ -22,4 +22,4 @@ import { PrismaModule } from '../prisma/prisma.module';
   providers: [UserService, UserFiltersService, UserCleanupService],
   exports: [UserService, UserFiltersService],
 })
-export class UserModule {}
+export class UserModule { }

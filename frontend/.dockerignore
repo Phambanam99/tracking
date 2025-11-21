@@ -17,4 +17,3 @@ coverage
 tsconfig.tsbuildinfo
 .prettierrc
 eslint.config.mjs
-tsconfig.json

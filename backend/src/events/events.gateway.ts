@@ -10,6 +10,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards, ValidationPipe, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../redis/redis.service';
 import { AircraftService } from '../aircraft/aircraft.service';
 import { VesselService } from '../vessel/vessel.service';
@@ -29,22 +30,27 @@ import { TrackingService } from './tracking.service';
 })
 @UseGuards(WsAuthGuard)
 export class EventsGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy
-{
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(EventsGateway.name);
   private broadcastInterval: NodeJS.Timeout | null = null;
-  private readonly BROADCAST_INTERVAL_MS = 3000;
+  private BROADCAST_INTERVAL_MS: number;
 
   constructor(
+    private readonly configService: ConfigService,
     private readonly redisService: RedisService,
     private readonly aircraftService: AircraftService,
     private readonly vesselService: VesselService,
     private readonly viewportManager: ViewportManager,
     private readonly trackingService: TrackingService,
-  ) {}
+  ) {
+    this.BROADCAST_INTERVAL_MS = parseInt(
+      this.configService.get<string>('BROADCAST_INTERVAL_MS', '5000'),
+      10,
+    );
+  }
 
   async afterInit() {
     this.logger.log('🚀 WebSocket Gateway initialized');
@@ -222,6 +228,8 @@ export class EventsGateway
       const clientCount = this.trackingService.getClientCount();
       const viewportCount = this.viewportManager.getViewportCount();
 
+      this.logger.debug(`📊 Broadcast check: ${clientCount} clients, ${viewportCount} viewports`);
+
       if (clientCount === 0) {
         this.logger.debug('No clients connected, skipping broadcast');
         return;
@@ -235,26 +243,30 @@ export class EventsGateway
       }
 
       try {
-        // Query DB once cho tất cả data
-        const [aircrafts, vessels, allSockets] = await Promise.all([
+        // Get vessel data from Redis cache instead of DB
+        const vesselsFromRedis = await this.getVesselsFromRedis();
+
+        // Get aircraft from DB (for now - can be optimized later)
+        const [aircrafts, allSockets] = await Promise.all([
           this.aircraftService.findAllWithLastPosition(),
-          this.vesselService.findAllWithLastPosition(),
-          this.server.fetchSockets(), // Fetch all connected sockets một lần
+          this.server.fetchSockets(),
         ]);
+
+        this.logger.debug(`📦 From Redis: ${vesselsFromRedis.length} vessels | From DB: ${aircrafts.length} aircraft`);
 
         // Different thresholds for aircraft (2 hours) and vessels (24 hours)
         const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000; // 24 hours in milliseconds
         let totalAircraftSent = 0;
         let totalVesselsSent = 0;
 
-        // Lấy danh sách viewport một lần
+        // Get viewport list once
         const viewports = Array.from(this.viewportManager.getAllViewports().entries());
 
         for (const [clientId, bbox] of viewports) {
           const socket = allSockets.find((s) => s.id === clientId);
           if (!socket) {
-            // Client đã disconnect, xóa viewport
+            // Client disconnected, remove viewport
             this.viewportManager.removeViewport(clientId);
             continue;
           }
@@ -267,12 +279,11 @@ export class EventsGateway
             if (!aircraft.lastPosition) continue;
 
             const lastUpdate = new Date(aircraft.lastPosition.timestamp);
-            if (lastUpdate < twoHoursAgo) continue; // Aircraft: 2 hours threshold
+            if (lastUpdate < twoHoursAgo) continue;
 
             const { longitude, latitude } = aircraft.lastPosition;
             if (!this.viewportManager.isPointInViewport(longitude, latitude, bbox)) continue;
 
-            // Check if position changed for this client
             if (
               this.trackingService.shouldSendUpdate(
                 clientId,
@@ -294,33 +305,48 @@ export class EventsGateway
             }
           }
 
-          // Filter and send vessel updates
-          for (const vessel of vessels) {
-            if (!vessel.lastPosition) continue;
+          // Filter and send vessel updates from Redis cache
+          for (const vessel of vesselsFromRedis) {
+            if (!vessel.lat || !vessel.lon) continue;
 
-            const { longitude, latitude, timestamp } = vessel.lastPosition;
-            if (!this.viewportManager.isPointInViewport(longitude, latitude, bbox)) continue;
+            // Check timestamp (Redis stores as milliseconds)
+            if (vessel.ts < oneDayAgo) continue;
 
-            const lastUpdate = new Date(timestamp || Date.now());
-            if (lastUpdate < oneDayAgo) continue; // Vessel: 24 hours threshold
+            if (!this.viewportManager.isPointInViewport(vessel.lon, vessel.lat, bbox)) continue;
 
             // Check if position changed for this client
+            const lastUpdate = new Date(vessel.ts);
             if (
               this.trackingService.shouldSendUpdate(
                 clientId,
-                `vessel:${vessel.id}`,
+                `vessel:${vessel.mmsi}`,
                 lastUpdate,
-                latitude,
-                longitude,
+                vessel.lat,
+                vessel.lon,
               )
             ) {
-              socket.emit('vesselPositionUpdate', vessel);
+              // Format vessel data to match frontend expectations
+              const vesselUpdate = {
+                mmsi: vessel.mmsi,
+                vesselName: vessel.name,
+                lastPosition: {
+                  latitude: vessel.lat,
+                  longitude: vessel.lon,
+                  speed: vessel.speed,
+                  course: vessel.course,
+                  heading: vessel.heading,
+                  status: vessel.status,
+                  timestamp: lastUpdate,
+                },
+              };
+
+              socket.emit('vesselPositionUpdate', vesselUpdate);
               this.trackingService.updateLastSent(
                 clientId,
-                `vessel:${vessel.id}`,
+                `vessel:${vessel.mmsi}`,
                 lastUpdate,
-                latitude,
-                longitude,
+                vessel.lat,
+                vessel.lon,
               );
               clientVesselsSent++;
             }
@@ -339,6 +365,71 @@ export class EventsGateway
     }, this.BROADCAST_INTERVAL_MS);
 
     this.logger.log(`▶️ Started periodic broadcast (${this.BROADCAST_INTERVAL_MS}ms interval)`);
+  }
+
+  /**
+   * Get vessels from Redis cache (ais:vessel:* keys)
+   * This avoids expensive database queries
+   */
+  private async getVesselsFromRedis(): Promise<any[]> {
+    try {
+      const redis = this.redisService.getClientWithoutPrefix();
+
+      // Scan for all vessel keys (pattern: ais:vessel:*)
+      const keys: string[] = [];
+      let cursor = '0';
+
+      do {
+        const result = await redis.scan(cursor, 'MATCH', 'ais:vessel:*', 'COUNT', 1000);
+        cursor = result[0];
+        keys.push(...result[1]);
+      } while (cursor !== '0');
+
+      if (keys.length === 0) {
+        return [];
+      }
+
+      // Fetch all vessel data in parallel using pipeline
+      const pipeline = redis.pipeline();
+      for (const key of keys) {
+        pipeline.hgetall(key);
+      }
+
+      const results = await pipeline.exec();
+      if (!results) {
+        return [];
+      }
+
+      const vessels: any[] = [];
+
+      for (let i = 0; i < results.length; i++) {
+        const [err, data] = results[i];
+        if (err || !data) continue;
+
+        // Type cast to any to access hash fields
+        const vesselData = data as any;
+        if (!vesselData.mmsi) continue;
+
+        // Convert Redis hash to vessel object
+        vessels.push({
+          mmsi: vesselData.mmsi,
+          name: vesselData.name || null,
+          lat: parseFloat(vesselData.lat),
+          lon: parseFloat(vesselData.lon),
+          ts: parseInt(vesselData.ts), // timestamp in milliseconds
+          speed: vesselData.speed ? parseFloat(vesselData.speed) : null,
+          course: vesselData.course ? parseFloat(vesselData.course) : null,
+          heading: vesselData.heading ? parseInt(vesselData.heading) : null,
+          status: vesselData.status || null,
+          source: vesselData.source || null,
+        });
+      }
+
+      return vessels;
+    } catch (error) {
+      this.logger.error('Error fetching vessels from Redis:', error.message);
+      return [];
+    }
   }
 
   private broadcastConnectionStats() {
