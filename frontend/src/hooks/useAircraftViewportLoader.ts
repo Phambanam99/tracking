@@ -44,11 +44,13 @@ export function useAircraftViewportLoader(params: {
   const lastBboxRef = useRef<string>('');
   const lastZoomRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
+  const initialLoadDoneRef = useRef<boolean>(false);
 
   useEffect(() => {
     const cleanup: Array<() => void> = [];
     lastBboxRef.current = '';
     lastZoomRef.current = null;
+    initialLoadDoneRef.current = false;
 
     const attach = (map: Map) => {
       const send = async () => {
@@ -79,9 +81,7 @@ export function useAircraftViewportLoader(params: {
         lastBboxRef.current = bboxStr;
         lastZoomRef.current = zoom;
 
-        console.log('[AircraftLoader] Fetching for bbox:', bboxStr);
-
-        // WebSocket viewport update (optional)
+        // WebSocket viewport update (always update viewport)
         const { websocketService } = await import('@/services/websocket');
         if (websocketService.socket) {
           websocketService.updateViewport(bbox);
@@ -90,11 +90,22 @@ export function useAircraftViewportLoader(params: {
           setTimeout(() => websocketService.subscribeViewport(bbox), 200);
         }
 
+        // ✅ Only load from API on first load, then rely on WebSocket updates
+        if (initialLoadDoneRef.current) {
+          console.log('[AircraftLoader] Skipping API call, using WebSocket updates for viewport:', bboxStr);
+          return;
+        }
+
+        console.log('[AircraftLoader] Initial load for bbox:', bboxStr);
+        initialLoadDoneRef.current = true;
+
         const qsOnline = `?bbox=${encodeURIComponent(bboxStr)}&limit=5000`;
         const qsInitial = `?bbox=${encodeURIComponent(bboxStr)}&zoom=${zoom}`;
         
         try {
-          const raw = await api.get(`/aircrafts/online${qsOnline}`);
+          // ✅ Try Redis first (faster)
+          console.log('[AircraftLoader] Trying Redis initial first...');
+          const raw = await api.get(`/aircrafts/initial${qsInitial}`);
           
           const unwrap = (r: any): any[] => {
             if (!r) return [];
@@ -109,8 +120,12 @@ export function useAircraftViewportLoader(params: {
           let aircrafts: Aircraft[] = Array.isArray(arr)
             ? (arr
                 .map((a: any) => {
+                  // Handle both flat Redis format and nested PostgreSQL format
+                  const longitude = a.longitude ?? a.lastPosition?.longitude;
+                  const latitude = a.latitude ?? a.lastPosition?.latitude;
+                  
                   // Validate coordinates
-                  if (!a || typeof a.longitude !== 'number' || typeof a.latitude !== 'number') {
+                  if (typeof longitude !== 'number' || typeof latitude !== 'number') {
                     return null;
                   }
                   
@@ -121,34 +136,34 @@ export function useAircraftViewportLoader(params: {
                     id: stableId,
                     flightId: a.flightId || a.callSign || '',
                     callSign: a.callSign,
-                    registration: a.registration,
-                    operator: a.operator,
-                    aircraftType: a.aircraftType,
+                    registration: a.registration, // ✅ Keep metadata
+                    operator: a.operator, // ✅ Keep metadata
+                    aircraftType: a.aircraftType, // ✅ Keep metadata
                     hexident: a.hexident,
-                    createdAt: new Date(a.timestamp ?? Date.now()),
-                    updatedAt: new Date(a.timestamp ?? Date.now()),
+                    createdAt: new Date(a.createdAt ?? a.timestamp ?? Date.now()),
+                    updatedAt: new Date(a.updatedAt ?? a.timestamp ?? Date.now()),
                     lastPosition: {
-                      latitude: a.latitude,
-                      longitude: a.longitude,
-                      altitude: a.altitude,
-                      speed: a.speed,
-                      heading: a.heading,
-                      timestamp: new Date(a.timestamp ?? Date.now()),
+                      latitude,
+                      longitude,
+                      altitude: a.altitude ?? a.lastPosition?.altitude,
+                      speed: a.speed ?? a.lastPosition?.speed,
+                      heading: a.heading ?? a.lastPosition?.heading,
+                      timestamp: new Date(a.timestamp ?? a.lastPosition?.timestamp ?? Date.now()),
                     },
                   };
                 })
                 .filter(Boolean) as Aircraft[])
             : [];
           
-          console.log('[AircraftLoader] Online aircrafts:', aircrafts.length);
+          console.log('[AircraftLoader] Redis initial aircrafts:', aircrafts.length);
           
-          // Fallback to initial if online empty
+          // ❌ Fallback to PostgreSQL if Redis empty
           if (!aircrafts.length) {
-            console.log('[AircraftLoader] No online data, falling back to initial');
-            const init = await api.get(`/aircrafts/initial${qsInitial}`);
+            console.log('[AircraftLoader] No Redis data, falling back to PostgreSQL online');
+            const online = await api.get(`/aircrafts/online${qsOnline}`);
             
-            if (Array.isArray(init)) {
-              aircrafts = init
+            if (Array.isArray(online)) {
+              aircrafts = online
                 .filter((a: any) => {
                   // Validate has position with coordinates
                   const pos = a?.lastPosition;
@@ -159,7 +174,7 @@ export function useAircraftViewportLoader(params: {
                   return true;
                 })
                 .map((a: any) => {
-                  // Ensure stable ID even for initial data
+                  // Ensure stable ID even for PostgreSQL fallback data
                   if (!a.id) {
                     a.id = generateStableAircraftId({
                       ...a,

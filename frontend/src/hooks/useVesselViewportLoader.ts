@@ -56,11 +56,13 @@ export function useVesselViewportLoader(params: {
   const lastBboxRef = useRef<string>('');
   const lastZoomRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
+  const initialLoadDoneRef = useRef<boolean>(false);
 
   useEffect(() => {
     const cleanup: Array<() => void> = [];
     lastBboxRef.current = '';
     lastZoomRef.current = null;
+    initialLoadDoneRef.current = false;
 
     const attach = (map: Map) => {
       const send = async () => {
@@ -91,9 +93,7 @@ export function useVesselViewportLoader(params: {
         lastBboxRef.current = bboxStr;
         lastZoomRef.current = zoom;
 
-        console.log('[VesselLoader] Fetching for bbox:', bboxStr);
-
-        // WebSocket viewport update
+        // WebSocket viewport update (always update viewport)
         const { websocketService } = await import('@/services/websocket');
         if (websocketService.socket) {
           websocketService.updateViewport(bbox);
@@ -102,12 +102,23 @@ export function useVesselViewportLoader(params: {
           setTimeout(() => websocketService.subscribeViewport(bbox), 200);
         }
 
+        // ✅ Only load from API on first load, then rely on WebSocket updates
+        if (initialLoadDoneRef.current) {
+          console.log('[VesselLoader] Skipping API call, using WebSocket updates for viewport:', bboxStr);
+          return;
+        }
+
+        console.log('[VesselLoader] Initial load for bbox:', bboxStr);
+        initialLoadDoneRef.current = true;
+
         const qsOnline = `?bbox=${encodeURIComponent(bboxStr)}&limit=50000&includePredicted=${showPredictedVessels}`;
         const qsInitial = `?bbox=${encodeURIComponent(bboxStr)}&zoom=${zoom}`;
         
         try {
+          // ✅ Try Redis first (faster)
+          console.log('[VesselLoader] Trying Redis initial first...');
           const promises: Promise<any>[] = [
-            api.get(`/vessels/online${qsOnline}`),
+            api.get(`/vessels/initial${qsInitial}`),
           ];
           if (showPorts) {
             promises.push(
@@ -166,14 +177,19 @@ export function useVesselViewportLoader(params: {
                 .filter(Boolean) as import('@/stores/vesselStore').Vessel[])
             : [];
           
-          console.log('[VesselLoader] Online vessels:', vessels.length);
+          console.log('[VesselLoader] Redis initial vessels:', vessels.length);
           
-          // Fallback to initial if online empty
+          // ❌ Fallback to PostgreSQL if Redis empty
           if (!vessels.length) {
-            console.log('[VesselLoader] No online data, falling back to initial');
-            const init = await api.get(`/vessels/initial${qsInitial}`);
+            console.log('[VesselLoader] No Redis data, falling back to PostgreSQL online');
+            const onlinePromises: Promise<any>[] = [
+              api.get(`/vessels/online${qsOnline}`),
+            ];
             
-            if (Array.isArray(init)) {
+            const [onlineRaw] = await Promise.all(onlinePromises);
+            const onlineArr = unwrap(onlineRaw);
+            
+            if (Array.isArray(onlineArr)) {
               const [minLon, minLat, maxLon, maxLat] = bbox;
               const freshnessMs = 48 * 60 * 60 * 1000; // 48 hours
               const cutoffTs = Date.now() - freshnessMs;
@@ -189,7 +205,7 @@ export function useVesselViewportLoader(params: {
                 return null;
               };
 
-              const filtered = init.filter((v: any) => {
+              const filtered = onlineArr.filter((v: any) => {
                 const pos = v?.lastPosition;
                 if (!pos) return false;
 
@@ -204,7 +220,7 @@ export function useVesselViewportLoader(params: {
                 return true;
               });
 
-              const sortedByRecency = filtered.sort((a, b) => {
+              const sortedByRecency = filtered.sort((a: any, b: any) => {
                 const tsA = normalizeTimestamp(a?.lastPosition?.timestamp);
                 const tsB = normalizeTimestamp(b?.lastPosition?.timestamp);
                 return (tsB ?? 0) - (tsA ?? 0);
@@ -212,7 +228,7 @@ export function useVesselViewportLoader(params: {
 
               const MAX_FALLBACK_VESSELS = 1500;
               vessels = sortedByRecency.slice(0, MAX_FALLBACK_VESSELS).map((v: any) => {
-                // Ensure stable ID for initial data too
+                // Ensure stable ID for PostgreSQL fallback data
                 if (!v.id) {
                   v.id = generateStableVesselId({
                     ...v,
@@ -223,7 +239,7 @@ export function useVesselViewportLoader(params: {
                 return v;
               });
 
-              console.log('[VesselLoader] Initial vessels:', vessels.length);
+              console.log('[VesselLoader] PostgreSQL fallback vessels:', vessels.length);
             }
           }
           
