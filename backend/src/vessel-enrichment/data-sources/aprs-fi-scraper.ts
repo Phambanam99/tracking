@@ -32,7 +32,7 @@ export class AprsFiScraper implements VesselDataSource {
       });
 
       this.logger.debug(`APRS.fi response for ${mmsi}: HTTP ${response.status}`);
-      
+
       if (!response.ok) {
         if (response.status === 404) return null;
         throw new Error(`HTTP ${response.status}`);
@@ -40,7 +40,7 @@ export class AprsFiScraper implements VesselDataSource {
 
       const html = await response.text();
       const parsed = this.parseAprsFiHtml(html, mmsi);
-      
+
       if (parsed) {
         this.logger.log(
           `Parsed APRS.fi: mmsi=${mmsi}, name=${parsed.vesselName || '-'}, score=${parsed.dataQualityScore ?? '-'}`,
@@ -48,7 +48,7 @@ export class AprsFiScraper implements VesselDataSource {
       } else {
         this.logger.warn(`APRS.fi parse returned null for mmsi=${mmsi}`);
       }
-      
+
       return parsed;
     } catch (error: any) {
       this.logger.warn(`APRS.fi fetch error for ${mmsi}: ${error.message}`);
@@ -84,15 +84,11 @@ export class AprsFiScraper implements VesselDataSource {
   private parseAprsFiHtml(html: string, mmsi: string): VesselEnrichmentData | null {
     try {
       // Extract MMSI number from table
-      const mmsiMatch = html.match(
-        /<th[^>]*>MMSI number:<\/th>\s*<td[^>]*>([0-9]+)<\/td>/i,
-      );
+      const mmsiMatch = html.match(/<th[^>]*>MMSI number:<\/th>\s*<td[^>]*>([0-9]+)<\/td>/i);
       if (!mmsiMatch) return null; // Not a valid vessel info page
 
       // Extract Navigational status
-      const statusMatch = html.match(
-        /<th[^>]*>Navigational status:<\/th>\s*<td[^>]*>([^<(]+)/i,
-      );
+      const statusMatch = html.match(/<th[^>]*>Navigational status:<\/th>\s*<td[^>]*>([^<(]+)/i);
 
       // Extract Course (heading)
       const courseMatch = html.match(
@@ -103,9 +99,7 @@ export class AprsFiScraper implements VesselDataSource {
       const speedMatch = html.match(/<th[^>]*>Speed:<\/th>\s*<td[^>]*>([0-9.]+)\s*km\/h/i);
 
       // Extract Last position timestamp
-      const lastPosMatch = html.match(
-        /<th[^>]*>Last position:<\/th>\s*<td[^>]*>([^<]+)<br>/i,
-      );
+      const lastPosMatch = html.match(/<th[^>]*>Last position:<\/th>\s*<td[^>]*>([^<]+)<br>/i);
 
       // Calculate quality score based on fields found
       let fieldsFound = 0;

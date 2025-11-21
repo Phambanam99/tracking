@@ -6,6 +6,7 @@ import {
   EnrichmentResult,
 } from './interfaces/vessel-data-source.interface';
 import { VesselFinderScraper } from './data-sources/vesselfinder-scraper';
+import { MarineTrafficScraper } from './data-sources/marinetraffic-scraper';
 
 @Injectable()
 export class VesselEnrichmentService {
@@ -14,14 +15,22 @@ export class VesselEnrichmentService {
   private isProcessing = false;
 
   constructor(private prisma: PrismaService) {
-    // Initialize only VesselFinder (conservative approach to avoid blocking)
-    this.dataSources = [new VesselFinderScraper()];
+    // Initialize data sources in priority order (higher priority = tried first)
+    // Note: MarineTraffic scraper uses public data only
+    this.dataSources = [
+      new MarineTrafficScraper(), // Priority 2 - More comprehensive data
+      new VesselFinderScraper(), // Priority 1 - Fallback
+    ];
+
+    // Sort by priority (higher first)
+    this.dataSources.sort((a, b) => b.priority - a.priority);
 
     this.logger.log(
-      `Initialized vessel enrichment with data source: ${this.dataSources.map((s) => s.name).join(', ')}`,
+      `Initialized vessel enrichment with data sources: ${this.dataSources.map((s) => `${s.name} (priority ${s.priority})`).join(', ')}`,
     );
+    this.logger.log('Using public data sources for vessel enrichment');
     this.logger.log(
-      '⚠️ Using ONLY VesselFinder with conservative rate limiting (2 req/min) to avoid IP blocking',
+      '⚠️ Using conservative rate limiting (1 req/min per source) to avoid IP blocking',
     );
   }
 

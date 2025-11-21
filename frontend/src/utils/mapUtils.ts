@@ -23,23 +23,11 @@ export const getResolutionFromZoom = (zoom: number): number => {
 };
 
 /**
- * Get adaptive cluster distance based on zoom level
- * @param zoom - Current zoom level
- * @returns Cluster distance value
- */
-export const getClusterDistance = (zoom: number): number => {
-  if (zoom <= 4) return 120;
-  if (zoom <= 6) return 80;
-  if (zoom <= 9) return 60;
-  return 40;
-};
-
-/**
  * Determine if icons should be simplified based on zoom level
  * @param zoom - Current zoom level
  * @returns True if icons should be simplified (circles instead of SVG)
  */
 export const shouldSimplifyIcons = (zoom: number): boolean => {
-  // Show full icons a bit earlier to avoid “missing” markers on transition
-  return zoom <= 6;
+  // Always show full icons (disabled simplification)
+  return false;
 };

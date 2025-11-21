@@ -95,7 +95,7 @@ function normalizeMmsi(mmsi: string): string | undefined {
   // Additional validation: reject obviously invalid MMSIs
   // MMSI should not be all zeros or all nines
   if (/^0+$/.test(digits) || /^9+$/.test(digits)) return undefined;
-  
+
   // Reject MMSIs that are too short even after padding
   if (digits.length < 6) return undefined;
 

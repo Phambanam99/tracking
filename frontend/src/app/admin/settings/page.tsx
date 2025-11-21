@@ -28,7 +28,7 @@ interface FormState {
 }
 
 export default function AdminSettingsPage() {
-  const { setSettings } = useSystemSettingsStore();
+  const { setSettings, settings: cachedSettings } = useSystemSettingsStore();
   const { isAuthenticated, user, isLoading } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -72,18 +72,20 @@ export default function AdminSettingsPage() {
     }
 
     (async () => {
-      console.log('[Settings] Loading settings...');
-
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Settings fetch timeout')), 5000);
-      });
+      // console.log('[Settings] Loading settings...');
 
       try {
-        const settingsPromise = api.get('/admin/settings');
-        const s = await Promise.race([settingsPromise, timeoutPromise]) as any;
+        // Use cached settings if available, otherwise fetch
+        let s = cachedSettings;
+        
+        if (!s || Object.keys(s).length === 0) {
+          // console.log('[Settings] No cached settings, fetching from API...');
+          s = await api.get('/admin/settings') as any;
+          setSettings(s);
+        } else {
+          // console.log('[Settings] ✓ Using cached settings');
+        }
 
-        console.log('[Settings] ✓ Settings loaded:', s);
-        setSettings(s);
         setForm({
           clusterEnabled: !!s.clusterEnabled,
           minZoom: s.minZoom ?? 4,
@@ -104,7 +106,7 @@ export default function AdminSettingsPage() {
         console.log('[Settings] Loading complete');
       }
     })();
-  }, [isLoading, isAuthenticated, user?.role, setSettings]);
+  }, [isLoading, isAuthenticated, user?.role, setSettings, cachedSettings]);
 
   const handleSave = async () => {
     setSaving(true);

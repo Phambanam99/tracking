@@ -7,30 +7,20 @@ import { Style, Text, Fill, Stroke, Circle as CircleStyle, Icon } from 'ol/style
 import { VehicleTypeConfig } from './types';
 import { LRUCache, createCacheKey } from './cache';
 
-const CLUSTER_STYLE_CACHE_SIZE = 100;
 const ICON_STYLE_CACHE_SIZE = 500;
 const HEADING_QUANTIZATION = 15; // degrees
-
-interface ClusterStyleConfig {
-  sizeBucket: number;
-  withText: boolean;
-  color: string;
-  type: 'aircraft' | 'vessel';
-}
 
 /**
  * Style factory class (non-hook version for use in useEffect)
  */
 export class VehicleStyleFactory {
   private config: VehicleTypeConfig;
-  private clusterStyleCache: LRUCache<Style>;
   private iconStyleCache: LRUCache<Style>;
   private imageCache: Map<string, HTMLImageElement>;
   private tintCache: Map<string, HTMLCanvasElement>;
 
   constructor(config: VehicleTypeConfig) {
     this.config = config;
-    this.clusterStyleCache = new LRUCache({ maxSize: CLUSTER_STYLE_CACHE_SIZE });
     this.iconStyleCache = new LRUCache({ maxSize: ICON_STYLE_CACHE_SIZE });
     this.imageCache = new Map();
     this.tintCache = new Map();
@@ -91,56 +81,6 @@ export class VehicleStyleFactory {
     return canvas;
   }
 
-  createClusterStyle(styleConfig: ClusterStyleConfig): Style {
-    const key = createCacheKey(
-      styleConfig.sizeBucket,
-      styleConfig.withText,
-      styleConfig.color,
-      styleConfig.type
-    );
-
-    const cached = this.clusterStyleCache.get(key);
-    if (cached) return cached;
-
-    let style: Style;
-
-    if (this.config.type === 'vessel') {
-      style = new Style({
-        image: new Icon({
-          src: '/vessel-cluster.svg',
-          anchor: [0.5, 0.5],
-        }),
-        text: styleConfig.withText
-          ? new Text({
-              text: String(styleConfig.sizeBucket),
-              fill: new Fill({ color: 'white' }),
-              font: 'bold 12px sans-serif',
-              offsetY: 0,
-            })
-          : undefined,
-      });
-    } else {
-      const radius = Math.min(15 + styleConfig.sizeBucket * 2, 30);
-      style = new Style({
-        image: new CircleStyle({
-          radius,
-          fill: new Fill({ color: styleConfig.color }),
-          stroke: new Stroke({ color: 'white', width: 2 }),
-        }),
-        text: styleConfig.withText
-          ? new Text({
-              text: String(styleConfig.sizeBucket),
-              fill: new Fill({ color: 'white' }),
-              font: 'bold 12px sans-serif',
-            })
-          : undefined,
-      });
-    }
-
-    this.clusterStyleCache.set(key, style);
-    return style;
-  }
-
   createDotStyle(color: string): Style {
     const key = createCacheKey('dot', color);
     
@@ -186,7 +126,6 @@ export class VehicleStyleFactory {
   }
 
   clearCache(): void {
-    this.clusterStyleCache.clear();
     this.iconStyleCache.clear();
     this.tintCache.clear();
   }

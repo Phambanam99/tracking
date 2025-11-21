@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import api from '../services/apiClient';
 
-// Thời gian hết hạn: 30 phút không có cập nhật sẽ bị xoá khỏi store
-const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30'
+// Vessel stale threshold: 24 hours
+const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
-// Interval prune mặc định (5 phút quét một lần)
-const PRUNE_INTERVAL_MS = 5 * 60 * 1000;
+// Prune interval: every 10 minutes
+const PRUNE_INTERVAL_MS = 10 * 60 * 1000;
 
 let pruneTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -84,22 +84,27 @@ export const useVesselStore = create<VesselStore>((set, get) => ({
   pageSize: 20,
   loading: false,
   error: null,
-  setVessels: (vessels) =>
+  setVessels: (vessels) => {
+    const now = Date.now();
     set({
       vessels: vessels.map((v) => ({
         ...v,
         images: Array.isArray((v as any).images)
           ? (v as any).images
           : undefined,
-        lastSeen: Date.now(),
+        lastSeen: now,
         lastPosition: v.lastPosition
           ? { ...v.lastPosition, timestamp: new Date(v.lastPosition.timestamp) }
           : undefined,
       })),
-    }),
+    });
+    // Force prune stale data immediately after setting new data
+    setTimeout(() => get().pruneStale(), 0);
+  },
   updateVessel: (incoming) =>
     set((state) => {
       const idx = state.vessels.findIndex((v) => v.id === incoming.id);
+      // console.log('[Store] updateVessel:', incoming.mmsi, 'found:', idx !== -1);
       if (idx === -1) {
         return {
           vessels: [

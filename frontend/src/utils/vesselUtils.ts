@@ -80,3 +80,4 @@ export function getVesselOpacity(vessel: {
   return Math.max(0.3, confidence * 0.7);
 }
 
+

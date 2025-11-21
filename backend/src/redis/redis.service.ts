@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class RedisService implements OnModuleDestroy {
   private redisClient: Redis;
+  private redisClientNoPrefix: Redis;
   private pubClient: Redis;
   private subClient: Redis;
   private readonly keyPrefix: string;
@@ -23,8 +24,14 @@ export class RedisService implements OnModuleDestroy {
       keyPrefix: this.keyPrefix,
     };
 
-    // Main client for general operations
+    // Config without prefix for modules that manage their own prefixes
+    const redisConfigNoPrefix = { ...redisConfig, keyPrefix: undefined };
+
+    // Main client for general operations (with prefix)
     this.redisClient = new Redis(redisConfig);
+
+    // Client without prefix for explicit key management
+    this.redisClientNoPrefix = new Redis(redisConfigNoPrefix);
 
     // Dedicated clients for pub/sub
     this.pubClient = new Redis(redisConfig);
@@ -32,7 +39,7 @@ export class RedisService implements OnModuleDestroy {
 
     // Log connection status
     this.redisClient.on('connect', () => {
-      console.log('✅ Redis client connected successfully');
+    
     });
 
     this.redisClient.on('error', (err) => {
@@ -56,6 +63,10 @@ export class RedisService implements OnModuleDestroy {
     return this.redisClient.del(key);
   }
 
+  async keys(pattern: string): Promise<string[]> {
+    return this.redisClient.keys(pattern);
+  }
+
   // Pub/Sub operations
   async publish(channel: string, message: string): Promise<number> {
     return this.pubClient.publish(channel, message);
@@ -77,6 +88,7 @@ export class RedisService implements OnModuleDestroy {
   // Cleanup on module destroy
   async onModuleDestroy() {
     await this.redisClient.quit();
+    await this.redisClientNoPrefix.quit();
     await this.pubClient.quit();
     await this.subClient.quit();
   }
@@ -91,11 +103,27 @@ export class RedisService implements OnModuleDestroy {
     return this.redisClient;
   }
 
+  /**
+   * Get Redis client WITHOUT automatic key prefix
+   * Use this when you need full control over key naming
+   * Recommended for: ADSB, Aircraft, or any module with custom key schema
+   */
+  getClientWithoutPrefix(): Redis {
+    return this.redisClientNoPrefix;
+  }
+
   getPubClient(): Redis {
     return this.pubClient;
   }
 
   getSubClient(): Redis {
     return this.subClient;
+  }
+
+  /**
+   * Get the current key prefix being used
+   */
+  getKeyPrefix(): string {
+    return this.keyPrefix;
   }
 }

@@ -10,6 +10,7 @@ import { useTrackingStore } from '@/stores/trackingStore';
 import api from '@/services/apiClient';
 import HistoryTable from './HistoryTable';
 import EditHistoryTable from '@/components/aircraft/EditHistoryTable';
+import RouteMapSmall from '@/components/aircraft/RouteMapSmall';
 
 interface Aircraft {
   id: number;
@@ -153,9 +154,9 @@ export default function AircraftDetailPage() {
         const positions = history?.positions || [];
         
         if (positions.length > 0) {
-          // Sort by timestamp
-          const sorted = [...positions].sort((a, b) => 
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          // Sort by timestamp (newest first)
+          const sorted = [...positions].sort((a, b) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
           );
           
           const firstPos = sorted[0];
@@ -638,7 +639,17 @@ export default function AircraftDetailPage() {
                     )}
 
                     {/* Paginated history table */}
-                    <HistoryTable aircraftId={aircraft.id} />
+                 
+                  </div>
+                </div>
+
+                {/* Route Map */}
+                <div className="mt-6 bg-white shadow rounded-lg">
+                  <div className="px-4 py-5 sm:p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      Bản đồ lộ trình bay
+                    </h3>
+                    <RouteMapSmall aircraftId={aircraft.id} />
                   </div>
                 </div>
 
@@ -650,7 +661,8 @@ export default function AircraftDetailPage() {
                     </h3>
                     <EditHistoryTable aircraftId={aircraft.id} />
                   </div>
-                </div>
+                  </div>
+                     <HistoryTable aircraftId={aircraft.id} />
               </div>
 
               {/* Status Panel */}

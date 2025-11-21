@@ -12,6 +12,7 @@ import {
   UseGuards,
   Req,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { VesselService } from './vessel.service';
 import { ApiOperation, ApiQuery, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '../auth/guards/auth.guard';
@@ -52,6 +53,7 @@ export class VesselController {
    * Optional limit: default 1000 (hard max 5000)
    * stalenessSec: consider active if last timestamp within this window (default 3600s)
    */
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute for public endpoint
   @Get('online')
   @ApiOperation({ summary: 'Get online AIS vessels (Redis) with optional predictions' })
   @ApiQuery({ name: 'bbox', required: false, description: 'minLon,minLat,maxLon,maxLat' })
@@ -78,7 +80,8 @@ export class VesselController {
     @Query('allowStale') allowStaleStr?: string,
     @Query('includePredicted') includePredictedStr?: string,
   ) {
-    const client = this.redis.getClient();
+    // Use client without prefix for direct key access
+    const client = this.redis.getClientWithoutPrefix();
     const now = Date.now();
     const envDefault = process.env.ONLINE_DEFAULT_STALENESS_SEC
       ? Math.max(10, Number(process.env.ONLINE_DEFAULT_STALENESS_SEC))
@@ -324,16 +327,16 @@ export class VesselController {
     if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return [];
     const [minLon, minLat, maxLon, maxLat] = parts as [number, number, number, number];
     // Use $queryRaw to avoid type issues if Prisma Client isn't regenerated yet
-   const rows = await this.prisma.$queryRawUnsafe(
-     `SELECT id, city, state, country, latitude, longitude
+    const rows = await this.prisma.$queryRawUnsafe(
+      `SELECT id, city, state, country, latitude, longitude
       FROM "ports"
       WHERE latitude BETWEEN $1 AND $2 AND longitude BETWEEN $3 AND $4
       LIMIT 5000`,
-     minLat,
-     maxLat,
-     minLon,
-     maxLon,
-   );
+      minLat,
+      maxLat,
+      minLon,
+      maxLon,
+    );
     return rows;
   }
 

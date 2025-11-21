@@ -62,7 +62,7 @@ export default function MapControls() {
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                📐 Đa giác
+                Đa giác
               </button>
               <button
                 onClick={() => setDrawingTool('circle')}
@@ -72,7 +72,7 @@ export default function MapControls() {
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                ⭕ Hình tròn
+                Hình tròn
               </button>
             </div>
             <p className="text-xs text-gray-500 italic">

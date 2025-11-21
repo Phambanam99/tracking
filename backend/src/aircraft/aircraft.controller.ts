@@ -10,8 +10,14 @@ import {
   ParseIntPipe,
   UseGuards,
   Req,
+  Res,
+  HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import type { Response } from 'express';
 import { AircraftService } from './aircraft.service';
+import { AdsbService } from './adsb.service';
+import { AdsbCollectorService } from './adsb-collector.service';
 import { RedisService } from '../redis/redis.service';
 import {
   ApiOperation,
@@ -34,6 +40,12 @@ import {
   UpdateAircraftImageDto,
   OnlineAircraftQueryDto,
 } from './dto/aircraft.dto';
+import {
+  AdsbStreamRequestDto,
+  AdsbQueryRequestDto,
+  AdsbtFetchRequestDto,
+  AdsbModel,
+} from './dto/adsb.dto';
 import { AircraftEditHistoryDto } from './dto/aircraft-edit-history.dto';
 import { UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -45,8 +57,21 @@ import { extname } from 'path';
 export class AircraftController {
   constructor(
     private readonly aircraftService: AircraftService,
+    private readonly adsbService: AdsbService,
+    private readonly adsbCollectorService: AdsbCollectorService,
     private readonly redis: RedisService,
   ) {}
+
+  /**
+   * Get ADSB collector health status
+   * IMPORTANT: This must be before generic routes to avoid route conflicts
+   */
+  @Get('adsb/health')
+  @ApiOperation({ summary: 'Get ADSB collector health status' })
+  @ApiResponse({ status: 200, description: 'ADSB collector health information' })
+  async getAdsbCollectorHealth(): Promise<any> {
+    return this.adsbCollectorService.getHealthStatus();
+  }
 
   /**
    * Get all aircraft with their last known positions
@@ -74,6 +99,17 @@ export class AircraftController {
     const z = queryDto.zoom;
     const lim = queryDto.limit;
     return this.aircraftService.findAllWithLastPosition(parsedBbox, z, lim);
+  }
+
+  /**
+   * Get online aircrafts from Redis (real-time ADSB data)
+   */
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute
+  @Get('online')
+  @ApiOperation({ summary: 'Get online aircrafts from Redis (real-time ADSB data)' })
+  @ApiResponse({ status: 200, description: 'List of online aircrafts from ADSB stream' })
+  async getOnlineAircrafts(): Promise<AdsbModel[]> {
+    return this.adsbService.fetchAdsbFromRedis();
   }
 
   /**
@@ -435,5 +471,170 @@ export class AircraftController {
       limit ? parseInt(limit) : 50,
       offset ? parseInt(offset) : 0,
     );
+  }
+
+  // ==================== ADSB DATA ENDPOINTS ====================
+
+  /**
+   * Stream ADSB data from Redis with optional filtering
+   * Mimics the C# StreamAdsbData endpoint
+   */
+  @Post('adsb/stream')
+  @ApiOperation({
+    summary: 'Stream ADSB aircraft data from Redis',
+    description: 'Returns batched ADSB data from Redis. Supports field and position filtering.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Stream of ADSB data batches',
+  })
+  async streamAdsbData(@Body() request: AdsbStreamRequestDto, @Res() res: Response): Promise<void> {
+    try {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Transfer-Encoding', 'chunked');
+
+      const result = await this.adsbService.streamAdsbData(request);
+
+      // Stream batches
+      for (const batch of result.data) {
+        res.write(JSON.stringify(batch));
+        res.write('\n');
+      }
+
+      res.end();
+    } catch (error) {
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        message: 'Error streaming ADSB data',
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * Query ADSB data from database with pagination
+   * For historical data queries
+   */
+  @Post('adsb/query')
+  @ApiOperation({
+    summary: 'Query ADSB data from database',
+    description: 'Query historical ADSB data with filtering and pagination.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated ADSB query results',
+  })
+  async queryAdsbData(@Body() request: AdsbQueryRequestDto) {
+    return this.adsbService.queryAdsbData(request);
+  }
+
+  /**
+   * Fetch and store ADSB data batch
+   * This endpoint receives ADSB data from external sources and stores in Redis
+   */
+  @Post('adsb/fetch')
+  @ApiOperation({
+    summary: 'Store ADSB data batch',
+    description:
+      'Receives ADSB data from external sources and stores in Redis for real-time access.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ADSB data stored successfully',
+  })
+  async fetchAdsbData(@Body() request: AdsbtFetchRequestDto) {
+    if (!request.data || request.data.length === 0) {
+      return {
+        success: false,
+        message: 'No data provided',
+      };
+    }
+
+    await this.adsbService.storeAdsbData(request.data);
+
+    return {
+      success: true,
+      count: request.data.length,
+      message: `Stored ${request.data.length} aircraft records`,
+    };
+  }
+
+  /**
+   * Get ADSB data for a specific aircraft by hexident
+   */
+  @Get('adsb/:hexident')
+  @ApiOperation({
+    summary: 'Get ADSB data by hexident',
+    description: 'Retrieve current ADSB data for a specific aircraft.',
+  })
+  @ApiParam({
+    name: 'hexident',
+    description: 'Aircraft hexident (unique identifier)',
+    type: 'string',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ADSB aircraft data',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Aircraft not found',
+  })
+  async getAdsbByHexident(@Param('hexident') hexident: string) {
+    const aircraft = await this.adsbService.getAircraftByHexident(hexident);
+
+    if (!aircraft) {
+      return {
+        success: false,
+        message: 'Aircraft not found',
+      };
+    }
+
+    return {
+      success: true,
+      data: aircraft,
+    };
+  }
+
+  /**
+   * Get current flight count from Redis
+   */
+  @Get('adsb/stats/count')
+  @ApiOperation({
+    summary: 'Get current flight count',
+    description: 'Returns the number of aircraft currently tracked in Redis.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Flight count',
+  })
+  async getCurrentFlightCount() {
+    const count = await this.adsbService.getCurrentFlightCount();
+    return {
+      count,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Clear ADSB cache (admin only)
+   */
+  @Delete('adsb/cache')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: 'Clear ADSB cache',
+    description: 'Clear all ADSB data from Redis cache. Admin only.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cache cleared successfully',
+  })
+  async clearAdsbCache() {
+    await this.adsbService.clearAdsbCache();
+    return {
+      success: true,
+      message: 'ADSB cache cleared',
+    };
   }
 }

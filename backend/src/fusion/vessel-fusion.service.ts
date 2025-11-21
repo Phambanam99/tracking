@@ -25,7 +25,7 @@ export class VesselFusionService {
   constructor(
     private readonly lastPublishedStore: LastPublishedService,
     private readonly dataValidationService: DataValidationService,
-    private readonly conflictMonitor: ConflictMonitorService
+    private readonly conflictMonitor: ConflictMonitorService,
   ) {}
 
   ingest(messages: NormVesselMsg[], now = Date.now()): void {

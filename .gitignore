@@ -41,6 +41,7 @@ node_modules/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.prod
 
 # IDE files
 .vscode/
@@ -76,3 +77,9 @@ Copilot-Processing.md
 # Prisma
 .env
 /backend/prisma/.env
+
+# Production data directories
+data/
+backups/*.sql
+backups/*.sql.gz
+backups/*.zip

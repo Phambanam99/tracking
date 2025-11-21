@@ -47,6 +47,19 @@ function getPrecipitationColor(precip: number): string {
 }
 
 /**
+ * Get color for atmospheric pressure (purple -> blue -> green -> orange)
+ */
+function getPressureColor(pressure: number): string {
+  const opacity = 0.6;
+  if (pressure < 980) return `rgba(138, 43, 226, ${opacity})`; // Purple (very low - storm)
+  if (pressure < 1000) return `rgba(75, 0, 130, ${opacity})`; // Indigo (low)
+  if (pressure < 1010) return `rgba(0, 191, 255, ${opacity})`; // Deep Sky Blue (below normal)
+  if (pressure < 1020) return `rgba(0, 255, 127, ${opacity})`; // Spring Green (normal)
+  if (pressure < 1030) return `rgba(255, 165, 0, ${opacity})`; // Orange (high)
+  return `rgba(255, 69, 0, ${opacity})`; // Red-Orange (very high)
+}
+
+/**
  * Hook to render weather layers on OpenLayers map
  */
 export function useWeatherLayer({ mapInstanceRef }: UseWeatherLayerProps) {
@@ -197,7 +210,8 @@ export function useWeatherLayer({ mapInstanceRef }: UseWeatherLayerProps) {
         if (
           activeLayer === 'temperature' ||
           activeLayer === 'precipitation' ||
-          activeLayer === 'clouds'
+          activeLayer === 'clouds' ||
+          activeLayer === 'pressure'
         ) {
           const feature = new Feature({
             geometry: new Point(coord),
@@ -224,6 +238,10 @@ export function useWeatherLayer({ mapInstanceRef }: UseWeatherLayerProps) {
               const cloudOpacity = baseOpacity + (data.cloudCover / 100) * 0.5;
               fillColor = `rgba(180,180,180,${cloudOpacity})`;
               text = `${Math.round(data.cloudCover)}%`;
+              break;
+            case 'pressure':
+              fillColor = getPressureColor(data.pressure);
+              text = `${Math.round(data.pressure)}`;
               break;
             default:
               fillColor = 'rgba(0,0,0,0.1)';
@@ -256,6 +274,28 @@ export function useWeatherLayer({ mapInstanceRef }: UseWeatherLayerProps) {
 
     // Handle wind data
     if (activeLayer === 'wind' && weatherGrid.length > 0) {
+      // Validate weather data has required fields
+      const validWeatherData = weatherGrid.filter(
+        (p) =>
+          p &&
+          typeof p.windSpeed === 'number' &&
+          typeof p.windDirection === 'number' &&
+          !isNaN(p.windSpeed) &&
+          !isNaN(p.windDirection) &&
+          typeof p.longitude === 'number' &&
+          typeof p.latitude === 'number' &&
+          !isNaN(p.longitude) &&
+          !isNaN(p.latitude),
+      );
+
+      if (validWeatherData.length === 0) {
+        console.warn('[Weather] No valid wind data available');
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        olWindLayerRef.current.setVisible(false);
+        return;
+      }
+
       // Wind direction is 'coming from', but for U/V components we need 'going to'
       // U = speed * cos(angle), V = speed * sin(angle)
       // The angle should be meteorological (0° = North, clockwise)
@@ -263,26 +303,122 @@ export function useWeatherLayer({ mapInstanceRef }: UseWeatherLayerProps) {
       // A wind from 90° (East) should have a negative U component.
       // A wind from 0° (North) should have a negative V component.
       // Angle for calculation: (270 - direction) mod 360
-      const uData = weatherGrid.map(
-        (p) =>
-          -p.windSpeed *
-          Math.sin((p.windDirection * Math.PI) / 180),
-      );
-      const vData = weatherGrid.map(
-        (p) =>
-          -p.windSpeed *
-          Math.cos((p.windDirection * Math.PI) / 180),
-      );
 
-      const lons = [...new Set(weatherGrid.map((p) => p.longitude))].sort(
+      // First, get unique sorted lons and lats
+      const lons = [...new Set(validWeatherData.map((p) => p.longitude))].sort(
         (a, b) => a - b,
       );
-      const lats = [...new Set(weatherGrid.map((p) => p.latitude))].sort(
-        (a, b) => b - a,
+      const lats = [...new Set(validWeatherData.map((p) => p.latitude))].sort(
+        (a, b) => b - a, // Sort descending for lat
       );
 
       if (lons.length < 2 || lats.length < 2) {
         console.warn('[Weather] Not enough grid points to form a wind field.');
+        console.warn(`[Weather] Grid dimensions: ${lons.length}x${lats.length}`);
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        olWindLayerRef.current.setVisible(false);
+        return;
+      }
+
+      // Create a map for quick lookup using object
+      const dataMap: Record<string, typeof validWeatherData[0]> = {};
+      validWeatherData.forEach((d) => {
+        const key = `${d.latitude.toFixed(4)},${d.longitude.toFixed(4)}`;
+        dataMap[key] = d;
+      });
+
+      // Build U and V arrays in the correct grid order (row by row, lat then lon)
+      const uData: number[] = [];
+      const vData: number[] = [];
+      let missingPoints = 0;
+
+      for (const lat of lats) {
+        for (const lon of lons) {
+          const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+          const point = dataMap[key];
+          
+          if (point) {
+            const u = -point.windSpeed * Math.sin((point.windDirection * Math.PI) / 180);
+            const v = -point.windSpeed * Math.cos((point.windDirection * Math.PI) / 180);
+            
+            // Additional validation
+            if (!isFinite(u) || !isFinite(v) || isNaN(u) || isNaN(v)) {
+              console.warn('[Weather] Invalid wind calculation at', { lat, lon, point });
+              uData.push(0);
+              vData.push(0);
+              missingPoints++;
+            } else {
+              uData.push(u);
+              vData.push(v);
+            }
+          } else {
+            // Missing point in grid - use zero values
+            uData.push(0);
+            vData.push(0);
+            missingPoints++;
+          }
+        }
+      }
+
+      // Check if we have too many missing points
+      const totalPoints = lons.length * lats.length;
+      const missingPercent = (missingPoints / totalPoints) * 100;
+      
+      if (missingPercent > 50) {
+        console.error(
+          `[Weather] Too many missing grid points: ${missingPoints}/${totalPoints} (${missingPercent.toFixed(1)}%)`
+        );
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        olWindLayerRef.current.setVisible(false);
+        return;
+      }
+
+      // Validate array lengths match expected grid size
+      if (uData.length !== totalPoints || vData.length !== totalPoints) {
+        console.error('[Weather] Array length mismatch:', {
+          expected: totalPoints,
+          uLength: uData.length,
+          vLength: vData.length,
+        });
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        olWindLayerRef.current.setVisible(false);
+        return;
+      }
+
+      const dx = Math.abs(lons[1] - lons[0]);
+      const dy = Math.abs(lats[1] - lats[0]);
+
+      // Validate grid spacing
+      if (!isFinite(dx) || !isFinite(dy) || dx === 0 || dy === 0) {
+        console.error('[Weather] Invalid grid spacing:', { dx, dy });
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        olWindLayerRef.current.setVisible(false);
+        return;
+      }
+
+      // Validate data arrays - replace any invalid values with 0
+      const cleanedU = uData.map(v => (isFinite(v) ? v : 0));
+      const cleanedV = vData.map(v => (isFinite(v) ? v : 0));
+
+      // Check if we have any valid data
+      const validUCount = cleanedU.filter(v => v !== 0).length;
+      const validVCount = cleanedV.filter(v => v !== 0).length;
+      
+      if (validUCount === 0 && validVCount === 0) {
+        console.warn('[Weather] No valid wind data (all zeros)');
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        olWindLayerRef.current.setVisible(false);
+        return;
+      }
+
+      // Validate header coordinates
+      if (!isFinite(lons[0]) || !isFinite(lats[0])) {
+        console.error('[Weather] Invalid header coordinates:', { lo1: lons[0], la1: lats[0] });
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         olWindLayerRef.current.setVisible(false);
@@ -293,16 +429,52 @@ export function useWeatherLayer({ mapInstanceRef }: UseWeatherLayerProps) {
         header: {
           nx: lons.length,
           ny: lats.length,
-          lo1: lons[0],
-          la1: lats[0],
-          dx: Math.abs(lons[1] - lons[0]),
-          dy: Math.abs(lats[1] - lats[0]),
+          lo1: Number(lons[0]),
+          la1: Number(lats[0]),
+          dx: Number(dx),
+          dy: Number(dy),
           parameterUnit: 'm.s-1',
         },
-        u: uData,
-        v: vData,
+        u: cleanedU,
+        v: cleanedV,
       };
-      olWindLayerRef.current.setData(windData);
+
+      console.log('[Weather] Wind data prepared:', {
+        gridSize: `${lons.length}x${lats.length}`,
+        totalPoints: totalPoints,
+        dataPoints: cleanedU.length,
+        missingPoints: missingPoints,
+        missingPercent: missingPercent.toFixed(1) + '%',
+        validU: validUCount,
+        validV: validVCount,
+        bounds: { 
+          lo1: windData.header.lo1, 
+          la1: windData.header.la1, 
+          lo2: lons[lons.length - 1],
+          la2: lats[lats.length - 1],
+          dx: windData.header.dx, 
+          dy: windData.header.dy 
+        },
+        sampleU: cleanedU.slice(0, 5),
+        sampleV: cleanedV.slice(0, 5),
+      });
+
+      try {
+        olWindLayerRef.current.setData(windData);
+        console.log('[Weather] ✅ Wind data set successfully');
+      } catch (error) {
+        console.error('[Weather] ❌ Failed to set wind data:', error);
+        console.error('[Weather] Wind data structure:', JSON.stringify({
+          header: windData.header,
+          uLength: windData.u.length,
+          vLength: windData.v.length,
+          uSample: windData.u.slice(0, 3),
+          vSample: windData.v.slice(0, 3),
+        }, null, 2));
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        olWindLayerRef.current.setVisible(false);
+      }
     } else if (olWindLayerRef.current) {
       // Hide the wind layer when it's not active
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment

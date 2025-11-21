@@ -20,12 +20,18 @@ export class VesselService {
     zoom?: number,
     limit?: number,
   ) {
+    // Vessel: show if signal within last 24 hours
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
     const positionWhere = bbox
       ? {
           longitude: { gte: bbox[0], lte: bbox[2] },
           latitude: { gte: bbox[1], lte: bbox[3] },
+          timestamp: { gte: oneDayAgo }, // Last 24 hours
         }
-      : {};
+      : {
+          timestamp: { gte: oneDayAgo }, // Last 24 hours
+        };
     const derivedLimitBase =
       typeof limit === 'number' && limit > 0
         ? limit
@@ -45,10 +51,17 @@ export class VesselService {
               some: {
                 longitude: { gte: bbox[0], lte: bbox[2] },
                 latitude: { gte: bbox[1], lte: bbox[3] },
+                timestamp: { gte: oneDayAgo }, // Last 24 hours
               },
             },
           }
-        : {},
+        : {
+            positions: {
+              some: {
+                timestamp: { gte: oneDayAgo }, // Last 24 hours
+              },
+            },
+          },
       include: {
         positions: {
           where: positionWhere,
@@ -248,12 +261,25 @@ export class VesselService {
    * Add position using DTO
    */
   async addPositionWithDto(createPositionDto: CreateVesselPositionDto) {
-    return await this.prisma.vesselPosition.create({
+    const position = await this.prisma.vesselPosition.create({
       data: {
         ...createPositionDto,
         source: createPositionDto.source || 'api', // Default to 'api' if not provided
       },
     });
+
+    // Trigger region alert processing
+    this.trackingService
+      .processVesselPositionUpdate(
+        createPositionDto.vesselId,
+        createPositionDto.latitude,
+        createPositionDto.longitude,
+      )
+      .catch((err) => {
+        console.error('❌ Error processing region alerts for vessel:', err);
+      });
+
+    return position;
   }
 
   /**

@@ -32,7 +32,8 @@ export class DeadLetterQueueService {
   private client: any;
 
   constructor(private readonly redis: RedisService) {
-    this.client = this.redis.getClient();
+    // Use client without prefix for full control over key naming
+    this.client = this.redis.getClientWithoutPrefix();
   }
 
   /**

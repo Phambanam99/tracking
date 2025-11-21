@@ -5,8 +5,35 @@ import api from '@/services/apiClient';
 import { useAircraftStore, Aircraft } from '@/stores/aircraftStore';
 
 /**
- * Chỉ tải dữ liệu aircraft theo viewport hiện tại (online trước, fallback initial).
- * Không đụng đến vessels hay ports.
+ * Generate stable ID from aircraft data
+ * Priority: backend id > aircraftId > flightId > hexident > coordinates-based hash
+ */
+function generateStableAircraftId(data: any): string | number {
+  // Use backend provided IDs first
+  if (data.id != null) return data.id;
+  if (data.aircraftId != null) return data.aircraftId;
+  
+  // Use flight identifiers (stable across updates)
+  if (data.flightId && typeof data.flightId === 'string' && data.flightId.trim()) {
+    return data.flightId.trim();
+  }
+  if (data.hexident && typeof data.hexident === 'string' && data.hexident.trim()) {
+    return data.hexident.trim();
+  }
+  if (data.callSign && typeof data.callSign === 'string' && data.callSign.trim()) {
+    return data.callSign.trim();
+  }
+  
+  // Last resort: coordinate-based (without timestamp!)
+  // Round coordinates to avoid floating point precision issues
+  const lon = Math.round((data.longitude || 0) * 10000) / 10000;
+  const lat = Math.round((data.latitude || 0) * 10000) / 10000;
+  return `aircraft_${lon}_${lat}`;
+}
+
+/**
+ * Only load aircraft data based on viewport (online first, fallback initial).
+ * Does not touch vessels or ports.
  */
 export function useAircraftViewportLoader(params: {
   mapInstanceRef: React.RefObject<Map | null>;
@@ -19,9 +46,6 @@ export function useAircraftViewportLoader(params: {
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Skip if not active
-    if (!isActive) return;
-
     const cleanup: Array<() => void> = [];
     lastBboxRef.current = '';
     lastZoomRef.current = null;
@@ -45,24 +69,33 @@ export function useAircraftViewportLoader(params: {
           Math.min(85, tr[1] + padY),
         ];
         const bboxStr = bbox.join(',');
-        const zoom = map.getView().getZoom() ?? 0;
-        if (bboxStr === lastBboxRef.current && zoom === lastZoomRef.current)
+        const zoom = Math.round(map.getView().getZoom() ?? 0);
+        
+        // Skip if same viewport
+        if (bboxStr === lastBboxRef.current && zoom === lastZoomRef.current) {
           return;
+        }
+        
         lastBboxRef.current = bboxStr;
         lastZoomRef.current = zoom;
 
+        console.log('[AircraftLoader] Fetching for bbox:', bboxStr);
+
         // WebSocket viewport update (optional)
         const { websocketService } = await import('@/services/websocket');
-        if (websocketService.socket) websocketService.updateViewport(bbox);
-        else {
+        if (websocketService.socket) {
+          websocketService.updateViewport(bbox);
+        } else {
           websocketService.connect();
           setTimeout(() => websocketService.subscribeViewport(bbox), 200);
         }
 
         const qsOnline = `?bbox=${encodeURIComponent(bboxStr)}&limit=5000`;
         const qsInitial = `?bbox=${encodeURIComponent(bboxStr)}&zoom=${zoom}`;
+        
         try {
           const raw = await api.get(`/aircrafts/online${qsOnline}`);
+          
           const unwrap = (r: any): any[] => {
             if (!r) return [];
             if (Array.isArray(r)) return r;
@@ -70,52 +103,83 @@ export function useAircraftViewportLoader(params: {
             if (r.data && Array.isArray(r.data.data)) return r.data.data;
             return [];
           };
+          
           const arr = unwrap(raw);
+          
           let aircrafts: Aircraft[] = Array.isArray(arr)
             ? (arr
-                .map((a: any) =>
-                  a &&
-                  typeof a.longitude === 'number' &&
-                  typeof a.latitude === 'number'
-                    ? {
-                        id:
-                          a.id ??
-                          a.aircraftId ??
-                          (typeof a.flightId === 'string' && a.flightId
-                            ? a.flightId
-                            : `${a.longitude}:${a.latitude}:${
-                                a.timestamp || ''
-                              }`),
-                        flightId: a.flightId ?? '',
-                        createdAt: new Date(a.timestamp ?? Date.now()),
-                        updatedAt: new Date(a.timestamp ?? Date.now()),
-                        lastPosition: {
-                          latitude: a.latitude,
-                          longitude: a.longitude,
-                          altitude: a.altitude,
-                          speed: a.speed,
-                          heading: a.heading,
-                          timestamp: new Date(a.timestamp ?? Date.now()),
-                        },
-                      }
-                    : null,
-                )
+                .map((a: any) => {
+                  // Validate coordinates
+                  if (!a || typeof a.longitude !== 'number' || typeof a.latitude !== 'number') {
+                    return null;
+                  }
+                  
+                  // Generate stable ID
+                  const stableId = generateStableAircraftId(a);
+                  
+                  return {
+                    id: stableId,
+                    flightId: a.flightId || a.callSign || '',
+                    callSign: a.callSign,
+                    registration: a.registration,
+                    operator: a.operator,
+                    aircraftType: a.aircraftType,
+                    hexident: a.hexident,
+                    createdAt: new Date(a.timestamp ?? Date.now()),
+                    updatedAt: new Date(a.timestamp ?? Date.now()),
+                    lastPosition: {
+                      latitude: a.latitude,
+                      longitude: a.longitude,
+                      altitude: a.altitude,
+                      speed: a.speed,
+                      heading: a.heading,
+                      timestamp: new Date(a.timestamp ?? Date.now()),
+                    },
+                  };
+                })
                 .filter(Boolean) as Aircraft[])
             : [];
+          
+          console.log('[AircraftLoader] Online aircrafts:', aircrafts.length);
+          
+          // Fallback to initial if online empty
           if (!aircrafts.length) {
+            console.log('[AircraftLoader] No online data, falling back to initial');
             const init = await api.get(`/aircrafts/initial${qsInitial}`);
+            
             if (Array.isArray(init)) {
-              aircrafts = init.filter(
-                (a: any) =>
-                  a?.lastPosition &&
-                  typeof a.lastPosition.longitude === 'number' &&
-                  typeof a.lastPosition.latitude === 'number',
-              );
+              aircrafts = init
+                .filter((a: any) => {
+                  // Validate has position with coordinates
+                  const pos = a?.lastPosition;
+                  if (!pos) return false;
+                  if (typeof pos.longitude !== 'number' || typeof pos.latitude !== 'number') {
+                    return false;
+                  }
+                  return true;
+                })
+                .map((a: any) => {
+                  // Ensure stable ID even for initial data
+                  if (!a.id) {
+                    a.id = generateStableAircraftId({
+                      ...a,
+                      longitude: a.lastPosition.longitude,
+                      latitude: a.lastPosition.latitude,
+                    });
+                  }
+                  return a;
+                });
+              
+              console.log('[AircraftLoader] Initial aircrafts:', aircrafts.length);
             }
           }
-          if (aircrafts.length) setAircrafts(aircrafts);
-        } catch (_) {
-          // ignore
+          
+          if (aircrafts.length) {
+            console.log('[AircraftLoader] Setting', aircrafts.length, 'aircrafts to store');
+            setAircrafts(aircrafts);
+          }
+        } catch (error) {
+          console.error('[AircraftLoader] Error:', error);
         }
       };
 
@@ -123,13 +187,16 @@ export function useAircraftViewportLoader(params: {
         if (timerRef.current) window.clearTimeout(timerRef.current);
         timerRef.current = window.setTimeout(send, 300);
       };
+      
+      console.log('[AircraftLoader] Map attached, triggering initial viewport update');
       debounced();
       map.on('moveend', debounced as any);
       cleanup.push(() => (map as any).un('moveend', debounced));
     };
 
-    if (mapInstanceRef.current) attach(mapInstanceRef.current);
-    else {
+    if (mapInstanceRef.current) {
+      attach(mapInstanceRef.current);
+    } else {
       const intv = window.setInterval(() => {
         if (mapInstanceRef.current) {
           window.clearInterval(intv);
@@ -138,6 +205,7 @@ export function useAircraftViewportLoader(params: {
       }, 150);
       cleanup.push(() => window.clearInterval(intv));
     }
+    
     return () => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
       cleanup.forEach((fn) => fn());

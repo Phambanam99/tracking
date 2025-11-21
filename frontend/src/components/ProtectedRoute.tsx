@@ -23,14 +23,14 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     if (!isLoading && isAuthenticated && requiredRole && user) {
       // Admin can access everything
       if (user.role === 'ADMIN') {
-        return;
-      }
-
-      // Check if user has the required role
-      if (user.role !== requiredRole) {
-        router.push('/'); // Redirect unauthorized users to home
-      }
+      return;
     }
+  
+    // Check if user has the required role
+    if (user.role !== 'ADMIN' && user.role !== requiredRole) {
+      router.push('/'); // Redirect unauthorized users to home
+    }
+  }
   }, [isAuthenticated, isLoading, user, requiredRole, router]);
 
   if (isLoading) {

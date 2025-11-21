@@ -1,4 +1,15 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Request, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Request,
+  UseGuards,
+  Res,
+} from '@nestjs/common';
+import type { Response } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { LocalAuthGuard } from './guards/local-auth.guard';
@@ -13,6 +24,7 @@ export class AuthController {
   /**
    * Login endpoint
    */
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 login attempts per minute
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @ApiOperation({ summary: 'User login' })
@@ -28,13 +40,36 @@ export class AuthController {
   })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   @HttpCode(HttpStatus.OK)
-  async login(@Request() req: any, @Body() _loginDto: LoginDto) {
-    return this.authService.login(req.user);
+  async login(
+    @Request() req: any,
+    @Body() _loginDto: LoginDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.login(req.user);
+
+    // Set httpOnly cookies for tokens
+    response.cookie('access_token', result.access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      sameSite: 'strict',
+      maxAge: 3600000, // 1 hour
+    });
+
+    response.cookie('refresh_token', result.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Return tokens in body (for frontend Authorization header) + cookies (for additional security)
+    return result;
   }
 
   /**
    * Register endpoint
    */
+  @Throttle({ default: { limit: 3, ttl: 3600000 } }) // 3 registrations per hour
   @Post('register')
   @ApiOperation({ summary: 'Register new user' })
   @ApiResponse({ status: 201, description: 'User registered successfully' })
@@ -67,8 +102,29 @@ export class AuthController {
   })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   @HttpCode(HttpStatus.OK)
-  async refreshToken(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refreshToken(refreshTokenDto.refresh_token);
+  async refreshToken(
+    @Body() refreshTokenDto: RefreshTokenDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.refreshToken(refreshTokenDto.refresh_token);
+
+    // Set new httpOnly cookies
+    response.cookie('access_token', result.access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 3600000, // 1 hour
+    });
+
+    response.cookie('refresh_token', result.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Return tokens in body for frontend
+    return result;
   }
 
   /**
@@ -81,9 +137,24 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Logout successful' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @HttpCode(HttpStatus.OK)
-  async logout(@Request() req: any) {
+  async logout(@Request() req: any, @Res({ passthrough: true }) response: Response) {
     const token = req.headers.authorization?.replace('Bearer ', '');
-    return this.authService.logout(token);
+    const result = await this.authService.logout(token);
+
+    // Clear httpOnly cookies
+    response.clearCookie('access_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
+
+    response.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
+
+    return result;
   }
 
   /**

@@ -225,8 +225,8 @@ export default function AircraftPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {pageItems.map((aircraft) => (
-                          <tr key={aircraft.id} className="hover:bg-gray-50">
+                        {pageItems.map((aircraft, index) => (
+                          <tr key={`aircraft-${aircraft.id}-${index}`} className="hover:bg-gray-50">
                             <td className="px-4 py-2 align-middle">
                               <div className="font-medium text-indigo-600">
                                 <Link href={`/aircraft/${aircraft.id}`}>

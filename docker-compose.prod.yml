@@ -1,0 +1,232 @@
+# Production Docker Compose Configuration
+# This file sets up the complete tracking application stack for production deployment
+# with persistent data storage and proper networking
+
+services:
+  # PostgreSQL Database with PostGIS extension
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: tracking-postgis-prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-tracking}
+      # Performance tuning for production
+      POSTGRES_MAX_CONNECTIONS: 200
+      POSTGRES_SHARED_BUFFERS: 256MB
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pg_data_prod:/var/lib/postgresql/data
+      - ./postgres/initdb:/docker-entrypoint-initdb.d
+      - ./backups:/backups  # Directory for database backups
+    networks:
+      - tracking-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-tracking}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis Cache and Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: tracking-redis-prod
+    restart: always
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-changeme}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data_prod:/data
+    networks:
+      - tracking-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tracking-backend-prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # Database Configuration
+      DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-tracking}?schema=public&connection_limit=50&pool_timeout=10
+      DIRECT_DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-tracking}?schema=public
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme}
+      # JWT Configuration
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      # CORS Configuration
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4000}
+      # Application Settings
+      MAX_TRACKED_AIRCRAFT: ${MAX_TRACKED_AIRCRAFT:-100}
+      MAX_TRACKED_VESSEL: ${MAX_TRACKED_VESSEL:-100}
+      # API Rate Limiting
+      RATE_LIMIT_TTL: ${RATE_LIMIT_TTL:-60}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+      # Node.js Memory
+      NODE_OPTIONS: "--max-old-space-size=8192"
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    volumes:
+      - backend_uploads:/app/uploads  # Persistent storage for uploaded files
+      - backend_logs:/app/logs        # Application logs
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tracking-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Frontend Web Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tracking-frontend-prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:3001}
+    ports:
+      - "${FRONTEND_PORT:-4000}:4000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - tracking-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: PgAdmin for Database Management (comment out for production)
+  # Uncomment only if you need database admin interface
+  # pgadmin:
+  #   image: dpage/pgadmin4:latest
+  #   container_name: tracking-pgadmin-prod
+  #   restart: always
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-changeme}
+  #     PGADMIN_CONFIG_SERVER_MODE: 'False'
+  #   ports:
+  #     - "${PGADMIN_PORT:-5050}:80"
+  #   volumes:
+  #     - pgadmin_data_prod:/var/lib/pgadmin
+  #   depends_on:
+  #     - db
+  #   networks:
+  #     - tracking-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "5m"
+  #       max-file: "2"
+
+  # Optional: Redis Insight for Redis Management (comment out for production)
+  # Uncomment only if you need Redis admin interface
+  # redisinsight:
+  #   image: redis/redisinsight:latest
+  #   container_name: tracking-redisinsight-prod
+  #   restart: always
+  #   ports:
+  #     - "${REDISINSIGHT_PORT:-5540}:5540"
+  #   volumes:
+  #     - redisinsight_data_prod:/data
+  #   depends_on:
+  #     - redis
+  #   networks:
+  #     - tracking-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "5m"
+  #       max-file: "2"
+
+# Named volumes for persistent data storage
+volumes:
+  pg_data_prod:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres  # Stores all PostgreSQL data
+  redis_data_prod:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis     # Stores all Redis data
+  backend_uploads:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/uploads   # Stores uploaded files
+  backend_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/logs      # Stores application logs
+  # pgadmin_data_prod:
+  # redisinsight_data_prod:
+
+# Custom network for service communication
+networks:
+  tracking-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

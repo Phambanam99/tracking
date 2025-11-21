@@ -9,222 +9,340 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
+import { Logger, UseGuards, ValidationPipe, OnModuleDestroy } from '@nestjs/common';
 import { RedisService } from '../redis/redis.service';
+import { AircraftService } from '../aircraft/aircraft.service';
+import { VesselService } from '../vessel/vessel.service';
+import { WsAuthGuard } from './ws-auth.guard';
+import { SubscribeAircraftDto, SubscribeVesselDto, ViewportDto, PingDto } from './tracking.dtos';
+import { ViewportManager } from './viewport.manager';
+import { TrackingService } from './tracking.service';
 
 @WebSocketGateway({
   cors: {
-    origin: ['http://localhost:4000', 'http://localhost:4001'], // Frontend URLs
+    origin: (process.env.ALLOWED_ORIGINS || 'http://localhost:4000')
+      .split(',')
+      .map((o) => o.trim()),
     credentials: true,
   },
   namespace: '/tracking',
 })
-export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+@UseGuards(WsAuthGuard)
+export class EventsGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy
+{
   @WebSocketServer()
   server: Server;
 
-  private logger: Logger = new Logger('EventsGateway');
-  private connectedClients = new Set<string>();
-  private clientViewports = new Map<string, [number, number, number, number]>();
+  private readonly logger = new Logger(EventsGateway.name);
+  private broadcastInterval: NodeJS.Timeout | null = null;
+  private readonly BROADCAST_INTERVAL_MS = 3000;
 
-  constructor(private readonly redisService: RedisService) {}
+  constructor(
+    private readonly redisService: RedisService,
+    private readonly aircraftService: AircraftService,
+    private readonly vesselService: VesselService,
+    private readonly viewportManager: ViewportManager,
+    private readonly trackingService: TrackingService,
+  ) {}
 
   async afterInit() {
     this.logger.log('🚀 WebSocket Gateway initialized');
+    this.trackingService.setServer(this.server);
 
-    // Subscribe to Redis channels for real-time data broadcasting
-    await this.setupRedisSubscriptions();
-
-    // Broadcast config updates to all clients
+    // Setup Redis subscriptions with error handling
     try {
-      await this.redisService.subscribe('config:update', (message) => {
-        try {
-          const config = JSON.parse(message);
-          this.server.emit('configUpdate', config);
-          this.logger.log('🛠️ Broadcasted configUpdate');
-        } catch (e) {
-          this.logger.error('Failed to parse config update', e as any);
-        }
-      });
-    } catch (e) {
-      this.logger.error('❌ Failed to subscribe config:update', e as any);
+      await this.setupRedisSubscriptions();
+      this.logger.log('✅ Redis subscriptions set up');
+    } catch (error) {
+      this.logger.warn('⚠️ Redis subscriptions setup failed (may retry):', error.message);
+      // Don't block gateway initialization if Redis subscriptions fail
+    }
+
+    // Start periodic broadcast
+    this.startPeriodicBroadcast();
+
+    // Cleanup stale tracking data every 30 minutes
+    setInterval(
+      () => {
+        this.trackingService.cleanupStaleTracking();
+      },
+      30 * 60 * 1000,
+    );
+  }
+
+  onModuleDestroy() {
+    if (this.broadcastInterval) {
+      clearInterval(this.broadcastInterval);
+      this.logger.log('Stopped periodic broadcast');
     }
   }
 
   handleConnection(client: Socket) {
-    this.connectedClients.add(client.id);
-    this.logger.log(`🔗 Client connected: ${client.id} (Total: ${this.connectedClients.size})`);
-
-    // Send current connection count to all clients
-    this.server.emit('connectionCount', this.connectedClients.size);
+    this.trackingService.addClient(client.id);
+    const clientInfo = {
+      id: client.id,
+      remoteAddress: client.handshake?.address,
+      authenticated: client.data?.authenticated || false,
+    };
+    this.logger.log(
+      `🔗 Client connected: ${JSON.stringify(clientInfo)} (Total: ${this.trackingService.getClientCount()})`,
+    );
+    this.broadcastConnectionStats();
   }
 
   handleDisconnect(client: Socket) {
-    this.connectedClients.delete(client.id);
-    this.clientViewports.delete(client.id);
-    this.logger.log(`🔌 Client disconnected: ${client.id} (Total: ${this.connectedClients.size})`);
-
-    // Send updated connection count to all clients
-    this.server.emit('connectionCount', this.connectedClients.size);
+    this.viewportManager.removeViewport(client.id);
+    this.trackingService.removeClient(client.id);
+    this.logger.log(
+      `🔌 Client disconnected: ${client.id} (Total: ${this.trackingService.getClientCount()})`,
+    );
+    this.broadcastConnectionStats();
   }
 
   @SubscribeMessage('subscribeToAircraft')
-  handleSubscribeToAircraft(@MessageBody() data: { aircraftId?: number }) {
+  handleSubscribeToAircraft(
+    @ConnectedSocket() client: Socket,
+    @MessageBody(new ValidationPipe()) data: SubscribeAircraftDto,
+  ) {
     const { aircraftId } = data;
-
-    if (aircraftId) {
-      this.logger.log(`📡 Client subscribed to aircraft: ${aircraftId}`);
-      // Join specific aircraft room for targeted updates
-      return { event: 'aircraftSubscribed', data: { aircraftId } };
-    } else {
-      this.logger.log('📡 Client subscribed to all aircraft updates');
-      return { event: 'allAircraftSubscribed', data: {} };
-    }
+    const room = aircraftId ? `aircraft:${aircraftId}` : 'aircraft:all';
+    client.join(room);
+    this.logger.log(`📡 Client ${client.id} joined room: ${room}`);
+    return { event: 'subscribed', data: { channel: room } };
   }
 
   @SubscribeMessage('subscribeToVessels')
-  handleSubscribeToVessels(@MessageBody() data: { vesselId?: number }) {
+  handleSubscribeToVessels(
+    @ConnectedSocket() client: Socket,
+    @MessageBody(new ValidationPipe()) data: SubscribeVesselDto,
+  ) {
     const { vesselId } = data;
-
-    if (vesselId) {
-      this.logger.log(`🚢 Client subscribed to vessel: ${vesselId}`);
-      // Join specific vessel room for targeted updates
-      return { event: 'vesselSubscribed', data: { vesselId } };
-    } else {
-      this.logger.log('🚢 Client subscribed to all vessel updates');
-      return { event: 'allVesselsSubscribed', data: {} };
-    }
+    const room = vesselId ? `vessel:${vesselId}` : 'vessel:all';
+    client.join(room);
+    this.logger.log(`🚢 Client ${client.id} joined room: ${room}`);
+    return { event: 'subscribed', data: { channel: room } };
   }
 
   @SubscribeMessage('subscribeViewport')
   handleSubscribeViewport(
     @ConnectedSocket() client: Socket,
-    @MessageBody()
-    data: { bbox: [number, number, number, number] },
+    @MessageBody(new ValidationPipe()) data: ViewportDto,
   ) {
-    const { bbox } = data || {};
-    if (
-      bbox &&
-      Array.isArray(bbox) &&
-      bbox.length === 4 &&
-      bbox.every((n) => typeof n === 'number' && Number.isFinite(n))
-    ) {
-      this.clientViewports.set(client.id, bbox);
-      this.logger.debug(`Viewport set for ${client.id}: ${bbox.join(',')}`);
-      return { event: 'viewportSubscribed', data: { bbox } };
-    }
-    return { event: 'viewportError', data: { message: 'Invalid bbox' } };
+    const { bbox } = data;
+    this.viewportManager.setViewport(client.id, bbox);
+
+    // Join geo-hash room
+    const geoHash = this.viewportManager.calculateGeoHash(bbox);
+    client.join(`viewport:${geoHash}`);
+
+    this.logger.debug(`🗺️ Viewport set for ${client.id}: ${JSON.stringify(bbox)}`);
+    return { event: 'viewportSubscribed', data: { bbox, geoHash } };
   }
 
   @SubscribeMessage('updateViewport')
   handleUpdateViewport(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { bbox: [number, number, number, number] },
+    @MessageBody(new ValidationPipe()) data: ViewportDto,
   ) {
+    // Leave old viewport rooms
+    const oldGeoHash = this.viewportManager.getGeoHash(client.id);
+    if (oldGeoHash) {
+      client.leave(`viewport:${oldGeoHash}`);
+    }
     return this.handleSubscribeViewport(client, data);
   }
 
   @SubscribeMessage('ping')
-  handlePing(): { event: string; data: any } {
-    return { event: 'pong', data: { timestamp: new Date().toISOString() } };
+  handlePing(@MessageBody() data?: PingDto) {
+    return {
+      event: 'pong',
+      data: {
+        timestamp: new Date().toISOString(),
+        latency: data?.timestamp ? Date.now() - new Date(data.timestamp).getTime() : 0,
+      },
+    };
   }
 
-  // Setup Redis subscriptions for real-time data
   private async setupRedisSubscriptions() {
     try {
-      // Subscribe to aircraft position updates
+      // Subscribe to aircraft updates
       await this.redisService.subscribe('aircraft:position:update', (message) => {
         try {
-          const data = JSON.parse(message) as any;
-          this.emitToViewports('aircraftPositionUpdate', data);
-          this.logger.debug(`📡 Broadcasted aircraft position: ${data.aircraftId}`);
+          const data = JSON.parse(message);
+          this.trackingService.handleAircraftUpdate(data);
+          // this.logger.debug(`📡 Aircraft update: ${data.aircraftId}`);
         } catch (error) {
-          this.logger.error('Error parsing aircraft position update:', error);
+          this.logger.error('Error processing aircraft update:', error);
         }
       });
 
-      // Subscribe to vessel position updates
+      // Subscribe to vessel updates
       await this.redisService.subscribe('vessel:position:update', (message) => {
         try {
-          const data = JSON.parse(message) as any;
-          this.emitToViewports('vesselPositionUpdate', data);
-          this.logger.debug(`🚢 Broadcasted vessel position: ${data.vesselId}`);
+          const data = JSON.parse(message);
+          this.trackingService.handleVesselUpdate(data);
+          this.logger.debug(`🚢 Vessel update: ${data.vesselId}`);
         } catch (error) {
-          this.logger.error('Error parsing vessel position update:', error);
+          this.logger.error('Error processing vessel update:', error);
         }
       });
 
-      // Subscribe to new aircraft alerts
+      // Subscribe to alerts
       await this.redisService.subscribe('aircraft:new', (message) => {
-        try {
-          const data = JSON.parse(message) as any;
-          this.server.emit('newAircraft', data);
-          this.logger.log(`📡 New aircraft detected: ${data.flightId}`);
-        } catch (error) {
-          this.logger.error('Error parsing new aircraft alert:', error);
-        }
+        this.server.emit('newAircraft', JSON.parse(message));
       });
 
-      // Subscribe to new vessel alerts
       await this.redisService.subscribe('vessel:new', (message) => {
-        try {
-          const data = JSON.parse(message) as any;
-          this.server.emit('newVessel', data);
-          this.logger.log(`🚢 New vessel detected: ${data.vesselName}`);
-        } catch (error) {
-          this.logger.error('Error parsing new vessel alert:', error);
-        }
+        this.server.emit('newVessel', JSON.parse(message));
       });
 
-      // Subscribe to region alerts
       await this.redisService.subscribe('region:alert', (message) => {
-        try {
-          const data = JSON.parse(message) as any;
-          this.server.emit('regionAlert', data);
-          this.logger.log(`🚨 Region alert: ${data.alertType} in ${data.regionName}`);
-        } catch (error) {
-          this.logger.error('Error parsing region alert:', error);
-        }
+        const alert = JSON.parse(message);
+        this.logger.log(`🚨 Broadcasting region alert to clients:`, alert);
+        this.server.emit('regionAlert', alert);
       });
 
-      this.logger.log('✅ Redis subscriptions established for real-time updates');
+      await this.redisService.subscribe('config:update', (message) => {
+        this.server.emit('configUpdate', JSON.parse(message));
+      });
+
+      this.logger.log('✅ Redis subscriptions established');
     } catch (error) {
       this.logger.error('❌ Failed to setup Redis subscriptions:', error);
     }
   }
 
-  // Method to broadcast custom events
-  broadcastToAll(event: string, data: any) {
-    this.server.emit(event, data);
-    this.logger.debug(`📣 Broadcasted event: ${event}`);
-  }
-
-  private emitToViewports(event: string, data: any) {
-    const longitude = data?.longitude ?? data?.lon ?? data?.lng ?? data?.x ?? undefined;
-    const latitude = data?.latitude ?? data?.lat ?? data?.y ?? undefined;
-    if (typeof longitude !== 'number' || typeof latitude !== 'number') {
-      // Fallback to broadcast if no position
-      this.server.emit(event, data);
-      return;
+  private startPeriodicBroadcast() {
+    if (this.broadcastInterval) {
+      clearInterval(this.broadcastInterval);
     }
-    for (const [clientId, bbox] of this.clientViewports.entries()) {
-      if (this.pointInBbox(longitude, latitude, bbox)) {
-        const socket = this.server.sockets.sockets.get(clientId);
-        if (socket) socket.emit(event, data);
+
+    this.broadcastInterval = setInterval(async () => {
+      const clientCount = this.trackingService.getClientCount();
+      const viewportCount = this.viewportManager.getViewportCount();
+
+      if (clientCount === 0) {
+        this.logger.debug('No clients connected, skipping broadcast');
+        return;
       }
-    }
+
+      if (viewportCount === 0) {
+        this.logger.debug(
+          `${clientCount} client(s) connected but no viewports subscribed, skipping broadcast`,
+        );
+        return;
+      }
+
+      try {
+        // Query DB once cho tất cả data
+        const [aircrafts, vessels, allSockets] = await Promise.all([
+          this.aircraftService.findAllWithLastPosition(),
+          this.vesselService.findAllWithLastPosition(),
+          this.server.fetchSockets(), // Fetch all connected sockets một lần
+        ]);
+
+        // Different thresholds for aircraft (2 hours) and vessels (24 hours)
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        let totalAircraftSent = 0;
+        let totalVesselsSent = 0;
+
+        // Lấy danh sách viewport một lần
+        const viewports = Array.from(this.viewportManager.getAllViewports().entries());
+
+        for (const [clientId, bbox] of viewports) {
+          const socket = allSockets.find((s) => s.id === clientId);
+          if (!socket) {
+            // Client đã disconnect, xóa viewport
+            this.viewportManager.removeViewport(clientId);
+            continue;
+          }
+
+          let clientAircraftSent = 0;
+          let clientVesselsSent = 0;
+
+          // Filter and send aircraft updates
+          for (const aircraft of aircrafts) {
+            if (!aircraft.lastPosition) continue;
+
+            const lastUpdate = new Date(aircraft.lastPosition.timestamp);
+            if (lastUpdate < twoHoursAgo) continue; // Aircraft: 2 hours threshold
+
+            const { longitude, latitude } = aircraft.lastPosition;
+            if (!this.viewportManager.isPointInViewport(longitude, latitude, bbox)) continue;
+
+            // Check if position changed for this client
+            if (
+              this.trackingService.shouldSendUpdate(
+                clientId,
+                `aircraft:${aircraft.id}`,
+                lastUpdate,
+                latitude,
+                longitude,
+              )
+            ) {
+              socket.emit('aircraftPositionUpdate', aircraft);
+              this.trackingService.updateLastSent(
+                clientId,
+                `aircraft:${aircraft.id}`,
+                lastUpdate,
+                latitude,
+                longitude,
+              );
+              clientAircraftSent++;
+            }
+          }
+
+          // Filter and send vessel updates
+          for (const vessel of vessels) {
+            if (!vessel.lastPosition) continue;
+
+            const { longitude, latitude, timestamp } = vessel.lastPosition;
+            if (!this.viewportManager.isPointInViewport(longitude, latitude, bbox)) continue;
+
+            const lastUpdate = new Date(timestamp || Date.now());
+            if (lastUpdate < oneDayAgo) continue; // Vessel: 24 hours threshold
+
+            // Check if position changed for this client
+            if (
+              this.trackingService.shouldSendUpdate(
+                clientId,
+                `vessel:${vessel.id}`,
+                lastUpdate,
+                latitude,
+                longitude,
+              )
+            ) {
+              socket.emit('vesselPositionUpdate', vessel);
+              this.trackingService.updateLastSent(
+                clientId,
+                `vessel:${vessel.id}`,
+                lastUpdate,
+                latitude,
+                longitude,
+              );
+              clientVesselsSent++;
+            }
+          }
+
+          totalAircraftSent += clientAircraftSent;
+          totalVesselsSent += clientVesselsSent;
+        }
+
+        this.logger.debug(
+          `📡 Broadcasted ${totalAircraftSent} aircraft, ${totalVesselsSent} vessels to ${viewports.length} clients`,
+        );
+      } catch (error) {
+        this.logger.error('Error in periodic broadcast:', error);
+      }
+    }, this.BROADCAST_INTERVAL_MS);
+
+    this.logger.log(`▶️ Started periodic broadcast (${this.BROADCAST_INTERVAL_MS}ms interval)`);
   }
 
-  private pointInBbox(lon: number, lat: number, bbox: [number, number, number, number]): boolean {
-    const [minLon, minLat, maxLon, maxLat] = bbox;
-    return lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat;
-  }
-
-  // Get connection statistics
-  getConnectionStats() {
-    return {
-      connectedClients: this.connectedClients.size,
-      clients: Array.from(this.connectedClients),
-    };
+  private broadcastConnectionStats() {
+    const stats = this.trackingService.getConnectionStats();
+    this.server.emit('connectionStats', stats);
   }
 }

@@ -17,6 +17,11 @@ interface _RegionAlert {
 
 let _wsInitialized = false;
 
+// Batch update queues to reduce re-renders
+let aircraftQueue: Aircraft[] = [];
+let vesselQueue: Vessel[] = [];
+let batchTimer: NodeJS.Timeout | null = null;
+
 export function useWebSocketHandler() {
   const { updateAircraft } = useAircraftStore();
   const { updateVessel } = useVesselStore();
@@ -24,40 +29,74 @@ export function useWebSocketHandler() {
   const { setSettings } = useSystemSettingsStore();
   const {} = useMapStore();
 
+  // Batch processor to reduce re-renders
+  const processBatch = () => {
+    if (aircraftQueue.length > 0) {
+      aircraftQueue.forEach(a => updateAircraft(a));
+      aircraftQueue = [];
+    }
+    if (vesselQueue.length > 0) {
+      vesselQueue.forEach(v => updateVessel(v));
+      vesselQueue = [];
+    }
+    batchTimer = null;
+  };
+
+  const queueAircraftUpdate = (aircraft: Aircraft) => {
+    aircraftQueue.push(aircraft);
+    if (!batchTimer) {
+      batchTimer = setTimeout(processBatch, 100); // Batch updates every 100ms
+    }
+  };
+
+  const queueVesselUpdate = (vessel: Vessel) => {
+    vesselQueue.push(vessel);
+    if (!batchTimer) {
+      batchTimer = setTimeout(processBatch, 100); // Batch updates every 100ms
+    }
+  };
+
   // Connect WebSocket once globally
   useEffect(() => {
     if (_wsInitialized) return;
     _wsInitialized = true;
-    websocketService.connect();
+    
+    // Call async connect without blocking
+    websocketService.connect().catch((err) => {
+      console.error('[useWebSocketHandler] Failed to connect WebSocket:', err);
+    });
     // Do not disconnect on unmount to keep global listeners alive
   }, []);
 
   // WebSocket event listeners
   useEffect(() => {
-    // Aircraft position updates
+    // Aircraft position updates - queue instead of immediate update
     const handleAircraftUpdate = (aircraft: Aircraft) => {
-      if (!aircraft?.lastPosition) return; // ignore stale/no-signal
+      // console.log('🛩️ [WebSocket] Received aircraft update:', aircraft?.flightId || aircraft);
+      if (!aircraft?.lastPosition) return;
       if (
         typeof aircraft.lastPosition.longitude !== 'number' ||
         typeof aircraft.lastPosition.latitude !== 'number'
       )
         return;
-      updateAircraft(aircraft);
+      queueAircraftUpdate(aircraft);
     };
 
-    // Vessel position updates
+    // Vessel position updates - queue instead of immediate update
     const handleVesselUpdate = (vessel: Vessel) => {
-      if (!vessel?.lastPosition) return; // ignore stale/no-signal
+      // console.log('🚢 [WebSocket] Received vessel update:', vessel?.mmsi || vessel);
+      if (!vessel?.lastPosition) return;
       if (
         typeof vessel.lastPosition.longitude !== 'number' ||
         typeof vessel.lastPosition.latitude !== 'number'
       )
         return;
-      updateVessel(vessel);
+      queueVesselUpdate(vessel);
     };
 
     // Region alerts: push alert immediately and refresh regions
     const handleRegionAlert = (alert: any) => {
+      console.log('🚨 Received region alert from WebSocket:', alert);
       try {
         // Normalize shape and push into store
         const normalized = {
@@ -72,9 +111,10 @@ export function useWebSocketHandler() {
           createdAt: alert.createdAt || new Date().toISOString(),
           region: alert.region || { name: alert.regionName || 'Khu vực' },
         };
+        console.log('✅ Normalized alert:', normalized);
         addNewAlert(normalized);
       } catch (e) {
-        // swallow
+        console.error('❌ Error handling region alert:', e);
       }
       // Optionally refresh regions to update counts
       fetchRegions();

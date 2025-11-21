@@ -37,7 +37,7 @@ export class VesselFinderScraper implements VesselDataSource {
       });
 
       this.logger.debug(`VesselFinder response for ${mmsi}: HTTP ${response.status}`);
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           this.consecutiveErrors = 0;
@@ -49,14 +49,17 @@ export class VesselFinderScraper implements VesselDataSource {
           this.logger.warn(
             `VesselFinder rate limit hit for ${mmsi} (HTTP ${response.status}). Consecutive errors: ${this.consecutiveErrors}`,
           );
-          
+
           // Add exponential backoff on consecutive errors
           if (this.consecutiveErrors > 2) {
-            const backoffDelay = Math.min(300000, this.minDelay * Math.pow(2, this.consecutiveErrors - 2));
+            const backoffDelay = Math.min(
+              300000,
+              this.minDelay * Math.pow(2, this.consecutiveErrors - 2),
+            );
             this.logger.warn(`Adding backoff delay: ${backoffDelay / 1000}s`);
             await new Promise((resolve) => setTimeout(resolve, backoffDelay));
           }
-          
+
           throw new Error(`HTTP ${response.status} - Rate limited`);
         }
         throw new Error(`HTTP ${response.status}`);

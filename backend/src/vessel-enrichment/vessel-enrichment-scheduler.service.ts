@@ -27,9 +27,10 @@ export class VesselEnrichmentSchedulerService implements OnModuleInit {
   }
 
   /**
-   * Process queue every 10 minutes
+   * Process queue every 1 minute (non-blocking rate limiting)
    * This is the main worker that continuously enriches vessels
-   * Using conservative timing due to VesselFinder rate limits (2 req/min = 20 req per 10 min)
+   * Rate limit: 1 vessel per minute = 60 per hour = 1440 per day
+   * VesselFinder limit: ~2 requests per minute, we use 1 req/min for safety
    */
   @Cron('*/1 * * * *', {
     name: 'process-enrichment-queue',
@@ -40,10 +41,11 @@ export class VesselEnrichmentSchedulerService implements OnModuleInit {
     this.logger.debug('Starting scheduled queue processing');
 
     try {
-      // Process up to 2 items per 10 minutes = 12 per hour = 288 per day (conservative!)
-      const processed = await this.queueService.processQueue(2);
+      // Process only 1 item per minute (non-blocking approach)
+      // Natural rate limiting via cron scheduling instead of blocking delays
+      const processed = await this.queueService.processQueue(1);
       if (processed > 0) {
-        this.logger.log(`Scheduled processing completed: ${processed} vessels enriched`);
+        this.logger.log(`Scheduled processing completed: ${processed} vessel enriched`);
       }
     } catch (error: any) {
       this.logger.error(`Scheduled processing error: ${error.message}`, error.stack);

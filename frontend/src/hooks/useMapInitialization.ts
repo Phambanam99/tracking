@@ -12,7 +12,6 @@ import { Style, Fill, Stroke } from 'ol/style';
 import { fromLonLat } from 'ol/proj';
 import { useSystemSettingsStore } from '@/stores/systemSettingsStore';
 import { useUserPreferencesStore } from '@/stores/userPreferencesStore';
-import { getClusterDistance } from '../utils/mapUtils';
 import { useBaseMapLayer } from './map/useBaseMapLayer';
 import { VehicleLayerFactory } from './map/VehicleLayerPlugin';
 import { VehicleConfigFactory } from './map/vehicleConfigFactory';
@@ -75,7 +74,6 @@ export function useMapInitialization(props: UseMapInitializationProps) {
 
       // Create vehicle configurations
       const configOptions = {
-        clusterEnabled: settings.clusterEnabled,
         operatorColors: settings.aircraftOperatorColors,
         flagColors: settings.vesselFlagColors,
       };
@@ -134,14 +132,6 @@ export function useMapInitialization(props: UseMapInitializationProps) {
 
       // Zoom-based adjustments
       const updateByZoom = () => {
-        const z = map.getView().getZoom() ?? 6;
-        const dist = getClusterDistance(z);
-
-        if (settings.clusterEnabled) {
-          aircraftPlugin.updateClusterDistance(dist);
-          vesselPlugin.updateClusterDistance(dist);
-        }
-
         aircraftLayer.setVisible(true);
         vesselLayer.setVisible(true);
       };
@@ -185,7 +175,6 @@ export function useMapInitialization(props: UseMapInitializationProps) {
     aircraftLayerRef,
     vesselLayerRef,
     regionLayerRef,
-    settings.clusterEnabled,
     settings.minZoom,
     settings.maxZoom,
     settings.aircraftOperatorColors,

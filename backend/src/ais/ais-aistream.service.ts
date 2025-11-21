@@ -58,6 +58,11 @@ export class AisAistreamService implements OnModuleInit, OnModuleDestroy {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private disposed = false;
 
+  // Connection limits
+  private readonly MAX_RECONNECTION_ATTEMPTS = 20;
+  private reconnectionAttempts = 0;
+  private readonly MAX_RECONNECT_DELAY = 60000; // 60 seconds max delay
+
   constructor() {
     // Override logger methods to disable logging
     this.logger.log = () => {};
@@ -134,6 +139,8 @@ export class AisAistreamService implements OnModuleInit, OnModuleDestroy {
       this.ws.on('open', () => {
         this.logger.log('✅ AISStream.io WebSocket CONNECTED');
         this.logger.log('📩 Sending subscription...');
+        // Reset reconnection attempts on successful connection
+        this.reconnectionAttempts = 0;
         this.subscribe();
       });
 
@@ -298,6 +305,7 @@ export class AisAistreamService implements OnModuleInit, OnModuleDestroy {
    * Disconnect from WebSocket
    */
   private disconnect() {
+    // Defensive cleanup: clear timer before setting to null
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -311,13 +319,36 @@ export class AisAistreamService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Schedule reconnection with exponential backoff
+   * Schedule reconnection with exponential backoff and max attempts limit
    */
   private scheduleReconnect() {
     if (this.disposed || !this.cfg.AISTREAM_ENABLED) return;
 
-    const delay = Math.min(5000 * Math.pow(2, Math.min(this.metrics.reconnects, 5)), 60000);
-    this.logger.log(`Scheduling AISStream.io reconnect in ${delay}ms`);
+    // Check max reconnection attempts
+    if (this.reconnectionAttempts >= this.MAX_RECONNECTION_ATTEMPTS) {
+      this.logger.error(
+        `Max reconnection attempts (${this.MAX_RECONNECTION_ATTEMPTS}) reached. Stopping AISStream.io reconnection.`,
+      );
+      return;
+    }
+
+    this.reconnectionAttempts++;
+
+    // Exponential backoff with max delay cap
+    const delay = Math.min(
+      5000 * Math.pow(2, Math.min(this.reconnectionAttempts, 5)),
+      this.MAX_RECONNECT_DELAY,
+    );
+
+    this.logger.log(
+      `Scheduling AISStream.io reconnect in ${delay}ms (attempt ${this.reconnectionAttempts}/${this.MAX_RECONNECTION_ATTEMPTS})`,
+    );
+
+    // Defensive cleanup: clear existing timer before creating new one
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
 
     this.reconnectTimer = setTimeout(() => {
       this.metrics.reconnects++;

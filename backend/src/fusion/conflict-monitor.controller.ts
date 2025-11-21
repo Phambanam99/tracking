@@ -26,17 +26,14 @@ export class ConflictMonitorController {
   }
 
   @Get('range')
-  getConflictsByTimeRange(
-    @Query('start') start: string,
-    @Query('end') end: string,
-  ) {
+  getConflictsByTimeRange(@Query('start') start: string, @Query('end') end: string) {
     const startTime = new Date(start);
     const endTime = new Date(end);
-    
+
     if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
       throw new Error('Invalid date format. Use ISO format.');
     }
-    
+
     return this.conflictMonitor.getConflictsByTimeRange(startTime, endTime);
   }
 

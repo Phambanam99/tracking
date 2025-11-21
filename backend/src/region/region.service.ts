@@ -192,10 +192,14 @@ export class RegionService {
     latitude: number,
     longitude: number,
   ) {
+    console.log(`🔍 Processing position update for ${objectType} #${objectId} at [${latitude}, ${longitude}]`);
+    
     // Optimization: Check if there are any active regions first
     const regionCount = await this.prisma.region.count({
       where: { isActive: true },
     });
+
+    console.log(`📊 Found ${regionCount} active regions`);
 
     // Skip if no active regions
     if (regionCount === 0) {
@@ -285,6 +289,8 @@ export class RegionService {
 
       // Create alert if needed
       if (shouldCreateAlert && alertType) {
+        console.log(`🚨 Creating ${alertType} alert for ${objectType} #${objectId} in region "${region.name}"`);
+        
         const alertData = await this.prisma.regionAlert.create({
           data: {
             regionId: region.id,
@@ -302,6 +308,8 @@ export class RegionService {
           },
         });
 
+        console.log(`✅ Alert created and broadcasting via Redis:`, alertData);
+        
         // Broadcast alert via Redis/WebSocket
         await this.redisService.publish('region:alert', JSON.stringify(alertData));
       }

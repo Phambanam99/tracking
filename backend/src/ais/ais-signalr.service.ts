@@ -104,15 +104,15 @@ export class AisSignalrService implements OnModuleInit, OnModuleDestroy {
       clearTimeout(this.pendingNoEventTimer);
       this.pendingNoEventTimer = null;
     }
-    
+
     // Complete all subjects to release memory
     this.start$.complete();
     this.data$.complete();
     this.end$.complete();
-    
+
     // Disconnect SignalR
     await this.disconnect();
-    
+
     this.logger.log('AisSignalrService destroyed, all resources cleaned up');
   }
 
@@ -197,14 +197,14 @@ export class AisSignalrService implements OnModuleInit, OnModuleDestroy {
           // this.logger.debug(`First item sample: ${JSON.stringify(sample)}`);
         }
       }
-      
+
       // Memory protection: limit batch size to prevent memory overflow
       const MAX_BATCH_SIZE = 10000;
       if (len > MAX_BATCH_SIZE) {
         this.logger.warn(`QueryData batch too large (${len}), truncating to ${MAX_BATCH_SIZE}`);
         data = data.slice(0, MAX_BATCH_SIZE);
       }
-      
+
       // this.logger.log(`QueryData batch: ${len}`);
       this.data$.next({ state: QueryResultState.Query, data: data ?? [] });
       this.metrics.queryDataBatches++;
@@ -341,7 +341,13 @@ export class AisSignalrService implements OnModuleInit, OnModuleDestroy {
     this.metrics.queryApiPosts++;
     this.metrics.lastQueryPostAt = Date.now();
     const timeoutMs = Number(process.env.AIS_QUERY_EVENT_TIMEOUT_MS || 10000);
-    if (this.pendingNoEventTimer) clearTimeout(this.pendingNoEventTimer);
+
+    // Defensive cleanup: clear existing timer before creating new one
+    if (this.pendingNoEventTimer) {
+      clearTimeout(this.pendingNoEventTimer);
+      this.pendingNoEventTimer = null;
+    }
+
     this.pendingNoEventTimer = setTimeout(() => {
       // If no event has arrived since this POST, log diagnostic
       if (this.metrics.lastEventAt < this.metrics.lastQueryPostAt) {
@@ -359,13 +365,22 @@ export class AisSignalrService implements OnModuleInit, OnModuleDestroy {
       if (this.autoStarted) {
         this.logger.log('AIS auto trigger disabled by config; clearing interval.');
       }
-      if (this.autoTimer) clearInterval(this.autoTimer);
-      this.autoTimer = null;
+      // Defensive cleanup: clear existing timer before setting to null
+      if (this.autoTimer) {
+        clearInterval(this.autoTimer);
+        this.autoTimer = null;
+      }
       this.autoStarted = false;
       return;
     }
     const interval = (this.cfg as any).AIS_AUTO_TRIGGER_INTERVAL_MS || 15000;
-    if (this.autoTimer) clearInterval(this.autoTimer);
+
+    // Defensive cleanup: always clear existing timer before creating new one
+    if (this.autoTimer) {
+      clearInterval(this.autoTimer);
+      this.autoTimer = null;
+    }
+
     this.logger.log(`AIS auto trigger (re)initialized every ${interval}ms`);
     const usingLastUpdateTime = (this.cfg as any).AIS_USING_LAST_UPDATE_TIME;
     if (!this.triggering && this.connection?.connectionId) {

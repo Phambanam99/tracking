@@ -18,8 +18,8 @@ export class UserService {
     lastName?: string;
     role?: UserRole;
   }) {
-    // Hash password
-    const hashedPassword = await bcrypt.hash(data.password, 12);
+    // Hash password with 13 rounds for enhanced security
+    const hashedPassword = await bcrypt.hash(data.password, 13);
 
     const user = await this.prisma.user.create({
       data: {

@@ -81,7 +81,7 @@ export function useMapInitialization(
       const regionSource = new VectorSource();
 
       // Enable/disable clustering via env (default: enabled)
-      const clusterEnabled = settings.clusterEnabled;
+      var clusterEnabled = settings.clusterEnabled;
 
       // Optimized clusters for large datasets (only if enabled)
       const aircraftCluster = clusterEnabled
@@ -425,7 +425,7 @@ export function useMapInitialization(
         }
         const zoom = getZoomFromResolution(resolution);
         const clusterMembers = feature.get('features') as any[] | undefined;
-
+        clusterEnabled = false;
         if (clusterEnabled) {
           if (!clusterMembers || !Array.isArray(clusterMembers)) {
             console.warn(

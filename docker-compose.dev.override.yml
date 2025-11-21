@@ -1,0 +1,63 @@
+# Docker Compose Override for Development
+# This file provides development-friendly settings
+# Use: docker-compose -f docker-compose.prod.yml -f docker-compose.dev.override.yml up
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: builder  # Use builder stage for faster rebuilds
+    volumes:
+      - ./backend/src:/app/src:ro  # Mount source code for hot reload (read-only)
+      - ./backend/uploads:/app/uploads
+    environment:
+      NODE_ENV: development
+    command: npm run start:dev  # Use development mode with watch
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: builder
+    volumes:
+      - ./frontend/src:/app/src:ro  # Mount source code for hot reload (read-only)
+      - ./frontend/public:/app/public:ro
+    environment:
+      NODE_ENV: development
+    command: npm run dev
+
+  # Enable admin tools for development
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: tracking-pgadmin-dev
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data_dev:/var/lib/pgadmin
+    depends_on:
+      - db
+    networks:
+      - tracking-network
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: tracking-redisinsight-dev
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight_data_dev:/data
+    depends_on:
+      - redis
+    networks:
+      - tracking-network
+
+volumes:
+  pgadmin_data_dev:
+  redisinsight_data_dev:

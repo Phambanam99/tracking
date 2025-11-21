@@ -54,7 +54,7 @@ export class CircuitBreaker {
       if (Date.now() - this.lastFailureTime > this.resetTimeout) {
         this.state = CircuitBreakerState.HALF_OPEN;
         this.successCount = 0;
-        console.log(`[${this.name}] Circuit HALF_OPEN - Testing recovery`);
+       
       } else {
         throw new Error(`Circuit breaker is OPEN for ${this.name}`);
       }

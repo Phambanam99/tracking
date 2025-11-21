@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bull';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -25,6 +27,26 @@ import aisConfig from './config/ais.config';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60000, // 60 seconds
+          limit: 10, // 10 requests per 60 seconds globally
+        },
+      ],
+    }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        redis: {
+          host: configService.get<string>('REDIS_HOST', 'localhost'),
+          port: configService.get<number>('REDIS_PORT', 6379),
+          password: configService.get<string>('REDIS_PASSWORD'),
+          db: configService.get<number>('REDIS_DB', 0),
+        },
+      }),
+      inject: [ConfigService],
+    }),
     PrismaModule,
     AircraftModule,
     VesselModule,

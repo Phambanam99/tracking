@@ -1,0 +1,8 @@
+# Add production environment file to gitignore
+.env.prod
+
+# Data directories
+data/
+backups/*.sql
+backups/*.sql.gz
+backups/*.zip

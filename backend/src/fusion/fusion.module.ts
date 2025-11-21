@@ -9,8 +9,21 @@ import { RedisModule } from '../redis/redis.module';
 
 @Module({
   imports: [RedisModule],
-  providers: [VesselFusionService, AircraftFusionService, LastPublishedService, DataValidationService, ConflictMonitorService, ConflictMonitorController],
-  exports: [VesselFusionService, AircraftFusionService, LastPublishedService, DataValidationService, ConflictMonitorService],
+  providers: [
+    VesselFusionService,
+    AircraftFusionService,
+    LastPublishedService,
+    DataValidationService,
+    ConflictMonitorService,
+    ConflictMonitorController,
+  ],
+  exports: [
+    VesselFusionService,
+    AircraftFusionService,
+    LastPublishedService,
+    DataValidationService,
+    ConflictMonitorService,
+  ],
   controllers: [ConflictMonitorController],
 })
 export class FusionModule {}

@@ -523,14 +523,22 @@ export default function MapComponentClustered() {
     const active = activeFilters;
     if (!active.showAircraft) return [];
 
-    let targetAircrafts = aircrafts;
+    // Filter aircraft with signal in last 10 minutes (ADSB real-time requirement)
+    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+    const recentAircrafts = aircrafts.filter(aircraft => {
+      if (!aircraft.lastPosition?.timestamp) return false;
+      const lastUpdate = new Date(aircraft.lastPosition.timestamp).getTime();
+      return lastUpdate >= tenMinutesAgo;
+    });
+
+    let targetAircrafts = recentAircrafts;
 
     // Apply view mode filter first
     if (aircraftViewMode === 'tracked') {
       const trackedAircraftIds = trackedItems
         .filter((item) => item.type === 'aircraft')
         .map((item) => item.data.id);
-      targetAircrafts = aircrafts.filter((aircraft) =>
+      targetAircrafts = recentAircrafts.filter((aircraft) =>
         trackedAircraftIds.includes(aircraft.id),
       );
     }

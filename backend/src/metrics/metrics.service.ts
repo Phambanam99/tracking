@@ -93,7 +93,7 @@ export class MetricsService {
       }),
       // Redis
       this.countRedisKeys('ais:vessel:*'),
-      this.countRedisKeys('aircraft:*'),
+      this.countRedisAircraft(), // Changed from pattern to hash count
       this.getRedisMemory(),
     ]);
 
@@ -126,7 +126,8 @@ export class MetricsService {
    */
   private async countRedisKeys(pattern: string): Promise<number> {
     try {
-      const client = this.redis.getClient();
+      // Use client without prefix for key counting
+      const client = this.redis.getClientWithoutPrefix();
       const keys = await client.keys(pattern);
       return keys.length;
     } catch (error) {
@@ -136,11 +137,26 @@ export class MetricsService {
   }
 
   /**
+   * Count aircraft in Redis Hash (adsb:current_flights)
+   */
+  private async countRedisAircraft(): Promise<number> {
+    try {
+      const client = this.redis.getClientWithoutPrefix();
+      const count = await client.hlen('adsb:current_flights');
+      return count;
+    } catch (error) {
+      this.logger.warn(`Failed to count aircraft in Redis: ${error.message}`);
+      return 0;
+    }
+  }
+
+  /**
    * Get Redis memory usage
    */
   private async getRedisMemory(): Promise<string> {
     try {
-      const client = this.redis.getClient();
+      // Use client without prefix for Redis info
+      const client = this.redis.getClientWithoutPrefix();
       const info = await client.info('memory');
       const match = info.match(/used_memory_human:([^\r\n]+)/);
       return match ? match[1] : 'unknown';

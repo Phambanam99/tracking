@@ -4,3 +4,5 @@ export * from './vessel-enrichment-queue.service';
 export * from './vessel-enrichment-scheduler.service';
 export * from './vessel-enrichment.controller';
 export * from './interfaces/vessel-data-source.interface';
+export * from './data-sources/marinetraffic-scraper';
+export * from './data-sources/vesselfinder-scraper';

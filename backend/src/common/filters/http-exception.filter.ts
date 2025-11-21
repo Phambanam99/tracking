@@ -13,13 +13,35 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const status =
       exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message =
-      exception instanceof HttpException
-        ? (exception.getResponse() as any)
-        : 'Internal server error';
+    const isDevelopment = process.env.NODE_ENV === 'development';
+
+    // Extract message safely
+    let message: any;
+    if (exception instanceof HttpException) {
+      message = exception.getResponse();
+    } else if (exception instanceof Error) {
+      message = isDevelopment ? exception.message : 'Internal server error';
+    } else {
+      message = 'Internal server error';
+    }
 
     if (response && typeof response.setHeader === 'function' && !response.headersSent) {
       response.setHeader('X-API-Version', API_VERSION);
+    }
+
+    // Build error payload with conditional details
+    const errorPayload: any = {
+      success: false,
+      error: typeof message === 'string' ? { message } : message,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Only include sensitive information in development
+    if (isDevelopment) {
+      errorPayload.path = request?.url;
+      if (exception instanceof Error && exception.stack) {
+        errorPayload.stack = exception.stack;
+      }
     }
 
     // If this is an SSE request and headers/body may already be streaming, write as an SSE error event
@@ -30,12 +52,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
           response.setHeader('Cache-Control', 'no-cache');
           response.setHeader('Connection', 'keep-alive');
         }
-        const errorPayload = {
-          success: false,
-          error: typeof message === 'string' ? { message } : message,
-          path: request?.url,
-          timestamp: new Date().toISOString(),
-        };
         response.write(`event: error\n`);
         response.write(`id: ${Date.now()}\n`);
         response.write(`data: ${JSON.stringify(errorPayload)}\n\n`);
@@ -49,11 +65,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    response.status(status).json({
-      success: false,
-      error: typeof message === 'string' ? { message } : message,
-      path: request?.url,
-      timestamp: new Date().toISOString(),
-    });
+    response.status(status).json(errorPayload);
   }
 }

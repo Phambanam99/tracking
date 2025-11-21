@@ -24,6 +24,7 @@ import {
   Wind,
   Cloud,
   Droplets,
+  Gauge,
 } from 'lucide-react';
 import api from '@/services/apiClient';
 import { useSystemSettingsStore } from '@/stores/systemSettingsStore';
@@ -358,6 +359,18 @@ export default function LayersPanel({
                             name="weather-layer"
                             checked={activeLayer === 'clouds'}
                             onChange={() => setActiveLayer('clouds')}
+                          />
+                        </label>
+                        <label className="flex items-center justify-between bg-white rounded px-2 py-1.5 cursor-pointer hover:bg-sky-50">
+                          <div className="flex items-center gap-2 text-xs">
+                            <Gauge className="w-3.5 h-3.5 text-purple-600" />
+                            <span>Áp suất</span>
+                          </div>
+                          <input
+                            type="radio"
+                            name="weather-layer"
+                            checked={activeLayer === 'pressure'}
+                            onChange={() => setActiveLayer('pressure')}
                           />
                         </label>
                       </div>

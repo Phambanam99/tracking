@@ -16,7 +16,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (searchParams.get('expired') === 'true') {
       setTokenExpiredMsg(true);
-      console.log('[LoginPage] User redirected due to token expiration');
+      // console.log('[LoginPage] User redirected due to token expiration');
     }
   }, [searchParams]);
 

@@ -193,7 +193,7 @@ interface MapState {
 }
 
 const defaultFilters: MapFilters = {
-  showAircraft: false,
+  showAircraft: true,
   showVessels: true,
   selectedCategories: [],
   aircraft: {
@@ -216,7 +216,7 @@ export const useMapStore = create<MapState>()(
       appliedFilters: null,
       currentUserId: 'guest',
       filtersByUser: {},
-      activeFilterTab: 'vessel',
+      activeFilterTab: 'aircraft',
       aircraftViewMode: 'all',
       vesselViewMode: 'all',
       showPredictedVessels: true, // Default: show predicted vessels

@@ -6,7 +6,6 @@
 import { VehicleTypeConfig } from './types';
 
 interface ConfigFactoryOptions {
-  clusterEnabled: boolean;
   operatorColors: Record<string, string>;
   flagColors: Record<string, string>;
 }
@@ -19,15 +18,14 @@ export function createAircraftConfig(options: ConfigFactoryOptions): VehicleType
     type: 'aircraft',
     iconPath: './aircraft-icon.svg',
     defaultColor: '#2563eb', // Blue
-    clusterEnabled: options.clusterEnabled,
-    clusterDistance: 60,
-    minClusterDistance: 20,
     getColor: (operator?: string) => {
       if (!operator) return '#2563eb';
       return options.operatorColors[operator.toUpperCase()] || '#2563eb';
     },
     getHeading: (data: any) => {
-      return data?.lastPosition?.heading || 0;
+      // Check both heading and bearing fields, default to 0 if missing
+      const heading = data?.lastPosition?.heading ?? data?.lastPosition?.bearing ?? 0;
+      return typeof heading === 'number' && !isNaN(heading) ? heading : 0;
     },
     getIdentifier: (data: any) => {
       return data?.operator as string | undefined;
@@ -43,15 +41,14 @@ export function createVesselConfig(options: ConfigFactoryOptions): VehicleTypeCo
     type: 'vessel',
     iconPath: './vessel-icon.svg',
     defaultColor: '#eab308', // Yellow
-    clusterEnabled: options.clusterEnabled,
-    clusterDistance: 60,
-    minClusterDistance: 20,
     getColor: (flag?: string) => {
       if (!flag) return '#eab308';
       return options.flagColors[flag.toUpperCase()] || '#eab308';
     },
     getHeading: (data: any) => {
-      return data?.lastPosition?.heading || 0;
+      // Check both heading and bearing fields, default to 0 if missing
+      const heading = data?.lastPosition?.heading ?? data?.lastPosition?.bearing ?? 0;
+      return typeof heading === 'number' && !isNaN(heading) ? heading : 0;
     },
     getIdentifier: (data: any) => {
       return data?.flag as string | undefined;
@@ -67,9 +64,6 @@ export function createDroneConfig(options: ConfigFactoryOptions): VehicleTypeCon
     type: 'drone',
     iconPath: './drone-icon.svg',
     defaultColor: '#8b5cf6', // Purple
-    clusterEnabled: options.clusterEnabled,
-    clusterDistance: 40,
-    minClusterDistance: 15,
     getColor: (operator?: string) => {
       if (!operator) return '#8b5cf6';
       return options.operatorColors[operator.toUpperCase()] || '#8b5cf6';
@@ -91,9 +85,6 @@ export function createSatelliteConfig(options: ConfigFactoryOptions): VehicleTyp
     type: 'satellite',
     iconPath: './satellite-icon.svg',
     defaultColor: '#ec4899', // Pink
-    clusterEnabled: false, // Satellites typically don't cluster
-    clusterDistance: 0,
-    minClusterDistance: 0,
     getColor: (operator?: string) => {
       if (!operator) return '#ec4899';
       return options.operatorColors[operator.toUpperCase()] || '#ec4899';

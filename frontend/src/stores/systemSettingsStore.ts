@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type SystemSettings = {
-  clusterEnabled: boolean;
   minZoom: number;
   maxZoom: number;
   signalStaleMinutes: number;
@@ -22,7 +21,6 @@ export type SystemSettings = {
 };
 
 const defaultSettings: SystemSettings = {
-  clusterEnabled: true,
   minZoom: 4,
   maxZoom: 16,
   signalStaleMinutes: 10,

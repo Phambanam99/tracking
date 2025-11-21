@@ -36,12 +36,19 @@ export class AdminService {
 
   async getSettings(): Promise<SystemSettings> {
     try {
+      // Try Redis cache first for faster response
+      const cached = await this.redis.get(SETTINGS_KEY);
+      if (cached) {
+        // console.log('[AdminService] ✓ Settings from Redis cache');
+        return JSON.parse(cached) as SystemSettings;
+      }
+
       // DB is the source of truth
       const db = await this.prisma.systemSettings.findUnique({ where: { id: 1 } });
 
       // If no settings record exists, create one with defaults
       if (!db) {
-        console.log('[AdminService] No settings found, creating default...');
+        // console.log('[AdminService] No settings found, creating default...');
         const created = await this.prisma.systemSettings.create({
           data: {
             id: 1,
@@ -54,7 +61,7 @@ export class AdminService {
             updatedAt: new Date(),
           },
         });
-        console.log('[AdminService] ✓ Default settings created');
+        // console.log('[AdminService] ✓ Default settings created');
 
         const merged = { ...DEFAULT_SETTINGS, ...(created as any) } as SystemSettings;
         await this.redis.set(SETTINGS_KEY, JSON.stringify(merged));
@@ -74,8 +81,9 @@ export class AdminService {
       };
 
       const merged = { ...DEFAULT_SETTINGS, ...fromDb } as SystemSettings;
-      // Keep Redis cache updated (optional)
+      // Keep Redis cache updated
       await this.redis.set(SETTINGS_KEY, JSON.stringify(merged));
+      // console.log('[AdminService] ✓ Settings from DB (cached to Redis)');
       return merged;
     } catch (error) {
       console.error('[AdminService] Error fetching settings:', error);

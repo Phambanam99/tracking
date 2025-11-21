@@ -59,54 +59,33 @@ export function useMapClickHandler({
           if (!regionFeature) {
             const clickedFeature = features[0];
 
-            // Check for non-clustered single feature
-            const directAircraft = clickedFeature.get('aircraft');
-            const directVessel = clickedFeature.get('vessel');
-            if (directAircraft || directVessel) {
-              const featureData = directAircraft
-                ? { aircraft: directAircraft }
-                : { vessel: directVessel };
-              const mapElement = mapRef.current;
-              if (mapElement) {
-                const mapRect = mapElement.getBoundingClientRect();
-                const viewportX = mapRect.left + event.pixel[0];
-                const viewportY = mapRect.top + event.pixel[1];
-                showPopup(featureData, [viewportX, viewportY]);
-              }
+            // Get aircraft or vessel data directly (no clustering)
+            const aircraft = clickedFeature.get('aircraft');
+            const vessel = clickedFeature.get('vessel');
+            
+            // Debug logging
+            if (!aircraft && !vessel) {
+              console.warn('[MapClick] Feature has no aircraft or vessel data:', {
+                properties: clickedFeature.getProperties(),
+                keys: clickedFeature.getKeys(),
+              });
               return;
             }
 
-            // Handle clustered features
-            const clusteredFeatures = clickedFeature.get('features');
-            if (
-              clusteredFeatures &&
-              Array.isArray(clusteredFeatures) &&
-              clusteredFeatures.length === 1
-            ) {
-              const feature = clusteredFeatures[0];
-              const aircraft = feature.get('aircraft');
-              const vessel = feature.get('vessel');
-              const featureData = aircraft ? { aircraft } : { vessel };
-              const mapElement = mapRef.current;
-              if (mapElement) {
-                const mapRect = mapElement.getBoundingClientRect();
-                const viewportX = mapRect.left + event.pixel[0];
-                const viewportY = mapRect.top + event.pixel[1];
-                showPopup(featureData, [viewportX, viewportY]);
-              }
-            } else if (
-              clusteredFeatures &&
-              Array.isArray(clusteredFeatures) &&
-              clusteredFeatures.length > 1
-            ) {
-              const geom = clickedFeature.getGeometry() as any;
-              if (geom && typeof geom.getCoordinates === 'function') {
-                const coord = geom.getCoordinates();
-                const view = mapInstance.getView();
-                const current = view.getZoom() ?? 6;
-                const target = Math.min(current + 2, 14);
-                view.animate({ center: coord, zoom: target, duration: 300 });
-              }
+            const featureData = aircraft ? { aircraft } : { vessel };
+            
+            // More debug logging
+            console.log('[MapClick] Clicked feature:', {
+              type: aircraft ? 'aircraft' : 'vessel',
+              data: featureData,
+            });
+            
+            const mapElement = mapRef.current;
+            if (mapElement) {
+              const mapRect = mapElement.getBoundingClientRect();
+              const viewportX = mapRect.left + event.pixel[0];
+              const viewportY = mapRect.top + event.pixel[1];
+              showPopup(featureData, [viewportX, viewportY]);
             }
           }
         } else {

@@ -18,6 +18,7 @@ export type WeatherLayerType =
   | 'wind'
   | 'precipitation'
   | 'clouds'
+  | 'pressure'
   | 'none';
 
 interface WeatherState {

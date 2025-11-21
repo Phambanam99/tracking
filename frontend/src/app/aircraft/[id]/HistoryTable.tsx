@@ -32,7 +32,11 @@ export default function HistoryTable({ aircraftId }: { aircraftId: number }) {
           `/aircrafts/${aircraftId}/history?${params.toString()}`,
         );
         const positions = Array.isArray(data.positions) ? data.positions : [];
-        setRows(positions);
+        // Sort positions by timestamp descending (newest first)
+        const sortedPositions = positions.sort((a: PositionRow, b: PositionRow) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+        setRows(sortedPositions);
         setTotal(typeof data.total === 'number' ? data.total : positions.length);
       } catch (e) {
         // ignore
@@ -71,8 +75,8 @@ export default function HistoryTable({ aircraftId }: { aircraftId: number }) {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200 text-sm">
-            {rows.map((r) => (
-              <tr key={r.id}>
+            {rows.map((r, index) => (
+              <tr key={`${r.id}-${index}`}>
                 <td className="px-3 py-2 whitespace-nowrap">
                   {new Date(r.timestamp).toLocaleString('vi-VN')}
                 </td>

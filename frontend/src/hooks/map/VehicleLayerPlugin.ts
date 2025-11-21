@@ -5,7 +5,6 @@
 
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
-import Cluster from 'ol/source/Cluster';
 import { Style } from 'ol/style';
 import Map from 'ol/Map';
 import { IMapLayerPlugin, VehicleTypeConfig } from './types';
@@ -30,7 +29,6 @@ export class VehicleLayerPlugin implements IMapLayerPlugin {
   private config: VehicleTypeConfig;
   private styleFactory: VehicleLayerPluginConfig['styleFactory'];
   private source: VectorSource;
-  private clusterSource?: Cluster;
   private layer?: VectorLayer<any>;
   private map?: Map;
 
@@ -42,15 +40,6 @@ export class VehicleLayerPlugin implements IMapLayerPlugin {
 
     // Create source
     this.source = new VectorSource();
-
-    // Create cluster if enabled
-    if (config.vehicleConfig.clusterEnabled) {
-      this.clusterSource = new Cluster({
-        source: this.source,
-        distance: config.vehicleConfig.clusterDistance,
-        minDistance: config.vehicleConfig.minClusterDistance,
-      });
-    }
   }
 
   initialize(map: Map): void {
@@ -61,7 +50,7 @@ export class VehicleLayerPlugin implements IMapLayerPlugin {
     const styleFunction = this.createStyleFunction();
 
     this.layer = new VectorLayer({
-      source: this.clusterSource ?? this.source,
+      source: this.source,
       style: styleFunction,
       declutter: false,
       renderBuffer: 32,
@@ -83,16 +72,6 @@ export class VehicleLayerPlugin implements IMapLayerPlugin {
   destroy(): void {
     this.layer?.setSource(null as any);
     this.source.clear();
-    this.clusterSource?.clear();
-  }
-
-  /**
-   * Update cluster distance dynamically
-   */
-  updateClusterDistance(distance: number): void {
-    if (this.clusterSource) {
-      this.clusterSource.setDistance(distance);
-    }
   }
 
   /**
@@ -101,45 +80,8 @@ export class VehicleLayerPlugin implements IMapLayerPlugin {
   private createStyleFunction(): (feature: any, resolution: number) => Style {
     return (feature, resolution) => {
       const zoom = getZoomFromResolution(resolution);
-      const clusterMembers = feature.get('features') as any[] | undefined;
-
-      // Clustered rendering
-      if (this.config.clusterEnabled && clusterMembers) {
-        if (!Array.isArray(clusterMembers)) return new Style();
-
-        const size = clusterMembers.length;
-
-        // Multiple items in cluster
-        if (size > 1) {
-          const bucket = Math.min(99, Math.max(2, size));
-          const showText = zoom > 6;
-          return this.styleFactory.createClusterStyle({
-            sizeBucket: bucket,
-            withText: showText,
-            color: this.config.defaultColor,
-            type: this.config.type,
-          });
-        }
-
-        // Single item - extract data
-        const data = clusterMembers[0]?.get(this.config.type);
-        if (!data) return new Style();
-
-        // Simplified rendering at low zoom
-        if (shouldSimplifyIcons(zoom)) {
-          const identifier = this.config.getIdentifier(data);
-          const color = this.config.getColor(identifier);
-          return this.styleFactory.createDotStyle(color);
-        }
-
-        // Full icon rendering
-        const heading = this.config.getHeading(data);
-        const identifier = this.config.getIdentifier(data);
-        return this.styleFactory.createIconStyle(heading, identifier);
-      }
-
-      // Non-clustered rendering
       const data = feature.get(this.config.type);
+      
       if (!data) return new Style();
 
       if (shouldSimplifyIcons(zoom)) {

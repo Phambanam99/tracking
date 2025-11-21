@@ -80,23 +80,23 @@ function selectBestFieldGeneric<T extends Record<string, any>, K extends keyof T
 
     if (isSignificant) {
       // Log to console for backward compatibility
-      console.warn(
-        `[FieldFusion] Conflict detected for "${String(field)}": ${JSON.stringify(
-          candidates.map((c) => ({
-            source: c.source,
-            value: c.value,
-            timestamp: new Date(c.timestamp).toISOString(),
-            age: ((now - c.timestamp) / 1000).toFixed(1) + 's'
-          })),
-        )}`,
-      );
+      // console.warn(
+      //   `[FieldFusion] Conflict detected for "${String(field)}": ${JSON.stringify(
+      //     candidates.map((c) => ({
+      //       source: c.source,
+      //       value: c.value,
+      //       timestamp: new Date(c.timestamp).toISOString(),
+      //       age: ((now - c.timestamp) / 1000).toFixed(1) + 's'
+      //     })),
+      //   )}`,
+      // );
 
       // Also record in conflict monitor if available
       if (conflictMonitor) {
         conflictMonitor.recordConflict(
           String(field),
-          candidates.map(c => ({ source: c.source, value: c.value, timestamp: c.timestamp })),
-          mmsi
+          candidates.map((c) => ({ source: c.source, value: c.value, timestamp: c.timestamp })),
+          mmsi,
         );
       }
     }

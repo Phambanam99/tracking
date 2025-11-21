@@ -95,6 +95,17 @@ export function useViewportDataLoader(params: {
           // 2. { data: [ ... ] }
           // 3. { data: { data: [ ... ], count, ... } }
           // 4. { success: true, data: { data: [ ... ] } }
+          // Simple string hash function to convert hexident to stable numeric ID
+          const hashString = (str: string): number => {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+              const char = str.charCodeAt(i);
+              hash = ((hash << 5) - hash) + char;
+              hash = hash & hash; // Convert to 32bit integer
+            }
+            return Math.abs(hash);
+          };
+
           const unwrapArray = (raw: any): any[] => {
             
             if (!raw) return [];
@@ -113,13 +124,13 @@ export function useViewportDataLoader(params: {
                 .map((a: any) =>
                   a && typeof a.longitude === 'number' && typeof a.latitude === 'number'
                     ? {
-                        // Prefer stable backend id; fallback to aircraftId; if absent derive from hash of lon/lat/time to avoid collisions
+                        // Prefer stable backend id; fallback to aircraftId; if absent hash hexident/flightId to numeric ID
                         id:
                           a.id ??
                           a.aircraftId ??
-                          (typeof a.flightId === 'string' && a.flightId
-                            ? a.flightId
-                            : `${a.longitude}:${a.latitude}:${a.timestamp || ''}`),
+                          (a.hexident ? hashString(a.hexident) : 
+                           a.flightId ? hashString(a.flightId) :
+                           hashString(`${a.longitude}:${a.latitude}`)),
                         flightId: a.flightId ?? '',
                         createdAt: new Date(a.timestamp ?? Date.now()),
                         updatedAt: new Date(a.timestamp ?? Date.now()),
@@ -141,13 +152,13 @@ export function useViewportDataLoader(params: {
                 .map((v: any) =>
                   v && typeof v.longitude === 'number' && typeof v.latitude === 'number'
                     ? {
-                        // Use backend id or vesselId; fallback to numeric MMSI if parseable; else composite key
+                        // Use backend id or vesselId; fallback to numeric MMSI if parseable; else hash mmsi or coords
                         id:
                           v.id ??
                           v.vesselId ??
                           (v.mmsi && /^\d+$/.test(v.mmsi)
                             ? parseInt(v.mmsi, 10)
-                            : `${v.mmsi || ''}:${v.longitude}:${v.latitude}`),
+                            : hashString(v.mmsi || `${v.longitude}:${v.latitude}`)),
                         mmsi: v.mmsi ?? '',
                         vesselName: v.vesselName ?? v.name ?? undefined,
                         createdAt: new Date(v.timestamp ?? Date.now()),

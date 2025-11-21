@@ -18,18 +18,25 @@ export class AircraftService {
 
   /**
    * Find all aircraft with their last known position (legacy method)
+   * IMPORTANT: Only returns aircraft with ADSB signal in last 10 minutes
    */
   async findAllWithLastPosition(
     bbox?: [number, number, number, number],
     zoom?: number,
     limit?: number,
   ) {
+    // Aircraft: show if signal within last 2 hours
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
     const positionWhere = bbox
       ? {
           longitude: { gte: bbox[0], lte: bbox[2] },
           latitude: { gte: bbox[1], lte: bbox[3] },
+          timestamp: { gte: twoHoursAgo }, // Last 2 hours
         }
-      : {};
+      : {
+          timestamp: { gte: twoHoursAgo }, // Last 2 hours
+        };
     // Derive default limit based on zoom (more coarse at low zoom)
     const derivedLimit =
       typeof limit === 'number' && limit > 0
@@ -43,16 +50,11 @@ export class AircraftService {
               : 50000; // Increased from 6000 to 50000 for high zoom
 
     const aircrafts = await this.prisma.aircraft.findMany({
-      where: bbox
-        ? {
-            positions: {
-              some: {
-                longitude: { gte: bbox[0], lte: bbox[2] },
-                latitude: { gte: bbox[1], lte: bbox[3] },
-              },
-            },
-          }
-        : {},
+      where: {
+        positions: {
+          some: positionWhere, // Must have at least one recent position
+        },
+      },
       include: {
         positions: {
           where: positionWhere,
@@ -287,12 +289,25 @@ export class AircraftService {
    * Add position using DTO
    */
   async addPositionWithDto(createPositionDto: CreateAircraftPositionDto) {
-    return await this.prisma.aircraftPosition.create({
+    const position = await this.prisma.aircraftPosition.create({
       data: {
         ...createPositionDto,
         source: createPositionDto.source || 'api', // Default to 'api' if not provided
       },
     });
+
+    // Trigger region alert processing
+    this.trackingService
+      .processAircraftPositionUpdate(
+        createPositionDto.aircraftId,
+        createPositionDto.latitude,
+        createPositionDto.longitude,
+      )
+      .catch((err) => {
+        console.error('❌ Error processing region alerts for aircraft:', err);
+      });
+
+    return position;
   }
 
   /**
@@ -309,7 +324,7 @@ export class AircraftService {
               lte: toDate,
             },
           },
-          orderBy: { timestamp: 'asc' },
+          orderBy: { timestamp: 'desc' },
           take: limit,
           skip: offset,
         },
@@ -351,7 +366,7 @@ export class AircraftService {
               lte: toDate,
             },
           },
-          orderBy: { timestamp: 'asc' },
+          orderBy: { timestamp: 'desc' },
           take: limit,
           skip: offset,
         },

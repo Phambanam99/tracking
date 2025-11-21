@@ -28,7 +28,7 @@ export class VesselEnrichmentQueueService {
       });
 
       if (existing) {
-        this.logger.debug(`MMSI ${mmsi} already in queue`);
+        // this.logger.debug(`MMSI ${mmsi} already in queue`);
         return;
       }
 
@@ -188,29 +188,31 @@ export class VesselEnrichmentQueueService {
   }
 
   /**
-   * Process queue continuously
+   * Process queue continuously (non-blocking version)
+   * Rate limiting is now handled by the scheduler (1 item per minute)
    */
   async processQueue(maxItems = 100): Promise<number> {
     this.logger.log(`Starting queue processing (max ${maxItems} items)`);
 
     let processedCount = 0;
 
-    for (let i = 0; i < maxItems; i++) {
-      const processed = await this.processNext();
-      if (!processed) {
-        break;
-      }
-      processedCount++;
-
-      // Add LARGE delay between items to respect VesselFinder rate limits (1 req/min = 60s between requests)
-      // Adding extra buffer to avoid blocking
-      if (i < maxItems - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 65000)); // 65 seconds between requests
-      }
+    // Process only one item at a time to respect rate limits
+    // The scheduler calls this method every 1 minute, providing natural rate limiting
+    const processed = await this.processNext();
+    if (processed) {
+      processedCount = 1;
+      this.logger.log(`Processed 1 item from queue`);
     }
 
-    this.logger.log(`Processed ${processedCount} items from queue`);
     return processedCount;
+  }
+
+  /**
+   * Process a single item from the queue (for manual processing)
+   * Use this method when you need to process one item immediately
+   */
+  async processSingleItem(): Promise<boolean> {
+    return await this.processNext();
   }
 
   /**

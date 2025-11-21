@@ -360,6 +360,16 @@ export class AisOrchestratorService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    // Reject timestamps from the future (allow 5 min clock skew)
+    const now = Date.now();
+    const fiveMinutes = 5 * 60 * 1000;
+    if (ts > now + fiveMinutes) {
+      this.logger.warn(
+        `Skipping persist: timestamp ${msg.ts} is ${Math.round((ts - now) / 60000)} minutes in the future`,
+      );
+      return;
+    }
+
     const score = scoreVessel(msg, Date.now());
 
     // Redis persistence with pipeline
@@ -381,11 +391,12 @@ export class AisOrchestratorService implements OnModuleInit, OnModuleDestroy {
 
   private async persistToRedis(msg: NormVesselMsg, mmsi: string, ts: number, score: number) {
     try {
-      // Use standard Redis commands (geoadd, hset, zadd)
+      // Use client without prefix for full control over key naming
+      const client = this.redis.getClientWithoutPrefix();
       const vesselKey = `${REDIS_KEY_VESSEL_PREFIX}${mmsi}`;
 
       // 1. Add to geo index for spatial queries
-      await this.redis.getClient().geoadd(REDIS_KEY_VESSELS_GEO, msg.lon, msg.lat, mmsi);
+      await client.geoadd(REDIS_KEY_VESSELS_GEO, msg.lon, msg.lat, mmsi);
 
       // 2. Store vessel details
       const vesselData = {
@@ -402,11 +413,11 @@ export class AisOrchestratorService implements OnModuleInit, OnModuleDestroy {
         name: msg.name || '',
       };
 
-      await this.redis.getClient().hmset(vesselKey, vesselData);
-      await this.redis.getClient().expire(vesselKey, REDIS_TTL_SECONDS);
+      await client.hmset(vesselKey, vesselData);
+      await client.expire(vesselKey, REDIS_TTL_SECONDS);
 
       // 3. Add to active vessels sorted set
-      await this.redis.getClient().zadd(REDIS_KEY_ACTIVE, ts, mmsi);
+      await client.zadd(REDIS_KEY_ACTIVE, ts, mmsi);
 
       this.logger.debug(`✓ Redis updated: ${mmsi}`);
     } catch (e: any) {

@@ -79,7 +79,7 @@ const MapPopup: React.FC<MapPopupProps> = ({
   const [currentPosition, setCurrentPosition] = useState<
     [number, number] | null
   >(null);
-  const [historyHours, setHistoryHours] = useState(24);
+  const [historyHours, setHistoryHours] = useState(240);
   const popupRef = useRef<HTMLDivElement>(null);
   const [images, setImages] = useState<string[]>([]);
   const [imgIndex, setImgIndex] = useState(0);
@@ -303,9 +303,11 @@ const MapPopup: React.FC<MapPopupProps> = ({
         return 'Invalid date';
       }
 
+      // Format in Vietnam timezone (UTC+7)
       return new Intl.DateTimeFormat('vi-VN', {
         dateStyle: 'short',
         timeStyle: 'medium',
+        timeZone: 'Asia/Ho_Chi_Minh', // Explicit timezone
       }).format(dateObj);
     } catch (error) {
       console.error('Error formatting date:', error, date);

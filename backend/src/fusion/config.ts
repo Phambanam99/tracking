@@ -5,6 +5,8 @@ export const FUSION_CONFIG = {
   SPEED_LIMIT_KN: 60,
   ALPHA: 0.25,
   BETA: 0.08,
+  MAX_EVENTS_PER_KEY: 30,
+  MAX_TRACKED_KEYS: 20000,
 } as const;
 
 export const SOURCE_WEIGHT = {

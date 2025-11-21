@@ -17,12 +17,6 @@ export interface VehicleTypeConfig {
   iconPath: string;
   /** Default color if no operator/flag color is specified */
   defaultColor: string;
-  /** Whether clustering is enabled */
-  clusterEnabled: boolean;
-  /** Base cluster radius */
-  clusterDistance: number;
-  /** Minimum cluster distance */
-  minClusterDistance: number;
   /** Color mapping function (operator/flag -> color) */
   getColor: (identifier?: string) => string;
   /** Heading extraction function */
@@ -89,7 +83,6 @@ export interface IMapLayerPlugin {
 export interface LayerFactoryConfig {
   vehicleConfig: VehicleTypeConfig;
   source: VectorSource;
-  clusterSource?: any; // Cluster source if clustering enabled
   styleFunction: (feature: any, resolution: number) => Style;
 }
 

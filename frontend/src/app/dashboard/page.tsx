@@ -33,20 +33,30 @@ export default function DashboardPage() {
       }
     };
 
-    // Fetch active vessels/aircrafts for the lists (hasSignal=true)
+    // Fetch active vessels from database and online aircrafts from Redis
     const fetchActiveItems = async () => {
       try {
         await Promise.all([
-          fetchAircrafts(1, 1000, undefined, true),
           fetchVessels(1, 1000, undefined, true),
+          fetchAircrafts(1, 1000, undefined, true),
         ]);
       } catch (error) {
         console.error('Failed to fetch active items:', error);
       }
     };
 
+    // Initial fetch
     fetchStats();
     fetchActiveItems();
+
+    // Auto-refresh every 30 seconds to match backend collector interval
+    const statsInterval = setInterval(fetchStats, 30000);
+    const itemsInterval = setInterval(fetchActiveItems, 30000);
+
+    return () => {
+      clearInterval(statsInterval);
+      clearInterval(itemsInterval);
+    };
   }, [fetchAircrafts, fetchVessels]);
 
   // Filter active vessels and aircrafts
@@ -159,9 +169,9 @@ export default function DashboardPage() {
                   </div>
                   <div className="space-y-3">
                     {paginatedAircrafts.length > 0 ? (
-                      paginatedAircrafts.map((aircraft) => (
+                      paginatedAircrafts.map((aircraft, index) => (
                         <div
-                          key={aircraft.id}
+                          key={`aircraft-${aircraft.id}-${index}`}
                           className="flex items-center justify-between rounded-md p-2 hover:bg-gray-50 cursor-pointer"
                           onClick={() => router.push(`/aircraft/${aircraft.id}`)}
                         >
@@ -231,9 +241,9 @@ export default function DashboardPage() {
                   </div>
                   <div className="space-y-3">
                     {paginatedVessels.length > 0 ? (
-                      paginatedVessels.map((vessel) => (
+                      paginatedVessels.map((vessel, index) => (
                         <div
-                          key={vessel.id}
+                          key={`vessel-${vessel.id}-${index}`}
                           className="flex items-center justify-between rounded-md p-2 hover:bg-gray-50 cursor-pointer"
                           onClick={() => router.push(`/vessels/${vessel.id}`)}
                         >

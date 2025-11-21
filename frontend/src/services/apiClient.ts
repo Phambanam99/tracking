@@ -50,6 +50,7 @@ class ApiService {
     const fullUrl = this.buildUrl(endpoint);
 
     const config: RequestInit = {
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
@@ -61,7 +62,7 @@ class ApiService {
 
     try {
       const response = await fetch(fullUrl, config);
-
+      console.log('[ApiClient] Request:', response);
       const text = await response.text();
       let payload: any = {};
       try {
@@ -162,6 +163,7 @@ class ApiService {
     try {
       const response = await fetch(fullUrl, {
         method: 'POST',
+        credentials: 'include',
         body: formData,
         headers, // DO NOT set Content-Type; browser will set multipart boundary
       });

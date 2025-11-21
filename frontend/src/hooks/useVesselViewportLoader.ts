@@ -7,8 +7,43 @@ import { usePortsStore } from '@/stores/portsStore';
 import { useMapStore } from '@/stores/mapStore';
 
 /**
- * Chỉ tải vessels (online trước, fallback initial) và optionally ports.
- * Tách biệt khỏi aircraft để giảm tải & tránh fetch thừa khi chỉ xem 1 lớp.
+ * Generate stable ID from vessel data
+ * Priority: backend id > vesselId > MMSI (numeric) > coordinates-based hash
+ */
+function generateStableVesselId(data: any): string | number {
+  // Use backend provided IDs first
+  if (data.id != null) return data.id;
+  if (data.vesselId != null) return data.vesselId;
+  
+  // MMSI is the most stable identifier for vessels
+  if (data.mmsi) {
+    // If MMSI is numeric, use it as number
+    if (/^\d+$/.test(String(data.mmsi))) {
+      return parseInt(String(data.mmsi), 10);
+    }
+    // Otherwise use as string
+    return String(data.mmsi).trim();
+  }
+  
+  // Use IMO number if available
+  if (data.imo && /^\d+$/.test(String(data.imo))) {
+    return `imo_${data.imo}`;
+  }
+  
+  // Use vessel name as fallback
+  if (data.vesselName && typeof data.vesselName === 'string' && data.vesselName.trim()) {
+    return `vessel_${data.vesselName.trim().replace(/\s+/g, '_')}`;
+  }
+  
+  // Last resort: coordinate-based (without timestamp!)
+  const lon = Math.round((data.longitude || 0) * 10000) / 10000;
+  const lat = Math.round((data.latitude || 0) * 10000) / 10000;
+  return `vessel_${lon}_${lat}`;
+}
+
+/**
+ * Only load vessels (online first, fallback initial) and optionally ports.
+ * Separated from aircraft to reduce load and avoid redundant fetches.
  */
 export function useVesselViewportLoader(params: {
   mapInstanceRef: React.RefObject<Map | null>;
@@ -23,9 +58,6 @@ export function useVesselViewportLoader(params: {
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Skip if not active
-    if (!isActive) return;
-
     const cleanup: Array<() => void> = [];
     lastBboxRef.current = '';
     lastZoomRef.current = null;
@@ -49,24 +81,30 @@ export function useVesselViewportLoader(params: {
           Math.min(85, tr[1] + padY),
         ];
         const bboxStr = bbox.join(',');
-        const zoom = map.getView().getZoom() ?? 0;
-        if (bboxStr === lastBboxRef.current && zoom === lastZoomRef.current)
+        const zoom = Math.round(map.getView().getZoom() ?? 0);
+        
+        // Skip if same viewport
+        if (bboxStr === lastBboxRef.current && zoom === lastZoomRef.current) {
           return;
+        }
+        
         lastBboxRef.current = bboxStr;
         lastZoomRef.current = zoom;
 
+        console.log('[VesselLoader] Fetching for bbox:', bboxStr);
+
         // WebSocket viewport update
         const { websocketService } = await import('@/services/websocket');
-        if (websocketService.socket) websocketService.updateViewport(bbox);
-        else {
+        if (websocketService.socket) {
+          websocketService.updateViewport(bbox);
+        } else {
           websocketService.connect();
           setTimeout(() => websocketService.subscribeViewport(bbox), 200);
         }
 
-        const qsOnline = `?bbox=${encodeURIComponent(
-          bboxStr,
-        )}&limit=50000&includePredicted=${showPredictedVessels}`;
+        const qsOnline = `?bbox=${encodeURIComponent(bboxStr)}&limit=50000&includePredicted=${showPredictedVessels}`;
         const qsInitial = `?bbox=${encodeURIComponent(bboxStr)}&zoom=${zoom}`;
+        
         try {
           const promises: Promise<any>[] = [
             api.get(`/vessels/online${qsOnline}`),
@@ -76,7 +114,9 @@ export function useVesselViewportLoader(params: {
               api.get(`/vessels/ports?bbox=${encodeURIComponent(bboxStr)}`),
             );
           }
+          
           const [vesselRaw, portsRaw] = await Promise.all(promises);
+          
           const unwrap = (r: any): any[] => {
             if (!r) return [];
             if (Array.isArray(r)) return r;
@@ -84,57 +124,58 @@ export function useVesselViewportLoader(params: {
             if (r.data && Array.isArray(r.data.data)) return r.data.data;
             return [];
           };
+          
           const arr = unwrap(vesselRaw);
-          let vessels: import('@/stores/vesselStore').Vessel[] = Array.isArray(
-            arr,
-          )
+          
+          let vessels: import('@/stores/vesselStore').Vessel[] = Array.isArray(arr)
             ? (arr
-                .map((v: any) =>
-                  v &&
-                  typeof v.longitude === 'number' &&
-                  typeof v.latitude === 'number'
-                    ? {
-                        id:
-                          v.id ??
-                          v.vesselId ??
-                          (v.mmsi && /^\d+$/.test(v.mmsi)
-                            ? parseInt(v.mmsi, 10)
-                            : `${v.mmsi || ''}:${v.longitude}:${v.latitude}`),
-                        mmsi: v.mmsi ?? '',
-                        vesselName: v.vesselName ?? v.name ?? undefined,
-                        createdAt: new Date(v.timestamp ?? Date.now()),
-                        updatedAt: new Date(v.timestamp ?? Date.now()),
-                        lastPosition: {
-                          latitude: v.latitude,
-                          longitude: v.longitude,
-                          speed: v.speed,
-                          course: v.course,
-                          heading: v.heading ?? v.course,
-                          status: v.status,
-                          timestamp: new Date(v.timestamp ?? Date.now()),
-                        },
-                        // ✅ Prediction fields
-                        predicted: v.predicted ?? false,
-                        confidence: v.confidence ?? 1.0,
-                        timeSinceLastMeasurement:
-                          v.timeSinceLastMeasurement ?? 0,
-                      }
-                    : null,
-                )
+                .map((v: any) => {
+                  // Validate coordinates
+                  if (!v || typeof v.longitude !== 'number' || typeof v.latitude !== 'number') {
+                    return null;
+                  }
+                  
+                  // Generate stable ID
+                  const stableId = generateStableVesselId(v);
+                  
+                  return {
+                    id: stableId,
+                    mmsi: v.mmsi ?? '',
+                    imo: v.imo,
+                    vesselName: v.vesselName ?? v.name ?? undefined,
+                    vesselType: v.vesselType,
+                    flag: v.flag,
+                    operator: v.operator,
+                    createdAt: new Date(v.timestamp ?? Date.now()),
+                    updatedAt: new Date(v.timestamp ?? Date.now()),
+                    lastPosition: {
+                      latitude: v.latitude,
+                      longitude: v.longitude,
+                      speed: v.speed,
+                      course: v.course,
+                      heading: v.heading ?? v.course,
+                      status: v.status,
+                      timestamp: new Date(v.timestamp ?? Date.now()),
+                    },
+                    // Prediction fields
+                    predicted: v.predicted ?? false,
+                    confidence: v.confidence ?? 1.0,
+                    timeSinceLastMeasurement: v.timeSinceLastMeasurement ?? 0,
+                  };
+                })
                 .filter(Boolean) as import('@/stores/vesselStore').Vessel[])
             : [];
+          
           console.log('[VesselLoader] Online vessels:', vessels.length);
+          
+          // Fallback to initial if online empty
           if (!vessels.length) {
+            console.log('[VesselLoader] No online data, falling back to initial');
             const init = await api.get(`/vessels/initial${qsInitial}`);
-            console.log(
-              '[VesselLoader] Initial API response:',
-              Array.isArray(init) ? init.length : 'not array',
-              init,
-            );
+            
             if (Array.isArray(init)) {
-              const beforeFilter = init.length;
               const [minLon, minLat, maxLon, maxLat] = bbox;
-              const freshnessMs = 48 * 60 * 60 * 1000; // keep last 48h to avoid stale vessels
+              const freshnessMs = 48 * 60 * 60 * 1000; // 48 hours
               const cutoffTs = Date.now() - freshnessMs;
 
               const normalizeTimestamp = (value: unknown): number | null => {
@@ -170,27 +211,32 @@ export function useVesselViewportLoader(params: {
               });
 
               const MAX_FALLBACK_VESSELS = 1500;
-              vessels = sortedByRecency.slice(0, MAX_FALLBACK_VESSELS);
+              vessels = sortedByRecency.slice(0, MAX_FALLBACK_VESSELS).map((v: any) => {
+                // Ensure stable ID for initial data too
+                if (!v.id) {
+                  v.id = generateStableVesselId({
+                    ...v,
+                    longitude: v.lastPosition.longitude,
+                    latitude: v.lastPosition.latitude,
+                  });
+                }
+                return v;
+              });
 
-              console.log(
-                '[VesselLoader] Filtered fallback vessels:',
-                vessels.length,
-                'of',
-                beforeFilter,
-                '(removed',
-                beforeFilter - vessels.length,
-                'outside viewport or stale)',
-              );
+              console.log('[VesselLoader] Initial vessels:', vessels.length);
             }
           }
-          console.log(
-            '[VesselLoader] Setting vessels to store:',
-            vessels.length,
-          );
-          if (vessels.length) setVessels(vessels);
-          if (showPorts && Array.isArray(portsRaw)) setPorts(portsRaw as any);
-        } catch (e) {
-          console.error('[VesselLoader] Error:', e);
+          
+          if (vessels.length) {
+            console.log('[VesselLoader] Setting', vessels.length, 'vessels to store');
+            setVessels(vessels);
+          }
+          
+          if (showPorts && Array.isArray(portsRaw)) {
+            setPorts(portsRaw as any);
+          }
+        } catch (error) {
+          console.error('[VesselLoader] Error:', error);
         }
       };
 
@@ -198,13 +244,16 @@ export function useVesselViewportLoader(params: {
         if (timerRef.current) window.clearTimeout(timerRef.current);
         timerRef.current = window.setTimeout(send, 300);
       };
+      
+      console.log('[VesselLoader] Map attached, triggering initial viewport update');
       debounced();
       map.on('moveend', debounced as any);
       cleanup.push(() => (map as any).un('moveend', debounced));
     };
 
-    if (mapInstanceRef.current) attach(mapInstanceRef.current);
-    else {
+    if (mapInstanceRef.current) {
+      attach(mapInstanceRef.current);
+    } else {
       const intv = window.setInterval(() => {
         if (mapInstanceRef.current) {
           window.clearInterval(intv);
@@ -213,6 +262,7 @@ export function useVesselViewportLoader(params: {
       }, 150);
       cleanup.push(() => window.clearInterval(intv));
     }
+    
     return () => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
       cleanup.forEach((fn) => fn());
